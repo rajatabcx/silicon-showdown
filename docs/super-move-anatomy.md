@@ -88,5 +88,21 @@ This changes one thing in the plan: Super clips need to be **6–9 seconds of co
 - **Beats:** title card → a talk-show desk and microphone drop in; the interviewer's question appears as a caption → insert shot: extreme close-up of Teal's face, frozen, a clock ticking → everything in the stage stops except the opponent's health, which drains for as long as the silence lasts → the stage goes grey and still → he finally shrugs.
 - **Bubbles:** Victim: "It's a yes or no question!" / Floating: "…" growing larger each second / Closing stamp: "STILL THINKING."
 
-### Still needed to do this exactly right
+### Checked against the audio (16 Nov 2026)
+
+I downloaded the video's Hindi soundtrack and transcribed it. It confirms the captions and gives real clip lengths:
+
+| Move | Spoken clip | Length |
+|---|---|---|
+| Gaddha Blast | "Jitna kaam maine das saal mein kiya, woh toh trailer tha… asli film abhi shuru hona baaki hai" | about 12 s |
+| Aloo Se Sona | "Aisi machine lagaunga, is side se aloo ghusega, us side se sona niklega" | about 12 s |
+| Time Is Money | "Money follows, my brother, money follows…" | about 6 s |
+| Rail Raja Express | "Yeh baat sahi nahi hai ki rail maanga gaya hai…" | about 5 s |
+| Budget | "Hamara rupaya theek chal raha hai" | about 2 s |
+| Manch Chhodo | "Jis raah pe tum chal rahe ho beta, ek din poori tarah phasoge…" | about 6 s |
+| Closing stamp | A voice says "Ghee khatam!" | 1 s |
+
+So Super clips run **5–12 seconds**, longer than I first guessed, and the closing stamp is voiced too.
+
+### Still needed to do this exactly right (superseded)
 The audio itself. With the recordings downloaded I can run the video's soundtrack through speech-to-text, get the real Hindi lines and exact clip lengths, and measure how the music ducks under the voice. That needs the same go-ahead as the interview downloads.

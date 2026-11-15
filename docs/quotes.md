@@ -54,9 +54,43 @@ These drive his version of the popularity meter (see the plan).
 
 ---
 
+## Clips cut so far (16 Nov 2026)
+
+Cut from the original recordings by `scripts/cut_clips.py` into `public/audio/voice/`. "Heard" is a machine transcription of the finished clip, used as a check. **I can't listen to audio, so please play each one**: the wording and length are verified, but not whether a clip starts or ends cleanly, or how much crowd noise is in it.
+
+| Clip | Length | Heard in the clip | Planned use |
+|---|---|---|---|
+| `tusk_heart` | 1.7 s | "My heart goes out to you." | Signature: the straight-arm move |
+| `tusk_heart_long` | 8.3 s | "My heart goes out to you. It is thanks to you that the future of civilization is assured." | Alternative Super clip |
+| `tusk_chainsaw` | 3.8 s | "This is the chainsaw for bureaucracy." | Signature: Chainsaw |
+| `tusk_chainsaw_yell` | 1.3 s | "Chainsaw!" | Bark on the chainsaw hit |
+| `tusk_blackmail` | 5.5 s | "If somebody's going to try to blackmail me with advertising, blackmail me with money, go f— yourself." | Super, first half |
+| `tusk_gfy` | 4.2 s | "Go f— yourself. Is that clear?" | Super, second half |
+| `tusk_dealbook` | 14.6 s | The whole exchange, including the long silence in the middle | Reference only; too long as one piece |
+| `tusk_omg` | 2.1 s | "Oh my God." | When his own move is Fact-Checked |
+| `tusk_too_hard` | 3.4 s | "Well, maybe that was a little too hard." | After he lands a heavy hit |
+| `tusk_plus_side` | 2.5 s | "It didn't go through, so that's a plus side." | When he blocks |
+| `tusk_empathy` | 5.3 s | "The fundamental weakness of Western civilization is empathy." | Taunt after a knockdown |
+| `tusk_two_years` | 7.6 s | "I think we're basically less than two years away from complete autonomy." | Signature: Self-Driving (long version) |
+| `tusk_next_year` | 3.3 s | "I think probably by the end of next year…" | Signature: Self-Driving |
+| `teal_hesitation` | 11.4 s | "You would prefer the human race to endure, right?" / "You're hesitating." / "Yes? I don't know. I would… I would…" | Super: The Hesitation |
+| `teal_long_hes` | 1.6 s | (interviewer) "This is a long hesitation." | Plays when he stalls |
+| `teal_losers` | 1.5 s | "Competition is for losers." | Signature: Monopoly; intro line |
+| `teal_monopoly` | 10.2 s | "You always want to aim for monopoly, and you want to always avoid competition. And so, hence, competition is for losers." | Alternative Super clip |
+| `teal_how_much_time` | 1.1 s | "How much time do we have?" | Opens the Antichrist lecture move |
+| `teal_long_time` | 2.1 s | "I could talk about it for a long time." | Second beat of the lecture move |
+| `teal_greta` | 4.0 s | "In our world, it's far more likely to be Greta Thunberg." | Punchline of the lecture move |
+| `teal_armageddon` | 5.7 s | "You have the one-world state of the Antichrist, or we're sleepwalking towards Armageddon." | Body of the lecture move |
+
+Notes:
+- The DealBook and Cybertruck recordings are **broadcast versions with the swearing bleeped**. An unbleeped DealBook cut would come from the NYT's full event video.
+- `tusk_empathy` comes from a commentary video that opens with the Rogan clip, not from the full episode. Worth re-cutting from the original episode later.
+- The "self-driving" clips come from a compilation video; the original interviews and dates still need identifying.
+- Still without a recording: the Cambridge Union and Aspen lines for Thiel, and anything Musk only typed.
+
 ## What I need to finish this list
-1. A go-ahead to download the interview recordings (list below), so I can find the exact seconds and cut the clips.
-2. Your pick on the DealBook line: bleeped or uncensored.
+1. Your ears on the clips above.
+2. Your pick on the DealBook line: bleeped (what we have) or uncensored.
 
 **Recordings to fetch:** Trump inauguration rally 20 Jan 2025 · CPAC 20 Feb 2025 · DealBook Summit 29 Nov 2023 · Cybertruck unveiling 21 Nov 2019 · Joe Rogan #2281 (28 Feb 2025) · Interesting Times with Peter Thiel (Jun 2025) · Stanford CS183B lecture 5 (2014) · Thiel at Cambridge Union (Jul 2024) · Thiel at Aspen Ideas (Jun 2024).
 
