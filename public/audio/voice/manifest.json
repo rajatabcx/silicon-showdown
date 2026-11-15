@@ -1,0 +1,116 @@
+{
+  "tusk_heart": {
+    "file": "/audio/voice/tusk_heart.mp3",
+    "seconds": 6.18,
+    "heard": "My heart goes out to you.",
+    "source": "musk_rally"
+  },
+  "tusk_heart_long": {
+    "file": "/audio/voice/tusk_heart_long.mp3",
+    "seconds": 12.18,
+    "heard": "My heart goes out to you. It is thanks to you that the future of civilization is assured.",
+    "source": "musk_rally"
+  },
+  "tusk_chainsaw_yell": {
+    "file": "/audio/voice/tusk_chainsaw_yell.mp3",
+    "seconds": 6.94,
+    "heard": "The chainsaw for bureaucracy Chainsaw!",
+    "source": "musk_chainsaw"
+  },
+  "tusk_dealbook": {
+    "file": "/audio/voice/tusk_dealbook.mp3",
+    "seconds": 17.15,
+    "heard": "If somebody's gonna try to blackmail me with advertising, blackmail me with money, go yourself. But go yourself. Is that clear?",
+    "source": "musk_dealbook"
+  },
+  "tusk_gfy": {
+    "file": "/audio/voice/tusk_gfy.mp3",
+    "seconds": 4.63,
+    "heard": "- Go yourself. Is that clear?",
+    "source": "musk_dealbook"
+  },
+  "tusk_omg": {
+    "file": "/audio/voice/tusk_omg.mp3",
+    "seconds": 4.0,
+    "heard": "Oh my god.",
+    "source": "musk_cybertruck"
+  },
+  "tusk_too_hard": {
+    "file": "/audio/voice/tusk_too_hard.mp3",
+    "seconds": 3.79,
+    "heard": "Well, maybe that was a little too hard.",
+    "source": "musk_cybertruck"
+  },
+  "tusk_plus_side": {
+    "file": "/audio/voice/tusk_plus_side.mp3",
+    "seconds": 5.18,
+    "heard": "it didn't go through so that's a plus side let's try the rest",
+    "source": "musk_cybertruck"
+  },
+  "tusk_empathy": {
+    "file": "/audio/voice/tusk_empathy.mp3",
+    "seconds": 7.18,
+    "heard": "- The fundamental weakness of Western civilization is empathy. - Empathy.",
+    "source": "musk_empathy"
+  },
+  "tusk_two_years": {
+    "file": "/audio/voice/tusk_two_years.mp3",
+    "seconds": 9.3,
+    "heard": "I think we're basically less than two years away from complete autonomy.",
+    "source": "musk_fsd"
+  },
+  "tusk_next_year": {
+    "file": "/audio/voice/tusk_next_year.mp3",
+    "seconds": 3.53,
+    "heard": "I think probably by the end of next year,",
+    "source": "musk_fsd"
+  },
+  "teal_hesitation": {
+    "file": "/audio/voice/teal_hesitation.mp3",
+    "seconds": 11.44,
+    "heard": "You would prefer the human race to endure, right? You're hesitating. Yeah, well, I... Yes? I don't know. I would... I would...",
+    "source": "thiel_douthat"
+  },
+  "teal_long_hes": {
+    "file": "/audio/voice/teal_long_hes.mp3",
+    "seconds": 3.4,
+    "heard": "This is a long hesitation. This is a long hesitation.",
+    "source": "thiel_douthat"
+  },
+  "teal_losers": {
+    "file": "/audio/voice/teal_losers.mp3",
+    "seconds": 2.7,
+    "heard": "Hence, competition is for losers, something",
+    "source": "thiel_competition"
+  },
+  "teal_monopoly": {
+    "file": "/audio/voice/teal_monopoly.mp3",
+    "seconds": 10.93,
+    "heard": "You always want to aim for monopoly, and that you want to always avoid competition. And so, hence, competition is for losers.",
+    "source": "thiel_competition"
+  },
+  "teal_how_much_time": {
+    "file": "/audio/voice/teal_how_much_time.mp3",
+    "seconds": 1.12,
+    "heard": "How much time do we have?",
+    "source": "thiel_douthat"
+  },
+  "teal_long_time": {
+    "file": "/audio/voice/teal_long_time.mp3",
+    "seconds": 2.34,
+    "heard": "Well, I could talk about it for a long time, but...",
+    "source": "thiel_douthat"
+  },
+  "teal_greta": {
+    "file": "/audio/voice/teal_greta.mp3",
+    "seconds": 4.3,
+    "heard": "In our world, it's far more likely to be Greta Thunberg.",
+    "source": "thiel_douthat"
+  },
+  "teal_armageddon": {
+    "file": "/audio/voice/teal_armageddon.mp3",
+    "seconds": 8.7,
+    "heard": "You have the one world state of the Antichrist, or we're sleepwalking towards Armageddon. One world or none, Antichrist or Armageddon.",
+    "source": "thiel_douthat"
+  }
+}
