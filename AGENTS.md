@@ -7,3 +7,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+## Project plan
+
+This repo is building **Silicon Showdown**, a satirical 3D browser fighting game. Before writing any code, read `docs/build-plan.md` (the spec and phases) and `docs/research.md` (the references and sources). Build phase by phase, and don't start a new phase until the current one passes its acceptance checks.
