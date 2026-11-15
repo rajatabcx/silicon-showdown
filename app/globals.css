@@ -1,26 +1,49 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: #0b0a12;
+  color: #fff;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+.menu-btn {
+  border-radius: 0.5rem;
+  background: #e5484d;
+  padding: 0.75rem 1.25rem;
+  font-weight: 900;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  box-shadow: 0 4px 0 rgb(0 0 0 / 0.5);
+  transition: transform 80ms;
+  cursor: pointer;
+}
+.menu-btn:hover { transform: translateY(-2px); }
+.menu-btn:active { transform: translateY(2px); box-shadow: none; }
+
+.chip {
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.25);
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+}
+.chip-on { background: #fde047; color: #000; border-color: #fde047; font-weight: 700; }
+
+.touch-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 999px;
+  border: 2px solid rgb(255 255 255 / 0.6);
+  background: rgb(255 255 255 / 0.15);
+  touch-action: none;
+}
 }

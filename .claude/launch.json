@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "silicon-showdown", "runtimeExecutable": "pnpm", "runtimeArgs": ["dev"], "port": 3000 }
+  ]
+}
