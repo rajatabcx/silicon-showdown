@@ -42,3 +42,6 @@ next-env.d.ts
 
 # downloaded source recordings (large; not committed)
 /recordings
+
+# raw downloaded models (large; the cleaned versions in public/ are committed)
+/assets-src
