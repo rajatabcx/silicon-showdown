@@ -1,17 +1,26 @@
-"""Rig a static character with the skeleton from the animated Musk download.
+"""Rig a static character with the skeleton from the animated Tusk download, so Tusk's clips play on it.
 
-Measures the same body landmarks on both meshes (feet, crotch, neck, head top, hand tips, leg centres),
-moves each bone to the matching place on the new body, binds the mesh with automatic weights,
-and exports public/models/characters/<name>.glb. Animations are shared: the game plays Musk's clips on this rig.
+How it works (v2, replaces the voxel-remesh attempt):
+1. Measure the same body landmarks on both meshes and map every joint position from Tusk's body to the new one.
+2. Move each bone's head there but keep the bone's exact rest *orientation* (direction and roll) from Tusk's rig.
+   Because the rest rotations are identical, Tusk's clips (local rotations) drive this skeleton with no retargeting:
+   every body part turns by exactly the same world rotation as on Tusk. The game strips the per-bone translation
+   tracks (except the hips) so the new body keeps its own proportions.
+3. Weight the real mesh directly: each vertex follows its nearest bone segment (joint to child joint), blended with
+   that bone's parent or child near a joint, with hard rules so a vertex never follows the other side's limb or an
+   arm bone from the legs. No automatic heat weights, no remeshed proxy.
 
-Run:  Blender -b -P scripts/blender/rig_teal.py -- teal
+Run:  Blender -b -P scripts/blender/rig_teal.py -- teal --crotch 0.44 [--render]
+Out:  public/models/characters/<name>.glb (mesh + skeleton, no clips), docs/previews/<name>_rig_*.png with --render
 """
-import math, os, sys
+import os, sys
 import bpy, numpy as np
 from mathutils import Vector
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-name = sys.argv[sys.argv.index("--") + 1]
+args = sys.argv[sys.argv.index("--") + 1:]
+name = args[0]
+RENDER = "--render" in args
 
 
 def verts(o):
@@ -25,7 +34,6 @@ def verts(o):
 
 def landmarks(v):
     H = v[:, 2].max()
-    # Crotch: the lowest height where there is no gap between the legs at the centre line.
     crotch = 0.45 * H
     for z in np.arange(0.08 * H, 0.6 * H, 0.006 * H):
         sl = v[(np.abs(v[:, 2] - z) < 0.006 * H) & (np.abs(v[:, 0]) < 0.12 * H)]
@@ -53,10 +61,11 @@ bpy.ops.import_scene.gltf(filepath=f"{ROOT}/assets-src/models/tusk_anim_raw.glb"
 sc = bpy.context.scene
 arm = next(o for o in sc.objects if o.type == "ARMATURE")
 src = next(o for o in sc.objects if o.type == "MESH" and o.parent)
+if arm.animation_data:
+    arm.animation_data.action = None
 M = landmarks(verts(src))
 for o in [o for o in sc.objects if o.type == "MESH"]:
     bpy.data.objects.remove(o)
-arm.animation_data.action = None
 
 bpy.ops.import_scene.gltf(filepath=f"{ROOT}/assets-src/models/{name}_clean_static.glb")
 body = next(o for o in sc.objects if o.type == "MESH")
@@ -69,8 +78,12 @@ bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 s = M["H"] / body.dimensions.z
 body.scale = (s, s, s)
 bpy.ops.object.transform_apply(scale=True)
-T = landmarks(verts(body))
-print("LAND musk", {k: round(v, 3) for k, v in M.items()})
+V = verts(body)
+T = landmarks(V)
+if "--crotch" in args:
+    # The gap detector fails when the legs nearly touch (Teal); measure the crotch from a front render instead.
+    T["crotch"] = float(args[args.index("--crotch") + 1])
+print("LAND tusk", {k: round(v, 3) for k, v in M.items()})
 print("LAND", name, {k: round(v, 3) for k, v in T.items()})
 
 
@@ -91,107 +104,170 @@ def fit(p, kind):
     return Vector((x, y - M["ymid"] + T["ymid"], zmap(z)))
 
 
+def short(n):
+    return n.split(":")[-1]
+
+
+def kind_of(n):
+    if any(k in n for k in ("Arm", "Hand")):
+        return "arm"
+    if any(k in n for k in ("Leg", "Foot", "Toe")):
+        return "leg"
+    return "body"
+
+
+def centre_in_mesh(p, n, radius):
+    """Pull a joint to the centre of the mesh slice around it, so limb bones run down the middle of the limb."""
+    if n.startswith(("LeftHand", "RightHand")) and n not in ("LeftHand", "RightHand"):
+        return p  # fingers: leave mapped
+    near = V[np.linalg.norm(V - np.array(p), axis=1) < radius]
+    side = 1 if n.startswith("Left") else -1 if n.startswith("Right") else 0
+    if side:
+        near = near[near[:, 0] * side > 0.01]
+    if len(near) < 12:
+        return p
+    c = (near.min(axis=0) + near.max(axis=0)) / 2
+    return Vector((c[0], c[1], p.z)) if kind_of(n) == "leg" else Vector(c) if kind_of(n) == "arm" else Vector((p.x, c[1], p.z))
+
+
+# Map every joint, then move bones keeping orientation. Matrix_world is identity-rotation after import.
 W = arm.matrix_world.copy()
 W_inv = W.inverted()
-print("ARM matrix", [[round(x, 2) for x in r] for r in W])
 bpy.context.view_layer.objects.active = arm
 bpy.ops.object.mode_set(mode="EDIT")
-for b in arm.data.edit_bones:
-    n = b.name.split(":")[-1]
-    kind = "arm" if any(k in n for k in ("Arm", "Hand")) else "leg" if any(k in n for k in ("Leg", "Foot", "Toe")) else "body"
-    head_kind = "body" if "Shoulder" in n else kind
-    tail_kind = "arm" if "Shoulder" in n else kind
-    # Bone coordinates are in the armature's own space; the landmarks are in world space.
-    b.head, b.tail = W_inv @ fit(W @ b.head, head_kind), W_inv @ fit(W @ b.tail, tail_kind)
+eb = arm.data.edit_bones
+for b in eb:
+    b.use_connect = False
+heads, dirs = {}, {}
+for b in eb:
+    n = short(b.name)
+    wh = W @ b.head
+    k = "body" if "Shoulder" in n else kind_of(n)
+    p = fit(wh, k)
+    if n in ("LeftArm", "RightArm", "LeftForeArm", "RightForeArm", "LeftHand", "RightHand", "LeftUpLeg", "RightUpLeg",
+             "LeftLeg", "RightLeg", "LeftFoot", "RightFoot"):
+        p = centre_in_mesh(p, n, 0.045 if "Leg" in n or "Foot" in n else 0.035)
+    heads[b.name] = p
+    dirs[b.name] = (b.tail - b.head, b.roll)
+for b in eb:
+    d, roll = dirs[b.name]
+    b.head = W_inv @ heads[b.name]
+    b.tail = b.head + d
+    b.roll = roll
 bpy.ops.object.mode_set(mode="OBJECT")
+print("JOINTS", {short(k): tuple(round(c, 3) for c in v) for k, v in heads.items() if "Hand" not in short(k)[4:] or short(k).endswith("Hand")})
 
-# Bind. Automatic weights need a clean surface, so weight a voxel-remeshed copy and transfer to the real mesh.
-proxy = body.copy()
-proxy.data = body.data.copy()
-sc.collection.objects.link(proxy)
-bpy.ops.object.select_all(action="DESELECT")
-proxy.select_set(True)
-bpy.context.view_layer.objects.active = proxy
-r = proxy.modifiers.new("remesh", "REMESH")
-r.mode, r.voxel_size = "VOXEL", 0.012
-bpy.ops.object.modifier_apply(modifier="remesh")
-arm.select_set(True)
-bpy.context.view_layer.objects.active = arm
-bpy.ops.object.parent_set(type="ARMATURE_AUTO")
-weighted = sum(1 for v in proxy.data.vertices if v.groups)
-print("PROXY verts", len(proxy.data.vertices), "weighted", weighted)
+# ---- Weights: nearest bone segment, region rules, parent/child blend.
+DEFORM = ["Hips", "Spine", "Spine1", "Spine2", "Neck", "Head"] + [f"{s}{p}" for s in ("Left", "Right") for p in
+                                                                  ("Shoulder", "Arm", "ForeArm", "Hand", "UpLeg", "Leg", "Foot", "ToeBase")]
+full = {short(b.name): b.name for b in arm.data.bones}
+parent = {short(b.name): short(b.parent.name) if b.parent else None for b in arm.data.bones}
+END = {"Hips": "Spine", "Spine": "Spine1", "Spine1": "Spine2", "Spine2": "Neck", "Neck": "Head", "Head": "HeadTop_End"}
+for s in ("Left", "Right"):
+    END.update({f"{s}Shoulder": f"{s}Arm", f"{s}Arm": f"{s}ForeArm", f"{s}ForeArm": f"{s}Hand", f"{s}Hand": f"{s}HandMiddle2",
+                f"{s}UpLeg": f"{s}Leg", f"{s}Leg": f"{s}Foot", f"{s}Foot": f"{s}ToeBase", f"{s}ToeBase": f"{s}Toe_End"})
+seg = {}
+for n in DEFORM:
+    a = np.array(heads[full[n]])
+    e = END[n]
+    b = np.array(heads[full[e]]) if e in full else a + np.array(W @ (arm.data.bones[full[n]].tail_local) - W @ arm.data.bones[full[n]].head_local)
+    seg[n] = (a, b)
+hand_l = max(heads[full["LeftHand"]].x, 0.1)
+arm_x = {s: abs(heads[full[f"{s}Arm"]].x) for s in ("Left", "Right")}
 
-bpy.ops.object.select_all(action="DESELECT")
-body.select_set(True)
-bpy.context.view_layer.objects.active = body
-for g in proxy.vertex_groups:
-    body.vertex_groups.new(name=g.name)
-dt = body.modifiers.new("dt", "DATA_TRANSFER")
-dt.object, dt.use_vert_data, dt.data_types_verts, dt.vert_mapping = proxy, True, {"VGROUP_WEIGHTS"}, "POLYINTERP_NEAREST"
-dt.layers_vgroup_select_src, dt.layers_vgroup_select_dst = "ALL", "NAME"
-bpy.ops.object.modifier_apply(modifier="dt")
 
-# The arms hang close to the jacket, so the remeshed copy fuses them and weights bleed across.
-# Split by position: vertices out past the armpit belong to that side's arm chain only; torso vertices never follow an arm.
-armpit = abs((arm.matrix_world @ arm.data.bones["mixamorig:LeftArm"].head_local).x)
-elbow_z = (arm.matrix_world @ arm.data.bones["mixamorig:LeftForeArm"].head_local).z
-is_arm = lambda n: any(k in n for k in ("Arm", "Hand"))
-groups = {g.index: g for g in body.vertex_groups}
-fixed = 0
-for v in body.data.vertices:
-    x, z = (body.matrix_world @ v.co).x, (body.matrix_world @ v.co).z
-    side = "Left" if x > 0 else "Right"
-    out = abs(x) > armpit * 1.02 and z < T["neck"]
-    for ge in list(v.groups):
-        n = groups[ge.group].name.split(":")[-1]
-        bad = False
-        if out:
-            mine = n.startswith(side) and (is_arm(n) or "Shoulder" in n)
-            near_shoulder = z > elbow_z and n in ("Spine2", "Spine1")
-            bad = not (mine or near_shoulder)
-        elif abs(x) < armpit * 0.8:
-            bad = is_arm(n) and "Shoulder" not in n
-        if bad:
-            groups[ge.group].remove([v.index]); fixed += 1
-    if not v.groups:
-        groups[body.vertex_groups[f"mixamorig:{side}ForeArm" if out else "mixamorig:Spine1"].index].add([v.index], 1.0, "REPLACE")
-print("WEIGHT fixes", fixed, "armpit", round(armpit, 3))
-bpy.ops.object.vertex_group_limit_total(limit=4)
-bpy.ops.object.vertex_group_normalize_all(lock_active=False)
-bpy.data.objects.remove(proxy)
+def seg_dist(P, a, b):
+    ab = b - a
+    t = np.clip(((P - a) @ ab) / max(ab @ ab, 1e-9), 0, 1)
+    return np.linalg.norm(P - (a + t[:, None] * ab), axis=1)
+
+
+D = np.stack([seg_dist(V, *seg[n]) for n in DEFORM], axis=1)
+x, z = V[:, 0], V[:, 2]
+crotch = T["crotch"]
+for j, n in enumerate(DEFORM):
+    bad = np.zeros(len(V), bool)
+    if n.startswith("Left"):
+        bad |= x < -0.005
+    if n.startswith("Right"):
+        bad |= x > 0.005
+    if kind_of(n) == "arm":
+        side = "Left" if n.startswith("Left") else "Right"
+        bad |= np.abs(x) < arm_x[side] * 0.85  # torso never follows the arm
+    if kind_of(n) == "leg":
+        bad |= np.abs(x) > max(arm_x.values()) * 1.15  # hanging hands never follow a leg
+    if n in ("LeftLeg", "RightLeg", "LeftFoot", "RightFoot", "LeftToeBase", "RightToeBase"):
+        bad |= z > crotch
+    if n in ("LeftUpLeg", "RightUpLeg"):
+        bad |= z > crotch + 0.12
+    if n in ("Neck", "Head"):
+        bad |= z < T["neck"] - 0.06
+    if n == "Head":
+        bad |= z < T["neck"] - 0.01
+    D[bad, j] = 99
+order = np.argsort(D, axis=1)
+idx = {n: j for j, n in enumerate(DEFORM)}
+for n in DEFORM:
+    if body.vertex_groups.get(full[n]) is None:
+        body.vertex_groups.new(name=full[n])
+groups = {n: body.vertex_groups[full[n]] for n in DEFORM}
+BLEND = 0.035  # metres of soft transition around a joint
+counts = {}
+for vi in range(len(V)):
+    j1 = order[vi, 0]
+    n1 = DEFORM[j1]
+    d1 = D[vi, j1]
+    w = {n1: 1.0}
+    for j2 in order[vi, 1:4]:
+        n2 = DEFORM[j2]
+        if parent.get(n2) == n1 or parent.get(n1) == n2:
+            d2 = D[vi, j2]
+            if d2 < 90 and d2 - d1 < BLEND:
+                t = 0.5 * (1 - (d2 - d1) / BLEND)
+                w = {n1: 1 - t, n2: t}
+            break
+    for n, wt in w.items():
+        groups[n].add([vi], float(wt), "REPLACE")
+        counts[n] = counts.get(n, 0) + 1
+print("WEIGHTS", counts)
+
 body.parent = arm
 am = body.modifiers.new("Armature", "ARMATURE")
 am.object = arm
 arm.name = "Rig"
-print("BODY weighted", sum(1 for v in body.data.vertices if v.groups), "of", len(body.data.vertices))
 
 bpy.ops.object.select_all(action="DESELECT")
 arm.select_set(True)
 body.select_set(True)
-for a in list(bpy.data.actions):
-    a.use_fake_user = True
 bpy.ops.export_scene.gltf(filepath=f"{ROOT}/public/models/characters/{name}.glb", export_format="GLB", use_selection=True,
                           export_yup=True, export_image_format="WEBP", export_image_quality=85, export_animations=False)
+print("EXPORTED")
 
-# Test renders: play three of Musk's clips on the new rig.
-sc.render.engine = "CYCLES"
-sc.cycles.samples, sc.cycles.use_denoising = 32, True
-sc.render.resolution_x, sc.render.resolution_y = 600, 700
-w = bpy.data.worlds.new("w"); w.use_nodes = True
-w.node_tree.nodes["Background"].inputs[0].default_value = (0.1, 0.09, 0.14, 1)
-w.node_tree.nodes["Background"].inputs[1].default_value = 0.6
-sc.world = w
-mid = Vector((0, 0, 0.9))
-for kind, loc, e in (("key", (2, -3, 3), 500), ("fill", (-3, -2, 1.5), 200), ("rim", (-1.5, 3, 3), 400)):
-    d = bpy.data.lights.new(kind, "AREA"); d.energy, d.size = e, 3
-    l = bpy.data.objects.new(kind, d); l.location = loc
-    l.rotation_euler = (mid - l.location).to_track_quat("-Z", "Y").to_euler(); sc.collection.objects.link(l)
-cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam")); cam.data.lens = 60
-cam.location = (3.6, 2.6, 1.3); cam.rotation_euler = (mid - cam.location).to_track_quat("-Z", "Y").to_euler()
-sc.collection.objects.link(cam); sc.camera = cam
-fps = sc.render.fps
-for clip, t in (("Left_Jab_from_Guard", 0.5), ("Roundhouse_Kick", 0.83), ("Walk_Fight_Forward", 0.4)):
-    arm.animation_data.action = bpy.data.actions[clip]
-    sc.frame_set(int(t * fps))
-    sc.render.filepath = f"{ROOT}/docs/previews/{name}_rig_{clip}.png"
-    bpy.ops.render.render(write_still=True)
+if RENDER:
+    # Play three of Tusk's clips, rotations only (as the game does), and render.
+    for act in bpy.data.actions:
+        bags = [act] if hasattr(act, "fcurves") else [cb for l in act.layers for st in l.strips for cb in st.channelbags]
+        for bag in bags:
+            for fc in list(bag.fcurves):
+                if fc.data_path.endswith("location") and "Hips" not in fc.data_path:
+                    bag.fcurves.remove(fc)
+    sc.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in [e.identifier for e in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items] else "BLENDER_EEVEE"
+    sc.render.resolution_x, sc.render.resolution_y = 500, 600
+    wd = bpy.data.worlds.new("w"); wd.use_nodes = True
+    wd.node_tree.nodes["Background"].inputs[0].default_value = (0.25, 0.24, 0.3, 1)
+    sc.world = wd
+    sun = bpy.data.objects.new("sun", bpy.data.lights.new("sun", "SUN")); sun.data.energy = 4
+    sun.rotation_euler = (0.8, 0.2, 0.6); sc.collection.objects.link(sun)
+    mid = Vector((0, 0, 0.85))
+    cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam")); cam.data.lens = 45
+    cam.location = (2.6, -3.4, 1.3); cam.rotation_euler = (mid - cam.location).to_track_quat("-Z", "Y").to_euler()
+    sc.collection.objects.link(cam); sc.camera = cam
+    if not arm.animation_data:
+        arm.animation_data_create()
+    fps = sc.render.fps
+    for clip, t in (("Left_Jab_from_Guard", 0.5), ("Roundhouse_Kick", 0.83), ("Walk_Fight_Forward", 0.4),
+                    ("Right_Uppercut_from_Guard", 0.6), ("Knock_Down", 1.9)):
+        arm.animation_data.action = bpy.data.actions[clip]
+        sc.frame_set(int(t * fps))
+        sc.render.filepath = f"{ROOT}/docs/previews/{name}_rig_{clip}.png"
+        bpy.ops.render.render(write_still=True)
