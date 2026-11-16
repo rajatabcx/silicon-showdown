@@ -30,6 +30,9 @@ const SIG_ANIM: Record<string, Win> = {
   losers: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.55, tail: 0.38 },
   lecture: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.25, tail: 0.25 },
   pause: { clip: 'Long_Breathe_and_Look_Around', impact: 1, lead: 0, tail: 0 },
+  // Sidekick Policy Moves: an arm raised to bring the stamp down; a quick toss for each cat.
+  tariff: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.5, tail: 0.38 },
+  cats: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.3, tail: 0.3 },
 };
 
 const HIPS = 'mixamorigHips';
@@ -86,7 +89,12 @@ export class FighterView {
   /** Cinematic override: what the fighter does while a Super plays. */
   role: Role | null = null;
 
-  constructor(gltf: GLTF, clips: THREE.AnimationClip[], srcHipsRest: THREE.Vector3, public info: FighterInfo, public side: 0 | 1) {
+  /**
+   * `limited`: a sidekick politician. Same skeleton and clips, but a small move set: no kicks, no boxing guard,
+   * every attack is a short jab or shove, and no jumping pose.
+   */
+  constructor(gltf: GLTF, clips: THREE.AnimationClip[], srcHipsRest: THREE.Vector3, public info: FighterInfo, public side: 0 | 1,
+    private limited = false) {
     this.model = SkeletonUtils.clone(gltf.scene);
     this.model.scale.setScalar(info.height);
     this.root.add(this.model);
@@ -97,6 +105,8 @@ export class FighterView {
     });
     for (const mesh of meshes) {
       const mat = litMaterial(mesh.material as THREE.Material, info.id === 'tusk' ? 0x3a2418 : 0x1c2e3c);
+      // The sidekick models have very pale hair that blooms under the top light; take a little off.
+      if (limited) { mat.color.multiplyScalar(0.84); mat.roughness = Math.max(mat.roughness, 0.7); }
       this.uniforms.push(mat.userData.u);
       mesh.material = mat;
       mesh.castShadow = true;
@@ -311,6 +321,23 @@ export class FighterView {
         case 'down': return { key: 'c-down', clip: 'Knock_Down', t: 2.45, fade: 0.2 };
         case 'shrug': return { key: 'c-shrug', clip: 'Long_Breathe_and_Look_Around', speed: 0.6, fade: 0.3 };
         case 'fight': return { key: 'c-fight', clip: 'Block1', t: 0.3, fade: 0.2 };
+      }
+    }
+    if (this.limited) {
+      const atk = f.move && (f.state === 'attack' || f.state === 'jump');
+      if (atk) {
+        const k = f.move!, mv = MOVES[k];
+        const w = k === 'jab' || k === 'hook' || k === 'airPunch' ? MOVE_ANIM.jab : MOVE_ANIM.cross;
+        return { key: `atk-${k}-${f.chain}`, clip: w.clip, t: this.win(w, f.af, mv.startup, mv.startup + mv.active + mv.recovery), fade: 0.08 };
+      }
+      if (f.state === 'idle' || f.state === 'crouch' || f.state === 'jump') {
+        // Stands upright and fidgets, like a man at a podium: the first seconds of the breathing clip.
+        const p = (Math.sin(this.loopT * 0.9) + 1) / 2;
+        return { key: 'idle', clip: 'Long_Breathe_and_Look_Around', t: 0.4 + p * 1.6, fade: 0.2 };
+      }
+      if (f.state === 'walk') {
+        const back = (f.cur & (f.facing === 1 ? 1 : 2)) !== 0;
+        return { key: back ? 'walkB' : 'walkF', clip: 'Walk_Fight_Forward', speed: back ? -0.9 : 1.0, fade: 0.15 };
       }
     }
     switch (f.state) {

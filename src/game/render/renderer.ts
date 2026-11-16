@@ -12,7 +12,7 @@ import type { Ev, Match, Projectile, SimDef } from '../sim/types';
 import type { Assets } from './assets';
 import { FighterView, hipsRest } from './character';
 import { gate, label, modelProp, page, postCard, rocket, talkShowSet, tickerScreen } from './props';
-import { catSprite, SidekickView, tariffStamp } from './sidekick';
+import { catSprite, tariffStamp } from './sidekick';
 import { Stage, type Mood } from './stage';
 
 const GradeShader = {
@@ -54,7 +54,9 @@ export class Renderer {
   private grade: ShaderPass;
   private stage: Stage;
   views: FighterView[] = [];
-  private sk: SidekickView[] = [];
+  /** The funded politicians: same rig as the billionaires, limited move set. Hidden until tagged in. */
+  private sk: FighterView[] = [];
+  private skZ = [0, 0];
   /** Where each billionaire stands while the sidekick fights (walks to the back corner). */
   private restX = [0, 0];
   private sides: SideSetup[];
@@ -102,7 +104,9 @@ export class Renderer {
       const v = new FighterView(gltf, assets.tusk.animations, rest, s.info, i as 0 | 1);
       this.scene.add(v.root);
       this.views.push(v);
-      const sk = new SidekickView(s.info.sidekick);
+      const si = s.info.sidekick;
+      const sk = new FighterView(assets[si.model], assets.tusk.animations, rest, { ...s.info, height: si.height }, i as 0 | 1, true);
+      sk.root.visible = false;
       this.scene.add(sk.root);
       this.sk.push(sk);
     });
@@ -121,18 +125,16 @@ export class Renderer {
     if (process.env.NODE_ENV !== 'production') (window as unknown as { __ss: unknown }).__ss = { r: this, scene: this.scene, bloom: this.bloom, grade: this.grade, stage: this.stage, gl: this.gl };
   }
 
-  /** A body point on whoever is fighting for this side: the billionaire, or the sidekick cutout. */
+  /** A body point on whoever is fighting for this side: the billionaire, or the sidekick when tagged in. */
   private part(side: number, name: 'head' | 'chest' | 'hips', m?: Match) {
     if (m && m.f[side].tag > 0) {
-      const p = this.sk[side].headPos();
-      if (name !== 'head') p.y -= name === 'chest' ? 0.6 : 0.95;
-      return p;
+      return this.sk[side].bonePos(name);
     }
     return this.views[side].bonePos(name);
   }
 
   private flashSide(side: number, m: Match, k: number) {
-    if (m.f[side].tag > 0) this.sk[side].hitFlash(); else this.views[side].hitFlash(k);
+    if (m.f[side].tag > 0) this.sk[side].hitFlash(k); else this.views[side].hitFlash(k);
   }
 
   // ---------- effects
@@ -260,7 +262,7 @@ export class Renderer {
         break;
       }
       case 'tagOut': {
-        const p = this.sk[e.by].headPos(); p.y -= 0.5;
+        const p = this.sk[e.by].bonePos('head'); p.y -= 0.5;
         this.spark(p, e.scandal ? 3 : 1.4, e.scandal ? '#ff5a52' : '#fff0a0', 0.35);
         this.burst(p, e.scandal ? 18 : 6, e.scandal ? '#ff8f6b' : '#fff6c8', 8);
         if (e.scandal) { this.kick(0.35, 0.15, 0.8, 0.01); this.stage.photo(); }
@@ -327,7 +329,15 @@ export class Renderer {
     this.updateSigProps(m);
     this.views.forEach((v, i) => {
       const f = m.f[i];
-      this.sk[i].update(f, dt, frozen);
+      const sk = this.sk[i];
+      if (f.tag > 0) {
+        // Steps in from the back of the room to take the billionaire's place.
+        if (!sk.root.visible) this.skZ[i] = -2.4;
+        sk.root.visible = true;
+        sk.update(f, this.sides[i].def, m, dt, frozen);
+        if (!frozen) this.skZ[i] += -this.skZ[i] * Math.min(1, dt * 5);
+        sk.root.position.z = this.skZ[i];
+      } else sk.root.visible = false;
       if (f.tag > 0) {
         // The billionaire walks to the back corner and gets his breath back.
         const corner = Math.max(-5.6, Math.min(5.6, f.x - f.facing * 1.5));
@@ -421,7 +431,7 @@ export class Renderer {
   }
 
   headOnScreen(side: 0 | 1, m?: Match) {
-    const p = m && m.f[side].tag > 0 ? this.sk[side].headPos() : this.views[side].bonePos('head');
+    const p = m && m.f[side].tag > 0 ? this.sk[side].bonePos('head') : this.views[side].bonePos('head');
     p.y += 0.35;
     p.project(this.cam);
     return { x: (p.x + 1) / 2, y: (1 - p.y) / 2 };

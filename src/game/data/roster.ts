@@ -65,7 +65,8 @@ export type SuperInfo = {
 /** The funded politician who tags in when the billionaire runs out of cardio. Parody name; no voice clips yet. */
 export type SidekickInfo = {
   name: string; title: string;
-  look: { suit: string; tie: string; skin: string; hair: string; hairStyle: 'swoop' | 'beard' };
+  /** Rigged model (same skeleton as the billionaires) and its scale. */
+  model: 'covfefe' | 'veep'; height: number;
   walk: number;
   tagLine: string;
   policy: { name: string; text: string; source: string; prop: 'tariff' | 'cats'; sim: SigDef };
@@ -142,7 +143,7 @@ export const TUSK: FighterInfo = {
   barks: { heavy: 'tusk_too_hard', block: 'tusk_plus_side', checked: 'tusk_omg', taunt: 'tusk_empathy' },
   sidekick: {
     name: 'Uncle Covfefe', title: 'Funded Politician',
-    look: { suit: '#1b2440', tie: '#c8102e', skin: '#f0a868', hair: '#f3d27a', hairStyle: 'swoop' },
+    model: 'covfefe', height: 1.0,
     walk: 1.7,
     tagLine: 'DONOR NEEDS A BREATHER',
     policy: {
@@ -204,7 +205,7 @@ export const TEAL: FighterInfo = {
   barks: { checked: 'teal_long_hes', taunt: 'teal_greta', intro: 'teal_losers' },
   sidekick: {
     name: 'Hillbilly Veep', title: 'Funded Politician',
-    look: { suit: '#232a33', tie: '#2b4f8a', skin: '#efc3a4', hair: '#3b2a1e', hairStyle: 'beard' },
+    model: 'veep', height: 1.03,
     walk: 1.8,
     tagLine: 'DONOR NEEDS A BREATHER',
     policy: {

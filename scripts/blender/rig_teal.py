@@ -194,8 +194,9 @@ for j, n in enumerate(DEFORM):
     if kind_of(n) == "arm":
         side = "Left" if n.startswith("Left") else "Right"
         bad |= np.abs(x) < arm_x[side] * 0.85  # torso never follows the arm
+        bad |= z < crotch * 0.5  # nor do shoes and shins (wide-stance feet sit as far out as the hands)
     if kind_of(n) == "leg":
-        bad |= np.abs(x) > max(arm_x.values()) * 1.15  # hanging hands never follow a leg
+        bad |= (np.abs(x) > max(arm_x.values()) * 1.15) & (z > crotch * 0.5)  # hanging hands never follow a leg
     if n in ("LeftLeg", "RightLeg", "LeftFoot", "RightFoot", "LeftToeBase", "RightToeBase"):
         bad |= z > crotch
     if n in ("LeftUpLeg", "RightUpLeg"):
