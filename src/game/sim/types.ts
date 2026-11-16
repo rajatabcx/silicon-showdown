@@ -69,6 +69,8 @@ export type Fighter = {
   wins: number;
   /** Super already used this round (one per round). */
   superUsed: boolean;
+  /** Frames left on a remembered Super press (so a press during hit-stop or a punch isn't lost). */
+  superBuf: number;
   /** Frames the sidekick has left on stage (0 = the billionaire is fighting). */
   tag: number;
   /** Hits the sidekick has taken this tag; at SIDEKICK_HITS it is exposed (scandal). */

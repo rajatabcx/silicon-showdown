@@ -16,7 +16,7 @@ function newFighter(side: 0 | 1): Fighter {
     hp: 100, eng: 0, cardio: 100, state: 'idle', frame: 0, stun: 0,
     move: null, af: 0, hit: false, chain: 0, buf: 0, combo: 0, prev: 0, cur: 0,
     sig: 0, sigHits: 0, dropX: 0, quiet: 0, melt: 0, wins: 0,
-    superUsed: false, tag: 0, skHits: 0, skOut: false, skPolicy: false,
+    superUsed: false, superBuf: 0, tag: 0, skHits: 0, skOut: false, skPolicy: false,
   };
 }
 
@@ -50,6 +50,9 @@ const fwdBit = (f: Fighter) => (f.facing === 1 ? BTN.R : BTN.L);
 const holdsBack = (f: Fighter) => (f.cur & backBit(f)) !== 0;
 /** A sidekick in the middle of its Policy Move (the line or the throw). Like a Super, nobody can interrupt it. */
 const inPolicy = (f: Fighter) => f.tag > 0 && f.sig === 3 && (f.state === 'quote' || f.state === 'sig');
+const superReady = (f: Fighter) => f.tag <= 0 && f.eng >= SUPER_COST && f.melt <= 0 && !f.superUsed;
+const SUPER_FROM = new Set<Fighter['state']>(['idle', 'walk', 'crouch', 'attack', 'blockstun', 'jump', 'quote', 'sig']);
+const SUPER_BUFFER = 20;
 const canGuard = (f: Fighter) => f.melt <= 0 && (isNeutral(f) || f.state === 'blockstun') && holdsBack(f);
 /** Is this fighter in the Fact-Check window of a line? */
 export const factCheckable = (f: Fighter, def: SimDef) =>
@@ -116,6 +119,19 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
   f.prev = inp;
   if (f.melt > 0) f.melt--;
 
+  // Super: once it fires, nothing can stop it. A press is remembered for a moment, and it fires out of
+  // standing, walking, a punch or kick, a block, a jump or a line.
+  if (pressed & BTN.X && superReady(f)) f.superBuf = SUPER_BUFFER;
+  if (f.superBuf > 0) {
+    f.superBuf--;
+    if (superReady(f) && SUPER_FROM.has(f.state) && o.state !== 'superStart' && m.phase === 'fight') {
+      f.superBuf = 0; f.eng = 0; f.superUsed = true;
+      f.state = 'superStart'; f.frame = 0; f.move = null; f.y = 0; f.vy = 0; f.vx = 0;
+      m.events.push({ t: 'superStart', by: i });
+      return;
+    }
+  }
+
   switch (f.state) {
     case 'idle': case 'walk': case 'crouch': {
       f.combo = 0; f.chain = 0; f.move = null;
@@ -124,9 +140,6 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
       if (!sk) f.cardio = Math.min(100, f.cardio + CARDIO_REGEN * def.fitness * (f.state === 'walk' ? 0.5 : 1));
       const fwd = (inp & fwdBit(f)) !== 0, back = (inp & backBit(f)) !== 0, down = (inp & BTN.D) !== 0;
       if (!sk && pressed & BTN.T && f.cardio < TAG_MANUAL_CARDIO && !f.skOut) { tagIn(m, i, true); return; }
-      if (!sk && pressed & BTN.X && f.eng >= SUPER_COST && f.melt <= 0 && !f.superUsed) {
-        f.eng = 0; f.superUsed = true; f.state = 'superStart'; f.frame = 0; m.events.push({ t: 'superStart', by: i }); return;
-      }
       if (sk && pressed & BTN.S) {
         if (f.skPolicy) return;
         if (o.state === 'quote') { m.events.push({ t: 'outOfOrder', by: i }); return; }
@@ -363,7 +376,7 @@ function resolveProjectiles(m: Match, defs: Defs) {
     const d = m.f[1 - p.owner];
     if (Math.abs(p.x) > STAGE_HALF + 1.5 || p.y < 0) { m.proj.splice(k, 1); continue; }
     const pol = p.sig === 3;
-    if (Math.abs(p.x - d.x) < 0.55 && p.y > d.y && p.y < d.y + 1.9 && (pol || !isInvincible(d))) {
+    if (Math.abs(p.x - d.x) < 0.55 && p.y > d.y && p.y < d.y + 1.9 && (pol ? d.state !== 'superStart' : !isInvincible(d))) {
       const dir = Math.sign(p.vx);
       if (!pol && canGuard(d)) dealBlock(m, p.owner, dir, 14, 2, p.knockdown);
       else dealHit(m, p.owner, dir, p.dmg, 'sig', { hitstun: 22, knockdown: p.knockdown, heavy: true });
@@ -461,6 +474,7 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
       const f = m.f[i];
       const pressed = ins[i] & ~f.prev;
       if (f.state === 'attack' && pressed & (BTN.P | BTN.K)) f.buf = pressed & (BTN.P | BTN.K);
+      if (pressed & BTN.X && superReady(f)) f.superBuf = SUPER_BUFFER + m.hitstop;
       f.prev = ins[i]; f.cur = ins[i];
     }
     return;

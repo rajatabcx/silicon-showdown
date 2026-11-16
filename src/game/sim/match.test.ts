@@ -204,6 +204,51 @@ describe('fight simulation', () => {
     }
   });
 
+  it('stress: every Super that starts plays in full and lands, whatever else is going on', () => {
+    let supers = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const m = newMatch();
+      const a = makeCpu('hard', seed), b = makeCpu('hard', seed + 100);
+      let r = seed * 9301;
+      const rnd = () => ((r = (r * 1103515245 + 12345) % 2147483648) / 2147483648);
+      // Watch each Super: who called it, the frame it started, the defender's health then, and whether it landed.
+      const live: ({ at: number; hp: number; hit: boolean } | null)[] = [null, null];
+      let n = 0;
+      while (m.phase !== 'matchEnd' && n++ < 60 * 60 * 8) {
+        // Engagement is handed out generously and both sides mash random buttons on top of the CPU, Super included.
+        if (n % 240 === 0) for (const f of m.f) f.eng = Math.min(100, f.eng + 40);
+        const noise = () => (rnd() < 0.08 ? 1 << Math.floor(rnd() * 10) : 0);
+        step(m, cpuInput(a, m, 0, DEFS[0], DEFS[1]) | noise(), cpuInput(b, m, 1, DEFS[1], DEFS[0]) | noise(), DEFS);
+        for (const e of m.events) {
+          if (e.t === 'superStart') { expect(live[e.by]).toBeNull(); live[e.by] = { at: n, hp: m.f[1 - e.by].hp, hit: false }; supers++; }
+          if (e.t === 'superHit') { expect(live[e.by]).not.toBeNull(); live[e.by]!.hit = true; expect(n - live[e.by]!.at).toBe(SUPER_STARTUP); }
+          if (e.t === 'superLand') {
+            const s = live[e.by]!;
+            expect(s.hit).toBe(true);
+            expect(s.hp - m.f[1 - e.by].hp).toBeGreaterThanOrEqual(Math.min(s.hp, SUPER_DAMAGE) - 0.01);
+            live[e.by] = null;
+          }
+          // Nobody lays a hand on a fighter whose Super is running.
+          if (e.t === 'hit' || e.t === 'block' || e.t === 'counter') expect(live[e.by === 0 ? 1 : 0]).toBeNull();
+        }
+        if (m.phase !== 'fight' && m.phase !== 'cine') { live[0] = null; live[1] = null; }
+      }
+    }
+    expect(supers).toBeGreaterThan(40);
+  });
+
+  it('a Super pressed during hit-stop or mid-punch still fires', () => {
+    const m = started(); close(m);
+    m.f[0].eng = 100; m.f[1].eng = 0;
+    step(m, BTN.P, 0, DEFS);
+    let fired = false;
+    for (let k = 0; k < 30 && !fired; k++) {
+      step(m, k === 6 ? BTN.X : 0, 0, DEFS);
+      fired = m.f[0].state === 'superStart' || m.phase === 'cine';
+    }
+    expect(fired).toBe(true);
+  });
+
   it("Teal's Super drains health over the silence", () => {
     const m = started(); close(m);
     m.f[1].eng = 100;
