@@ -119,8 +119,12 @@ export class FighterView {
     }
     this.hand = { r: this.bones.mixamorigRightHand, l: this.bones.mixamorigLeftHand };
     this.mixer = new THREE.AnimationMixer(this.model);
-    for (const c of clips) {
-      const a = this.mixer.clipAction(prepareClip(c, this.model, srcHipsRest));
+    // A model that ships its own animations (rigged and animated on its own body) plays those; any clip it lacks
+    // falls back to the shared Tusk set.
+    const own = new Set(gltf.animations.map((c) => c.name));
+    const ownRest = own.size ? hipsRest(gltf) : srcHipsRest;
+    for (const c of [...gltf.animations, ...clips.filter((c) => !own.has(c.name))]) {
+      const a = this.mixer.clipAction(prepareClip(c, this.model, own.has(c.name) ? ownRest : srcHipsRest));
       a.setLoop(THREE.LoopRepeat, Infinity);
       this.actions.set(c.name, a);
     }

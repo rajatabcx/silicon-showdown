@@ -4,17 +4,20 @@ In:   assets-src/models/tusk_anim_raw.glb   (Mixamo-style skeleton + animation c
 Out:  public/models/characters/tusk.glb      (mesh + skeleton + all clips, small textures)
       public/models/characters/clips.json    (per clip: length, the frame where the strike lands, root travel)
 
-Run:  Blender -b -P scripts/blender/animated.py
+Run:  Blender -b -P scripts/blender/animated.py [-- covfefe]
+      With a name, reads assets-src/models/<name>_anim_raw.glb and writes public/models/characters/<name>.glb
+      (a sidekick with its own clips; clips.json stays Tusk's).
 """
-import json, os
+import json, os, sys
 import bpy
 from mathutils import Vector
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 TEX = 1024
+NAME = sys.argv[sys.argv.index("--") + 1] if "--" in sys.argv and len(sys.argv) > sys.argv.index("--") + 1 else "tusk"
 
 bpy.ops.wm.read_factory_settings(use_empty=True)
-bpy.ops.import_scene.gltf(filepath=f"{ROOT}/assets-src/models/tusk_anim_raw.glb")
+bpy.ops.import_scene.gltf(filepath=f"{ROOT}/assets-src/models/{NAME}_anim_raw.glb")
 sc = bpy.context.scene
 for o in list(sc.objects):
     if o.type == "MESH" and o.parent is None:
@@ -57,11 +60,12 @@ sc.frame_set(0)
 rest = {b.name.split(":")[-1]: [round(v, 4) for v in (arm.matrix_world @ b.head_local)] for b in arm.data.bones
         if b.name.split(":")[-1] in ("Hips", "Neck", "Head", "HeadTop_End", "LeftArm", "LeftForeArm", "LeftHand", "LeftUpLeg", "LeftLeg", "LeftFoot", "LeftToeBase", "Spine", "Spine1", "Spine2", "LeftShoulder")}
 dims = [round(v, 3) for v in mesh.dimensions]
-json.dump({"fps": fps, "height": dims[2], "clips": clips, "rest": rest}, open(f"{ROOT}/public/models/characters/clips.json", "w"), indent=1)
+if NAME == "tusk":
+    json.dump({"fps": fps, "height": dims[2], "clips": clips, "rest": rest}, open(f"{ROOT}/public/models/characters/clips.json", "w"), indent=1)
 print("REST", rest, "DIMS", dims)
 
 bpy.ops.object.select_all(action="SELECT")
-bpy.ops.export_scene.gltf(filepath=f"{ROOT}/public/models/characters/tusk.glb", export_format="GLB", use_selection=True,
+bpy.ops.export_scene.gltf(filepath=f"{ROOT}/public/models/characters/{NAME}.glb", export_format="GLB", use_selection=True,
                           export_yup=True, export_image_format="WEBP", export_image_quality=85,
                           export_animations=True, export_animation_mode="ACTIONS", export_force_sampling=True,
                           export_optimize_animation_size=True)
