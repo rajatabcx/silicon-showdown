@@ -204,7 +204,7 @@ export class FighterView {
   /**
    * Hand-made arm poses layered over the clips:
    * - heart: right hand to the chest, then the arm thrown out straight and high, palm down.
-   * - chainsaw: the saw held up overhead while he says the line, then swung.
+   * - chainsaw: the saw held out in front of him while he says the line, then swung.
    * - sink: carried in both hands in front of the belly, lifted overhead to throw.
    */
   private armPoses(f: Fighter, def: SimDef, dt: number) {
@@ -242,8 +242,9 @@ export class FighterView {
       if (tip) this.aim(B.mixamorigRightHand, tip, dir, w.salute);
     }
     if (w.overhead > 0.01) {
-      // Held high and a little toward the camera so the far arm isn't hidden behind his head.
-      const dir = new THREE.Vector3().copy(up).addScaledVector(fwd, 0.2).add(new THREE.Vector3(0, 0, 0.45));
+      // Held out in front at chest height, pointed at the opponent and turned a little toward the camera,
+      // so the saw is in clear view and never passes through his head.
+      const dir = new THREE.Vector3(f.facing * 0.85, 0.3, 0.4);
       this.aim(B.mixamorigLeftArm, B.mixamorigLeftForeArm, dir, w.overhead);
       this.aim(B.mixamorigLeftForeArm, B.mixamorigLeftHand, dir, w.overhead);
     }

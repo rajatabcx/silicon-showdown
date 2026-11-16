@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sfx, unlockAudio } from '../audio';
-import { TEAL, TUSK } from '../data/roster';
+import { ROSTER, TUSK, type FighterInfo } from '../data/roster';
 import { fill, HEADLINES, PAPERS, pick } from '../data/satire';
 import { Game } from '../Game';
 import { loadAssets } from '../render/assets';
@@ -27,26 +27,30 @@ export function GameRoot() {
   const [error, setError] = useState<string | null>(null);
   const [paper, setPaper] = useState<Paper | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  // Who you play. The CPU is whoever is left (two fighters for now; an opponent pick comes later).
+  const [pickId, setPickId] = useState<FighterInfo['id']>(TUSK.id);
+  const player = ROSTER.find((f) => f.id === pickId)!;
+  const cpu = ROSTER.find((f) => f.id !== pickId)!;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Load models while the satire notice is up, then build the room behind the title screen.
+  // Load models while the satire notice is up, then build the room (with this matchup) behind the title screen.
   useEffect(() => {
     let g: Game | null = null, dead = false;
     loadAssets(setProgress).then((assets) => {
       if (dead || !canvasRef.current) return;
-      g = new Game({ canvas: canvasRef.current, assets, player: TUSK, cpu: TEAL });
+      g = new Game({ canvas: canvasRef.current, assets, player, cpu });
       setGame(g);
     }).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the models.'));
-    return () => { dead = true; g?.dispose(); };
-  }, []);
+    return () => { dead = true; g?.dispose(); setGame(null); };
+  }, [player, cpu]);
 
   const go = (s: Screen) => { sfx('ui'); setScreen(s); };
   const start = () => { if (!game) return; unlockAudio(); sfx('gavel'); game.start(level); setScreen('fight'); };
   const done = useCallback((won: boolean) => {
-    const w = won ? TUSK.name : TEAL.name, l = won ? TEAL.name : TUSK.name;
+    const w = won ? player.name : cpu.name, l = won ? cpu.name : player.name;
     setPaper({ name: pick(PAPERS), headline: fill(pick(won ? HEADLINES.win : HEADLINES.lose), { w: w.toUpperCase(), l: l.toUpperCase() }), sub: pick(HEADLINES.sub), won });
     setScreen('result');
-  }, []);
+  }, [player, cpu]);
   const quit = useCallback(() => { game?.stop(); setScreen('title'); }, [game]);
 
   useEffect(() => {
@@ -96,8 +100,18 @@ export function GameRoot() {
           </div>
           <div className="flex-1" />
           <div className="anim-rise mx-auto grid w-full max-w-5xl grid-cols-[1fr_auto_1fr] items-end gap-4 px-5 pb-[5vh]">
-            <Card f={TUSK} tag="YOU" />
+            <Card f={player} tag="YOU" />
             <div className="flex flex-col items-center gap-4 pb-1">
+              <div className="flex flex-col items-center gap-1.5">
+                <div className="mono text-[10px] tracking-[0.3em] text-white/50">PLAY AS</div>
+                <div className="flex gap-2" role="radiogroup" aria-label="Play as">
+                  {ROSTER.map((f) => (
+                    <button key={f.id} className="btn-ghost" role="radio" aria-checked={pickId === f.id} data-on={pickId === f.id}
+                      style={pickId === f.id ? { borderColor: f.color } : undefined}
+                      onClick={() => { if (pickId !== f.id) { sfx('ui'); setPickId(f.id); } }}>{f.name}</button>
+                  ))}
+                </div>
+              </div>
               <div className="flex gap-2" role="radiogroup" aria-label="Difficulty">
                 {LEVELS.map((l) => (
                   <button key={l.id} className="btn-ghost" role="radio" aria-checked={level === l.id} data-on={level === l.id} onClick={() => { sfx('ui'); setLevel(l.id); }}>{l.name}</button>
@@ -108,7 +122,7 @@ export function GameRoot() {
               <button className="mono text-xs tracking-widest text-white/60 underline-offset-4 hover:text-white hover:underline" onClick={() => { sfx('ui'); setShowHelp(true); }}>HOW TO PLAY</button>
               {error && <div className="text-sm text-red-300">{error}</div>}
             </div>
-            <Card f={TEAL} tag="CPU" right />
+            <Card f={cpu} tag="CPU" right />
           </div>
         </div>
       )}
