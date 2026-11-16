@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { simDef, TEAL, TUSK } from '../data/roster';
 import { cpuInput, makeCpu } from './ai/cpu';
 import {
-  FACT_CHECK_WINDOW, INTRO_FRAMES, MOVES, SCANDAL_DAMAGE, SUPER_COST, SUPER_DAMAGE, SUPER_STARTUP, TAG_FRAMES, WINDED_FRAMES,
+  FACT_CHECK_WINDOW, INTRO_FRAMES, MOVES, SCANDAL_DAMAGE, STAGE_HALF, SUPER_COST, SUPER_DAMAGE, SUPER_GAP, SUPER_STARTUP, TAG_FRAMES,
+  WINDED_FRAMES,
 } from './constants';
 import { hashMatch, newMatch, step } from './match';
+import { makeRng } from './rng';
 import { BTN, type Ev, type Match, type SimDef } from './types';
 
 const DEFS: [SimDef, SimDef] = [simDef(TUSK), simDef(TEAL)];
@@ -350,5 +352,208 @@ describe('fight simulation', () => {
     const m = started(); close(m);
     for (let k = 0; k < 12; k++) { step(m, BTN.K, 0, DEFS); run(m, 40); close(m); m.f[1].hp = 100; }
     expect(m.f[0].cardio).toBeLessThan(40);
+  });
+});
+
+// Every way the owner saw a Super fail in live play. The rule: with the gold mark lit, Enter always gives the
+// whole cinematic and the whole damage, and nothing the other side does can stop it.
+describe('a Super cannot be lost or interrupted', () => {
+  /** Runs until the Super has landed; returns every event, and fails if it never starts. */
+  function playSuper(m: Match, by: 0 | 1, max = 400) {
+    const evs: Ev[] = [];
+    let n = 0;
+    const going = () => m.f[by].state === 'superStart' || (m.phase === 'cine' && m.cineBy === by);
+    while (!going() && n++ < max) { step(m, 0, 0, DEFS); evs.push(...m.events); }
+    expect(going(), 'the Super started').toBe(true);
+    n = 0;
+    while (!evs.some((e) => e.t === 'superLand' && e.by === by) && n++ < 1200) { step(m, BTN.P | BTN.L, BTN.P | BTN.K | BTN.G, DEFS); evs.push(...m.events); }
+    expect(evs.some((e) => e.t === 'superLand' && e.by === by), 'the Super landed').toBe(true);
+    return evs;
+  }
+
+  it('pressed while being hit, it breaks the combo and fires at once', () => {
+    const m = started(); close(m);
+    m.f[0].eng = 100;
+    step(m, 0, BTN.P, DEFS);
+    while (m.f[0].state !== 'hitstun') step(m, 0, 0, DEFS);
+    const hp = m.f[1].hp;
+    const evs = run(m, 12, BTN.X);
+    expect(evs.some((e) => e.t === 'superStart' && e.by === 0)).toBe(true);
+    playSuper(m, 0, 0);
+    expect(m.f[1].hp).toBeCloseTo(hp - SUPER_DAMAGE, 1);
+  });
+
+  it('pressed while knocked down, it waits and fires as he gets up', () => {
+    const m = started(); close(m);
+    m.f[0].eng = 100;
+    step(m, 0, BTN.D | BTN.K, DEFS);
+    while (m.f[0].state !== 'knockdown') step(m, 0, 0, DEFS);
+    run(m, 10);
+    step(m, BTN.X, 0, DEFS);
+    step(m, 0, 0, DEFS);
+    expect(m.f[0].state).toBe('knockdown');
+    playSuper(m, 0);
+  });
+
+  it('pressed during hit-stop in the middle of his own combo, it still fires', () => {
+    const m = started(); close(m);
+    m.f[0].eng = 100;
+    step(m, BTN.P, 0, DEFS);
+    while (m.hitstop === 0) step(m, 0, 0, DEFS);
+    step(m, BTN.X, 0, DEFS);
+    playSuper(m, 0, 40);
+  });
+
+  it("pressed while the other side's Policy Move has him frozen, it fires when the freeze ends", () => {
+    const m = started(); m.f[0].x = -2; m.f[1].x = 2;
+    m.f[0].cardio = 30; m.f[1].eng = 100;
+    step(m, BTN.T, 0, DEFS);
+    run(m, 3);
+    step(m, BTN.S, 0, DEFS);
+    expect(m.f[0].state).toBe('quote');
+    run(m, 20);
+    step(m, 0, BTN.X, DEFS);
+    run(m, 5);
+    expect(m.f[1].state).not.toBe('superStart');
+    playSuper(m, 1, 600);
+  });
+
+  it('pressed in the air after jumping over the opponent, he lands facing them', () => {
+    const m = started(); m.f[0].x = -1; m.f[1].x = 0.6;
+    m.f[0].eng = 100;
+    step(m, BTN.U | BTN.R, 0, DEFS);
+    while (m.f[0].x < m.f[1].x + 0.3 && m.f[0].state === 'jump') step(m, BTN.R, 0, DEFS);
+    expect(m.f[0].state).toBe('jump');
+    step(m, BTN.X, 0, DEFS);
+    expect(m.f[0].state).toBe('superStart');
+    run(m, SUPER_STARTUP + 1);
+    expect(m.phase).toBe('cine');
+    expect(Math.sign(m.f[1].x - m.f[0].x)).toBe(m.f[0].facing);
+    expect(m.f[1].facing).toBe(-m.f[0].facing);
+    expect(m.f[0].y).toBe(0);
+  });
+
+  it('in either corner the pair is stood a fixed distance apart, inside the room', () => {
+    for (const [ax, vx] of [[-STAGE_HALF, -STAGE_HALF + 1.4], [STAGE_HALF - 1.4, STAGE_HALF], [STAGE_HALF, STAGE_HALF - 1.4], [-5, 5]]) {
+      const m = started(); m.f[0].x = ax; m.f[1].x = vx;
+      step(m, 0, 0, DEFS);
+      m.f[0].eng = 100;
+      step(m, BTN.X, 0, DEFS);
+      run(m, SUPER_STARTUP + 1);
+      expect(m.phase).toBe('cine');
+      expect(Math.abs(m.f[0].x - m.f[1].x)).toBeCloseTo(SUPER_GAP);
+      for (const f of m.f) expect(Math.abs(f.x)).toBeLessThanOrEqual(STAGE_HALF + 1e-9);
+      expect(Math.sign(m.f[1].x - m.f[0].x)).toBe(m.f[0].facing);
+    }
+  });
+
+  it('when both press on the same frame, both Supers play, one after the other', () => {
+    const m = started(); close(m);
+    m.f[0].eng = 100; m.f[1].eng = 100;
+    step(m, BTN.X, BTN.X, DEFS);
+    const evs = playSuper(m, 0, 0);
+    expect(evs.some((e) => e.t === 'superStart' && e.by === 1)).toBe(false);
+    const second = playSuper(m, 1, 300);
+    expect(second.some((e) => e.t === 'superDamage' && e.by === 1)).toBe(true);
+    expect(m.f[0].hp).toBeCloseTo(100 - SUPER_DAMAGE, 0);
+    expect(m.f[1].hp).toBeLessThan(100 - SUPER_DAMAGE + 1);
+  });
+
+  it('against a tagged-in sidekick, the billionaire is called back and takes all of it', () => {
+    const m = started(); close(m);
+    m.f[1].cardio = 30;
+    step(m, 0, BTN.T, DEFS);
+    expect(m.f[1].tag).toBeGreaterThan(0);
+    m.f[0].eng = 100;
+    const hp = m.f[1].hp;
+    step(m, BTN.X, 0, DEFS);
+    const evs = playSuper(m, 0, 0);
+    expect(evs.some((e) => e.t === 'tagOut' && e.by === 1 && !e.scandal)).toBe(true);
+    expect(m.f[1].tag).toBe(0);
+    expect(m.f[1].hp).toBeCloseTo(hp - SUPER_DAMAGE, 1);
+  });
+
+  it("the clock running out can't cut off a Super that was already called", () => {
+    const m = started(); close(m);
+    m.f[0].eng = 100; m.timer = 1;
+    step(m, BTN.X, 0, DEFS);
+    expect(m.phase).toBe('fight');
+    const evs = playSuper(m, 0, 0);
+    expect(evs.some((e) => e.t === 'timeUp')).toBe(false);
+    expect(m.f[1].hp).toBeCloseTo(100 - SUPER_DAMAGE, 1);
+    expect(run(m, 20).some((e) => e.t === 'timeUp')).toBe(true);
+  });
+
+  it('a press made out of breath or mid-dodge still fires', () => {
+    for (const setup of ['winded', 'dodge'] as const) {
+      const m = started(); close(m);
+      m.f[0].eng = 100;
+      if (setup === 'winded') { m.f[0].cardio = 0; run(m, 3); } else { step(m, BTN.G, 0, DEFS); run(m, 3); }
+      expect(m.f[0].state).toBe(setup);
+      step(m, BTN.X, 0, DEFS);
+      expect(m.f[0].state).toBe('superStart');
+    }
+  });
+
+  it('fuzz: random mashing on both sides never loses a press or cuts a Super short', () => {
+    const all = [BTN.L, BTN.R, BTN.U, BTN.D, BTN.P, BTN.K, BTN.S, BTN.G, BTN.T];
+    let supers = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const rng = makeRng(seed * 7919);
+      const m = started();
+      const hold = [0, 0], until = [0, 0];
+      /** Frame each side tapped Enter with the Super ready, until it starts. */
+      const asked: (number | null)[] = [null, null];
+      let live: { by: 0 | 1; frames: number; hp: number; startup: number } | null = null;
+      for (let n = 0; n < 60 * 45 && m.phase !== 'matchEnd'; n++) {
+        const ins = [0, 0];
+        for (const i of [0, 1] as const) {
+          const f = m.f[i];
+          if (m.phase === 'fight' && rng() < 0.01) { f.eng = 100; f.cardio = Math.max(f.cardio, rng() < 0.5 ? 10 : 80); }
+          if (n >= until[i]) {
+            hold[i] = 0;
+            for (const b of all) if (rng() < 0.22) hold[i] |= b;
+            until[i] = n + 1 + Math.floor(rng() * 14);
+          }
+          ins[i] = hold[i];
+          const ready = f.tag <= 0 && f.eng >= SUPER_COST && f.melt <= 0 && !f.superUsed;
+          if (ready && m.phase === 'fight' && asked[i] === null && rng() < 0.05 && !(f.prev & BTN.X)) { ins[i] |= BTN.X; asked[i] = n; }
+        }
+        const wasStop = m.hitstop > 0, phase = m.phase;
+        step(m, ins[0], ins[1], DEFS);
+        if (live && phase === 'cine') live.frames++;
+        for (const e of m.events) {
+          if (e.t === 'superStart') {
+            expect(live, `seed ${seed}: a second Super started during one`).toBeNull();
+            live = { by: e.by, frames: 0, hp: m.f[1 - e.by].hp, startup: 0 };
+            asked[e.by] = null; supers++;
+          }
+          if (e.t === 'roundStart') { asked[0] = asked[1] = null; }
+          if (live && e.t === 'superLand') {
+            expect(live.frames, `seed ${seed}: full cinematic`).toBe(DEFS[live.by].super.frames);
+            const d = m.f[1 - live.by];
+            expect(live.hp - d.hp, `seed ${seed}: full damage`).toBeGreaterThanOrEqual(Math.min(SUPER_DAMAGE, live.hp) - 0.01);
+            live = null;
+          }
+          if (live && (e.t === 'hit' || e.t === 'block' || e.t === 'ko' || e.t === 'timeUp' || e.t === 'tagIn' || e.t === 'quote')) {
+            throw new Error(`seed ${seed}: ${e.t} happened during a Super`);
+          }
+        }
+        if (live && phase === 'fight' && !wasStop && m.f[live.by].state === 'superStart') {
+          expect(++live.startup, `seed ${seed}: the flash is not held up`).toBeLessThanOrEqual(SUPER_STARTUP + 1);
+        }
+        // A remembered press can only be waiting on the floor, a freeze, or the round ending.
+        for (const i of [0, 1] as const) {
+          const f = m.f[i];
+          if (asked[i] === null) continue;
+          if (m.phase === 'roundEnd' || m.phase === 'intro' || m.phase === 'matchEnd' || f.tag > 0 || f.melt > 0) { asked[i] = null; continue; }
+          const waiting = f.state === 'knockdown' || f.state === 'ko' || m.phase === 'cine' || m.hitstop > 0 || live !== null ||
+            m.f[1 - i].tag > 0;
+          if (!waiting) expect(n - asked[i]!, `seed ${seed}: side ${i} pressed Enter at ${asked[i]} and is ${f.state}`).toBeLessThan(3);
+          else asked[i] = n;
+        }
+      }
+    }
+    expect(supers).toBeGreaterThan(40);
   });
 });

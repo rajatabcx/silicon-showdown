@@ -14,8 +14,10 @@ export const REACH_PAD = BODY_WIDTH - 1.0;
 export const INTRO_FRAMES = 150;
 export const ROUND_END_FRAMES = 240;
 export const SUPER_STARTUP = 18;
-/** A Super can't miss: if the opponent is further than this, the caller dashes in before the cinematic. */
-export const SUPER_REACH = 2.85;
+/** A Super can't miss: when the cinematic starts the two fighters are stood this far apart, wherever they were. */
+export const SUPER_GAP = 2.2;
+/** Frames a Super press is remembered once the fighter is able to act (it doesn't run down while they're on the floor). */
+export const SUPER_BUFFER = 30;
 export const SUPER_DAMAGE = 32;
 
 export const WINDED_FRAMES = 90;

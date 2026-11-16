@@ -2,7 +2,7 @@ import {
   BACKFIRE_DAMAGE, BODY_WIDTH, CARDIO_REGEN, REACH_PAD, COUNTER_DAMAGE, DODGE_FRAMES, DODGE_INVULN, DODGE_SLIDE, ENG_DECAY,
   ENG_FACT_CHECK, ENG_HIT, ENG_QUIET_FRAMES, ENG_SIG_LAND, ENG_SIG_SAID, FACT_CHECK_WINDOW, GRAVITY, INTRO_FRAMES,
   JUMP_SCALE, MELTDOWN_FRAMES, MOVES, ROUND_END_FRAMES, ROUND_FRAMES, STAGE_HALF, START_X, STUN_FRAMES,
-  SUPER_COST, SUPER_DAMAGE, SUPER_REACH, SUPER_STARTUP, TIER_DEALT, TIER_TAKEN, tierOf,
+  SUPER_BUFFER, SUPER_COST, SUPER_DAMAGE, SUPER_GAP, SUPER_STARTUP, TIER_DEALT, TIER_TAKEN, tierOf,
   WALK_SCALE, WINDED_FRAMES, SIG_CARDIO, TAG_FRAMES, TAG_MANUAL_CARDIO, SIDEKICK_HITS, SCANDAL_DAMAGE, SIDEKICK_DAMAGE,
   TAG_REGEN,
 } from './constants';
@@ -51,8 +51,21 @@ const holdsBack = (f: Fighter) => (f.cur & backBit(f)) !== 0;
 /** A sidekick in the middle of its Policy Move (the line or the throw). Like a Super, nobody can interrupt it. */
 const inPolicy = (f: Fighter) => f.tag > 0 && f.sig === 3 && (f.state === 'quote' || f.state === 'sig');
 const superReady = (f: Fighter) => f.tag <= 0 && f.eng >= SUPER_COST && f.melt <= 0 && !f.superUsed;
-const SUPER_FROM = new Set<Fighter['state']>(['idle', 'walk', 'crouch', 'attack', 'blockstun', 'jump', 'quote', 'sig']);
-const SUPER_BUFFER = 20;
+/**
+ * A Super fires out of anything except lying on the floor: standing, walking, a punch or kick, a block, a jump, a line,
+ * a dodge, getting up, being out of breath, and even while being hit (it breaks the combo).
+ */
+const SUPER_FROM = new Set<Fighter['state']>([
+  'idle', 'walk', 'crouch', 'attack', 'blockstun', 'hitstun', 'stunned', 'jump', 'quote', 'sig', 'dodge', 'getup', 'winded',
+]);
+/**
+ * Remember a Super press. Called on every tick for both fighters, including ticks where that fighter is frozen
+ * (hit-stop, the other side's Super or Policy Move), so a press made with the gold mark lit is never thrown away.
+ */
+function noteSuper(f: Fighter, pressed: number) {
+  if (pressed & BTN.X && superReady(f)) f.superBuf = SUPER_BUFFER;
+}
+const faceOpponent = (f: Fighter, o: Fighter) => { if (o.x !== f.x) f.facing = o.x > f.x ? 1 : -1; };
 const canGuard = (f: Fighter) => f.melt <= 0 && (isNeutral(f) || f.state === 'blockstun') && holdsBack(f);
 /** Is this fighter in the Fact-Check window of a line? */
 export const factCheckable = (f: Fighter, def: SimDef) =>
@@ -119,17 +132,19 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
   f.prev = inp;
   if (f.melt > 0) f.melt--;
 
-  // Super: once it fires, nothing can stop it. A press is remembered for a moment, and it fires out of
-  // standing, walking, a punch or kick, a block, a jump or a line.
-  if (pressed & BTN.X && superReady(f)) f.superBuf = SUPER_BUFFER;
+  // Super: once it fires, nothing can stop it. The press was checked against the meter when it was made; it then
+  // waits (without running out) while the fighter is on the floor, and fires the moment they can move.
+  noteSuper(f, pressed);
   if (f.superBuf > 0) {
-    f.superBuf--;
-    if (superReady(f) && SUPER_FROM.has(f.state) && o.state !== 'superStart' && m.phase === 'fight') {
+    const can = f.tag <= 0 && !f.superUsed && f.melt <= 0;
+    if (!can) f.superBuf = 0;
+    else if (SUPER_FROM.has(f.state) && o.state !== 'superStart' && m.phase === 'fight') {
       f.superBuf = 0; f.eng = 0; f.superUsed = true;
-      f.state = 'superStart'; f.frame = 0; f.move = null; f.y = 0; f.vy = 0; f.vx = 0;
+      f.state = 'superStart'; f.frame = 0; f.move = null; f.y = 0; f.vy = 0; f.vx = 0; f.stun = 0;
+      faceOpponent(f, o);
       m.events.push({ t: 'superStart', by: i });
       return;
-    }
+    } else if (SUPER_FROM.has(f.state)) f.superBuf--;
   }
 
   switch (f.state) {
@@ -263,8 +278,12 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
     case 'superStart': {
       if (++f.frame < SUPER_STARTUP) return;
       // A Super always plays in full: it can't be blocked, dodged or missed, so everyone gets to see it.
-      // From too far away the caller closes the distance first; an airborne opponent is pulled down.
-      if (Math.abs(o.x - f.x) > SUPER_REACH) f.x = clampX(o.x - f.facing * (SUPER_REACH - 0.6));
+      // Both fighters are stood a fixed distance apart, facing each other, inside the room: the caller closes the
+      // distance (or steps back), an airborne opponent is pulled down, and a pair in the corner is moved in together.
+      faceOpponent(f, o);
+      f.x = Math.max(-STAGE_HALF + (f.facing === 1 ? 0 : SUPER_GAP), Math.min(STAGE_HALF - (f.facing === 1 ? SUPER_GAP : 0), o.x - f.facing * SUPER_GAP));
+      o.x = f.x + f.facing * SUPER_GAP;
+      o.facing = -f.facing as 1 | -1;
       o.y = 0; o.vy = 0;
       m.phase = 'cine'; m.phaseFrame = 0; m.cineBy = i;
       if (o.tag > 0) tagOut(m, (1 - i) as 0 | 1, false);
@@ -447,7 +466,7 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   }
 
   if (m.phase === 'cine') {
-    for (const i of [0, 1] as const) m.f[i].prev = ins[i];
+    for (const i of [0, 1] as const) { noteSuper(m.f[i], ins[i] & ~m.f[i].prev); m.f[i].prev = ins[i]; }
     const ai = m.cineBy, a = m.f[ai], d = m.f[1 - ai], sp = defs[ai].super;
     const fr = ++m.phaseFrame;
     if (sp.drain) {
@@ -474,7 +493,7 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
       const f = m.f[i];
       const pressed = ins[i] & ~f.prev;
       if (f.state === 'attack' && pressed & (BTN.P | BTN.K)) f.buf = pressed & (BTN.P | BTN.K);
-      if (pressed & BTN.X && superReady(f)) f.superBuf = SUPER_BUFFER + m.hitstop;
+      noteSuper(f, pressed);
       f.prev = ins[i]; f.cur = ins[i];
     }
     return;
@@ -504,6 +523,7 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   const caller = m.f[0].state === 'superStart' ? 0 : m.f[1].state === 'superStart' ? 1 : -1;
   if (caller >= 0) {
     const other = m.f[1 - caller];
+    noteSuper(other, ins[1 - caller] & ~other.prev);
     other.prev = ins[1 - caller];
     updateFighter(m, caller as 0 | 1, ins[caller], defs);
     return;
@@ -512,6 +532,7 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   const pi = ([0, 1] as const).find((i) => inPolicy(m.f[i]) || m.proj.some((p) => p.owner === i && p.sig === 3));
   if (pi !== undefined) {
     const other = m.f[1 - pi];
+    noteSuper(other, ins[1 - pi] & ~other.prev);
     other.prev = ins[1 - pi];
     updateFighter(m, pi, ins[pi], defs);
     if (m.phase !== 'fight') return;
@@ -538,7 +559,8 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   separate(m);
   checkKo(m);
 
-  if (m.phase === 'fight' && m.timer <= 0) {
+  // The clock can't cut off a Super that has already been called: it lands first.
+  if (m.phase === 'fight' && m.timer <= 0 && m.f[0].state !== 'superStart' && m.f[1].state !== 'superStart') {
     m.events.push({ t: 'timeUp' });
     const [a, b] = m.f;
     m.roundWinner = Math.abs(a.hp - b.hp) < 0.01 ? -1 : a.hp > b.hp ? 0 : 1;

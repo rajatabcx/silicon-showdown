@@ -1,10 +1,11 @@
 import { sfx, startAmbience, startBed, stopAmbience, stopBed, voice, type VoiceHandle } from './audio';
+import { InputLatch } from './input';
 import { sigInfo, simDef, VOICE_SECONDS, type FighterInfo, type VoiceId } from './data/roster';
 import type { Assets } from './render/assets';
 import { Renderer } from './render/renderer';
 import { cpuInput, makeCpu, type Cpu, type Difficulty } from './sim/ai/cpu';
 import { FPS, ROUND_END_FRAMES } from './sim/constants';
-import { newMatch, step } from './sim/match';
+import { newMatch, sigOf, step } from './sim/match';
 import { BTN, type Ev, type Match, type SimDef } from './sim/types';
 
 const KEYS: Record<string, number> = {
@@ -29,12 +30,13 @@ export class Game {
   readonly infos: [FighterInfo, FighterInfo];
   private renderer: Renderer;
   private cpu: Cpu;
-  private keys = 0;
+  private keys = new InputLatch();
   private acc = 0;
   private last = 0;
   private raf = 0;
   private dead = false;
-  private slow = 0;
+  /** A timed stretch of slow motion: seconds left (real time) and the speed. */
+  private slow = { t: 0, k: 1 };
   /** One microphone: only one person speaks at a time. Higher priority cuts lower; lower waits its turn (is dropped). */
   private mic: { side: 0 | 1; prio: number; h: VoiceHandle; until: number } | null = null;
   private lastBark = [-999, -999];
@@ -69,7 +71,8 @@ export class Game {
     this.renderer.attract = false;
     this.running = true;
     this.paused = false;
-    this.keys = 0;
+    this.keys.clear();
+    this.slow.t = 0;
     startBed();
   }
 
@@ -83,7 +86,7 @@ export class Game {
     this.renderer.onEvent({ t: 'roundStart', round: 1 }, this.match);
   }
 
-  setPaused(p: boolean) { this.paused = p; }
+  setPaused(p: boolean) { this.paused = p; this.keys.clear(); }
 
   /** Where a fighter's head is on screen, 0..1 from the top-left. */
   propRect(side: 0 | 1) { return this.renderer.propRect(side); }
@@ -93,9 +96,9 @@ export class Game {
     const bit = KEYS[e.code];
     if (!bit || !this.running) return;
     e.preventDefault();
-    if (e.type === 'keydown') this.keys |= bit; else this.keys &= ~bit;
+    if (e.type === 'keydown') { if (!e.repeat) this.keys.down(bit); } else this.keys.up(bit);
   };
-  private onBlur = () => { this.keys = 0; };
+  private onBlur = () => { this.keys.clear(); };
   private onResize = () => this.renderer.resize();
 
   private loop = (now: number) => {
@@ -110,8 +113,7 @@ export class Game {
   private frame(dt: number) {
     if (!this.running) { this.renderer.draw(this.match, dt); return; }
     if (this.paused) { this.renderer.draw(this.match, 0); return; }
-    // Slow motion on the knockout blow.
-    if (this.slow > 0) { this.slow -= dt; dt *= 0.3; }
+    dt *= this.timeScale(dt);
     this.acc += dt;
     let n = 0;
     while (this.acc >= 1 / FPS && n++ < 5) {
@@ -119,11 +121,25 @@ export class Game {
       const m = this.match;
       // Let the last line of a round finish before the next round (or the result) starts.
       if (m.phase === 'roundEnd' && m.phaseFrame >= ROUND_END_FRAMES - 2 && this.micBusy()) continue;
-      step(m, this.keys, this.debugCpu ?? cpuInput(this.cpu, m, 1, this.defs[1], this.defs[0]), this.defs);
+      step(m, this.keys.read(), this.debugCpu ?? cpuInput(this.cpu, m, 1, this.defs[1], this.defs[0]), this.defs);
       for (const e of m.events) this.handle(e);
     }
     if (n >= 5) this.acc = 0;
     this.renderer.draw(this.match, dt);
+  }
+
+  /**
+   * Slow motion. Timed stretches (the knockout blow, the moment a Super lands) and two that follow the fight:
+   * the flash when a Super is called, and a sidekick's Policy Move once the line has been said.
+   * A Super's own cinematic runs at full speed because a real voice clip plays under it; its slow motion is staged.
+   */
+  private timeScale(dt: number) {
+    if (this.slow.t > 0) { this.slow.t -= dt; return this.slow.k; }
+    const m = this.match;
+    if (m.phase !== 'fight') return 1;
+    if (m.f.some((f) => f.state === 'superStart')) return 0.4;
+    if (m.proj.some((p) => p.sig === 3) || m.f.some((f) => f.tag > 0 && f.sig === 3 && f.state === 'sig' && f.af <= sigOf(this.defs[m.f.indexOf(f)], f).startup + 4)) return 0.3;
+    return 1;
   }
 
   /** Dev only: fixed CPU buttons instead of the AI. */
@@ -131,7 +147,7 @@ export class Game {
 
   /** Dev only: drive the game by hand (the browser pauses animation frames in a hidden tab). */
   debugRun(seconds: number, keys?: number) {
-    if (keys !== undefined) this.keys = keys;
+    if (keys !== undefined) this.keys.set(keys);
     for (let t = 0; t < seconds; t += 1 / FPS) this.frame(1 / FPS);
   }
 
@@ -169,6 +185,8 @@ export class Game {
     switch (e.t) {
       case 'hit':
         sfx(e.heavy ? 'heavy' : 'hit');
+        // A Policy Move landing gets the same slow, heavy beat as a Super.
+        if (e.move === 'sig' && m.f[e.by].tag > 0 && m.f[e.by].sig === 3) this.slow = { t: 0.5, k: 0.25 };
         if (e.move === 'sig') {
           const sg = sigInfo(this.infos[e.by], m.f[e.by].sig);
           if (sg?.bark) this.bark(e.by, sg.bark, 1, 1);
@@ -206,9 +224,9 @@ export class Game {
         break;
       }
       case 'superDamage': sfx('superBoom'); sfx('cheer'); break;
-      case 'superLand': sfx('stamp'); break;
+      case 'superLand': sfx('stamp'); this.slow = { t: 0.9, k: 0.25 }; break;
       case 'ko':
-        sfx('ko'); sfx('cheer'); this.slow = 0.6;
+        sfx('ko'); sfx('cheer'); this.slow = { t: Math.max(this.slow.t, 0.7), k: 0.25 };
         this.hushAll();
         window.setTimeout(() => { if (this.match.phase === 'roundEnd') this.bark((1 - e.by) as 0 | 1, this.infos[1 - e.by].barks.taunt); }, 1500);
         break;
