@@ -11,6 +11,7 @@ How it works (v2, replaces the voxel-remesh attempt):
    arm bone from the legs. No automatic heat weights, no remeshed proxy.
 
 Run:  Blender -b -P scripts/blender/rig_teal.py -- teal --crotch 0.44 [--render]
+      Blender -b -P scripts/blender/rig_teal.py -- covfefe --neck 1.14 --gap --render   (cartoon Covfefe, Nov 16)
 Out:  public/models/characters/<name>.glb (mesh + skeleton, no clips), docs/previews/<name>_rig_*.png with --render
 """
 import os, sys
@@ -83,6 +84,9 @@ T = landmarks(V)
 if "--crotch" in args:
     # The gap detector fails when the legs nearly touch (Teal); measure the crotch from a front render instead.
     T["crotch"] = float(args[args.index("--crotch") + 1])
+if "--neck" in args:
+    # The narrowest-slice detector misses a neck hidden by jowls and a collar (Covfefe); measure it from a front render.
+    T["neck"] = float(args[args.index("--neck") + 1])
 print("LAND tusk", {k: round(v, 3) for k, v in M.items()})
 print("LAND", name, {k: round(v, 3) for k, v in T.items()})
 
@@ -194,12 +198,69 @@ def seg_point(P, a, b):
     t = np.clip(((P - a) @ ab) / max(ab @ ab, 1e-9), 0, 1)
     return a + t[:, None] * ab
 crotch = T["crotch"]
+
+# --gap: for a model whose hanging arms stand clear of the body, with a long boxy jacket whose hem hangs right
+# beside the hands. In a straight line that hem is closer to the hand bone than to the spine, so it would swing out
+# with every punch. Walking over the surface, though, the hem is far from the hand: the path runs up the arm, through
+# the armpit and back down. So a vertex whose surface distance to the hand is much longer than its straight-line
+# distance is body, and never follows an arm bone. One that's close both ways, below the armpit and outside the
+# shoulder, is arm, and follows only arm bones.
+ARMSIDE = np.zeros(len(V), np.int8)  # 0 = no rule, 1 = body side, 2 = arm side
+if "--gap" in args:
+    import heapq
+    ne = len(body.data.edges)
+    E = np.empty(ne * 2, dtype=np.int64)
+    body.data.edges.foreach_get("vertices", E)
+    E = E.reshape(-1, 2)
+    L = np.linalg.norm(V[E[:, 0]] - V[E[:, 1]], axis=1)
+    # The import splits the surface at every UV seam; weld coincident points (and tiny holes) so the walk crosses them.
+    _, weld = np.unique(np.round(V / 0.004).astype(np.int64), axis=0, return_inverse=True)
+    weld = weld.ravel()
+    adj = [[] for _ in range(len(V))]
+    for (i0, i1), l in zip(E.tolist(), L.tolist()):
+        adj[i0].append((i1, l))
+        adj[i1].append((i0, l))
+    groups_w = {}
+    for i, w in enumerate(weld.tolist()):
+        groups_w.setdefault(w, []).append(i)
+    for members in groups_w.values():
+        if len(members) > 1:
+            for i in members:
+                adj[i].extend((k, 0.0) for k in members if k != i)
+    for side in ("Left", "Right"):
+        hj = np.array(heads[full[f"{side}Hand"]])
+        e = np.linalg.norm(V - hj, axis=1)
+        sgn = 1 if side == "Left" else -1
+        g = np.full(len(V), np.inf)
+        pq = []
+        cand = np.where(x * sgn > 0)[0]
+        for i in cand[np.argsort(e[cand])[:20]].tolist():  # the 20 surface points nearest the hand joint
+            g[i] = e[i]
+            pq.append((e[i], i))
+        heapq.heapify(pq)
+        while pq:
+            d, i = heapq.heappop(pq)
+            if d > g[i] or d > 1.2:
+                continue
+            for k, l in adj[i]:
+                nd = d + l
+                if nd < g[k]:
+                    g[k] = nd
+                    heapq.heappush(pq, (nd, k))
+        armpit = heads[full[f"{side}Arm"]].z
+        on_side = x * sgn > 0
+        ARMSIDE[on_side & np.isfinite(g) & (g - e > 0.12)] = 1
+        ARMSIDE[on_side & (g - e < 0.04) & (x * sgn > arm_x[side]) & (z < armpit - 0.05)] = 2
+    print("GAP body", int((ARMSIDE == 1).sum()), "arm", int((ARMSIDE == 2).sum()))
+
 for j, n in enumerate(DEFORM):
     bad = np.zeros(len(V), bool)
     if n.startswith("Left"):
         bad |= x < -0.005
     if n.startswith("Right"):
         bad |= x > 0.005
+    bad |= (ARMSIDE == 1) & (kind_of(n) == "arm")
+    bad |= (ARMSIDE == 2) & (kind_of(n) != "arm")
     if kind_of(n) == "arm":
         side = "Left" if n.startswith("Left") else "Right"
         bad |= np.abs(x) < arm_x[side] * 0.85  # torso never follows the arm
@@ -222,6 +283,11 @@ for j, n in enumerate(DEFORM):
         bad |= z > crotch
     if n in ("LeftUpLeg", "RightUpLeg"):
         bad |= z > crotch + 0.12
+    if n in ("LeftShoulder", "RightShoulder"):
+        # The collarbone moves the top of the shoulder only. A wide, boxy jacket's flank below the armpit sits
+        # closer to the collarbone segment than to the spine, and would otherwise flap out like a cape on a punch.
+        armpit = heads[full[n.replace("Shoulder", "Arm")]].z
+        bad |= z < armpit - 0.06
     if n in ("Neck", "Head"):
         bad |= z < T["neck"] - 0.06
     if n == "Head":
