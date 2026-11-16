@@ -109,7 +109,8 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
           break;
         case 'superStart': setChats([]); break;
         case 'superHit': news(TICKER.super, e.by); break;
-        case 'ko': announce('K.O.', `${infos[1 - e.by].name}: "${infos[1 - e.by].win}"`, 2.6, 'red'); news(TICKER.ko, 1 - e.by); break;
+        // The knockout: the room goes grey and slow first, then the word lands.
+        case 'ko': { const w = 1 - e.by; later(() => announce('WASTED', `${infos[w].name}: "${infos[w].win}"`, 2.8, 'red'), 550); news(TICKER.ko, w); break; }
         case 'timeUp': announce('TIME', 'The chair has run out of patience.', 1.8); break;
         case 'matchEnd': later(() => onDone(e.winner === 0), 2200); break;
       }
@@ -303,10 +304,11 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
       {/* Round / KO banners */}
       {banner && (
         <div key={banner.k} className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-          <div className="display anim-banner text-7xl sm:text-9xl" style={{ ['--dur' as string]: `${banner.dur}s`, color: banner.tone === 'red' ? '#ff5a52' : banner.tone === 'white' ? '#fff' : '#ffe6a3', textShadow: '0 6px 0 #000, 0 0 40px rgb(0 0 0 / .6)' }}>
+          {banner.text === 'WASTED' && <div className="anim-rise absolute inset-x-0 top-1/2 h-[30%] -translate-y-1/2 bg-gradient-to-r from-transparent via-black/75 to-transparent" />}
+          <div className="display anim-banner relative text-7xl sm:text-9xl" style={{ ['--dur' as string]: `${banner.dur}s`, color: banner.tone === 'red' ? '#ff5a52' : banner.tone === 'white' ? '#fff' : '#ffe6a3', textShadow: '0 6px 0 #000, 0 0 40px rgb(0 0 0 / .6)' }}>
             {banner.text}
           </div>
-          {banner.sub && <div className="anim-rise mono rounded bg-black/70 px-3 py-1 text-xs tracking-widest text-white/90 sm:text-sm">{banner.sub}</div>}
+          {banner.sub && <div className="anim-rise mono relative rounded bg-black/70 px-3 py-1 text-xs tracking-widest text-white/90 sm:text-sm">{banner.sub}</div>}
         </div>
       )}
 

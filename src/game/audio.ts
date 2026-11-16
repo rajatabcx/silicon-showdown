@@ -23,6 +23,22 @@ const VOICE_FILES: VoiceId[] = [
   'teal_greta', 'teal_armageddon', 'teal_monopoly', 'covfefe_maga', 'veep_cat_ladies',
 ];
 
+/** Recorded one-shot effects in /public/audio/sfx. */
+const clips = new Map<string, AudioBuffer>();
+function loadClip(c: AudioContext, name: string) {
+  fetch(`/audio/sfx/${name}.mp3`).then((r) => r.arrayBuffer()).then((b) => c.decodeAudioData(b)).then((buf) => { clips.set(name, buf); })
+    .catch(() => { /* a missing clip falls back to the synthesized sound */ });
+}
+function clip(name: string, delay = 0) {
+  const buf = clips.get(name);
+  if (!ctx || !sfxBus || !buf) return false;
+  const s = ctx.createBufferSource(); s.buffer = buf;
+  const g = ctx.createGain(); g.gain.value = 1.3;
+  s.connect(g).connect(sfxBus);
+  s.start(ctx.currentTime + delay);
+  return true;
+}
+
 /** Must be called from a user gesture (browsers block audio until then). */
 export function unlockAudio() {
   if (ctx) { void ctx.resume(); return; }
@@ -33,6 +49,7 @@ export function unlockAudio() {
     master = ctx.createGain(); master.gain.value = muted ? 0 : 0.9;
     master.connect(comp).connect(ctx.destination);
     sfxBus = ctx.createGain(); sfxBus.gain.value = 0.7; sfxBus.connect(master);
+    loadClip(ctx, 'wasted');
     bedBus = ctx.createGain(); bedBus.gain.value = 0.5; bedBus.connect(master);
     voiceBus = ctx.createGain(); voiceBus.gain.value = 1.15; voiceBus.connect(master);
     noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
@@ -126,7 +143,7 @@ function hiss(dur: number, vol: number, type: BiquadFilterType, f0: number, f1: 
 
 export type Sfx =
   | 'hit' | 'heavy' | 'block' | 'whoosh' | 'ko' | 'superStart' | 'superBoom' | 'ui' | 'gavel' | 'wheeze' | 'factCheck'
-  | 'thud' | 'chainsaw' | 'riser' | 'tick' | 'stamp' | 'dodge' | 'tier' | 'cheer' | 'boo';
+  | 'wasted' | 'thud' | 'chainsaw' | 'riser' | 'tick' | 'stamp' | 'dodge' | 'tier' | 'cheer' | 'boo';
 
 export function sfx(name: Sfx) {
   switch (name) {
@@ -142,6 +159,14 @@ export function sfx(name: Sfx) {
     case 'dodge': hiss(0.22, 0.25, 'bandpass', 1800, 400, 1.2, 0, false, 0.06); break;
     case 'ko':
       osc('sine', 90, 28, 1.2, 1.2); hiss(0.6, 1, 'lowpass', 1200, 80, 0.5, 0, true); osc('sawtooth', 220, 55, 0.6, 0.18, 0, true);
+      break;
+    // The knockout sting: our own sound, in the spirit of the "wasted" meme. A low hit, then a slow sinking chord.
+    case 'wasted':
+      // The owner's chosen knockout clip plays if it loaded; otherwise the synthesized sting below.
+      if (clip('wasted', 0.35)) break;
+      osc('sine', 60, 30, 0.9, 1.2, 0.45); hiss(0.5, 0.8, 'lowpass', 700, 60, 0.6, 0.45, true);
+      for (const [f, d] of [[196, 0.5], [147, 0.56], [98, 0.62]] as const) { osc('sawtooth', f, f * 0.84, 2.2, 0.16, d, true); osc('triangle', f * 2, f * 1.68, 1.8, 0.07, d, true); }
+      hiss(2.2, 0.22, 'bandpass', 900, 200, 1.2, 0.5, true, 0.3);
       break;
     case 'superStart': hiss(0.6, 0.5, 'bandpass', 300, 4000, 2, 0, true, 0.4); osc('sawtooth', 110, 440, 0.6, 0.12, 0, true); break;
     case 'riser': hiss(1.4, 0.35, 'bandpass', 200, 5000, 3, 0, true, 1.2); break;

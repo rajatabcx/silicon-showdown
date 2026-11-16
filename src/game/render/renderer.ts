@@ -86,9 +86,12 @@ export class Renderer {
   private policy: PolicyCine | null = null;
   private flashBy = -1;
   private blur = 0;
+  /** Knockout: the picture drains to grey until the next round starts. */
+  private grey = false;
   private dots: THREE.Sprite | null = null;
-  /** Title-screen mode: slow orbit of the room. */
+  /** Menu mode (nothing is simulated): a slow orbit of the room on the title, a steady two-shot on the select screen. */
   attract = true;
+  lobby: 'title' | 'select' = 'title';
 
   constructor(private canvas: HTMLCanvasElement, private assets: Assets, sides: SideSetup[]) {
     this.sides = sides;
@@ -259,9 +262,10 @@ export class Renderer {
         this.burst(p, 22, '#ffd27a', 11);
         this.kick(0.6, 0.5, 1.6, 0.02);
         this.stage.cheer(2);
+        this.grey = true;
         break;
       }
-      case 'roundStart': this.endCine(); break;
+      case 'roundStart': this.endCine(); this.grey = false; break;
       case 'tagIn': {
         const f = m.f[e.by];
         this.restX[e.by] = f.x;
@@ -408,7 +412,9 @@ export class Renderer {
     if (pausing >= 0 && !this.dots) { this.dots = typingDots(); this.fx.add(this.dots); }
     if (pausing < 0 && this.dots) { this.fx.remove(this.dots); this.dots = null; }
     if (this.dots && pausing >= 0) {
-      this.views[pausing].bonePos('head', this.dots.position).y += 0.62;
+      // Behind his head, clear of the speech bubble that sits above it.
+      const hp = this.views[pausing].bonePos('head', this.dots.position);
+      hp.x -= m.f[pausing].facing * 0.95; hp.y += 0.1;
       (this.dots.userData.tick as (t: number, size: number) => void)(this.t, 0.55 + m.f[pausing].frame / 400);
     }
 
@@ -458,7 +464,7 @@ export class Renderer {
     u.uFlash.value = this.flash;
     u.uAberr.value = this.aberr;
     u.uTime.value = this.t % 100;
-    const wantSat = cine?.sat ?? 1;
+    const wantSat = cine?.sat ?? (this.grey && m.phase === 'roundEnd' ? 0.05 : 1);
     u.uSat.value += (wantSat - u.uSat.value) * Math.min(1, dt * 3);
     u.uVig.value += ((cine || flashBy >= 0 || this.policy ? 0.55 : 0.34) - u.uVig.value) * Math.min(1, dt * 6);
     this.blur += (wantBlur - this.blur) * Math.min(1, dt * 14);
@@ -494,6 +500,10 @@ export class Renderer {
   }
 
   fightShot(m: Match): Shot {
+    if (this.attract && this.lobby === 'select') {
+      // Far enough back, and aimed low enough, that both stand in the gap between the heading and the name plates.
+      return { pos: new THREE.Vector3(Math.sin(this.t * 0.25) * 0.2, 1.1, 9.2), look: new THREE.Vector3(0, 0.1, 0), fov: 30 };
+    }
     if (this.attract) {
       const a = this.t * 0.07;
       return { pos: new THREE.Vector3(Math.sin(a) * 3.2, 1.9 + Math.sin(this.t * 0.2) * 0.2, 9 + Math.cos(a) * 1.2), look: new THREE.Vector3(0, 1.45, 0), fov: 30 };

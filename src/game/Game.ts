@@ -86,6 +86,9 @@ export class Game {
     this.renderer.onEvent({ t: 'roundStart', round: 1 }, this.match);
   }
 
+  /** Which menu the room is behind: the title (orbiting camera) or the select screen (both fighters, face on). */
+  setLobby(view: 'title' | 'select') { this.renderer.lobby = view; }
+
   setPaused(p: boolean) { this.paused = p; this.keys.clear(); }
 
   /** Where a fighter's head is on screen, 0..1 from the top-left. */
@@ -226,7 +229,7 @@ export class Game {
       case 'superDamage': sfx('superBoom'); sfx('cheer'); break;
       case 'superLand': sfx('stamp'); this.slow = { t: 0.9, k: 0.25 }; break;
       case 'ko':
-        sfx('ko'); sfx('cheer'); this.slow = { t: Math.max(this.slow.t, 0.7), k: 0.25 };
+        sfx('ko'); sfx('wasted'); sfx('cheer'); this.slow = { t: 1.5, k: 0.22 };
         this.hushAll();
         window.setTimeout(() => { if (this.match.phase === 'roundEnd') this.bark((1 - e.by) as 0 | 1, this.infos[1 - e.by].barks.taunt); }, 1500);
         break;
