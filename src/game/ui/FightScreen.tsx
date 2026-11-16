@@ -160,8 +160,40 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
         if (win) win.dataset.open = String(f.frame >= total - FACT_CHECK_WINDOW && sg.kind !== 'counter');
         if (bub) {
           const p = game.headOnScreen(qi as 0 | 1);
-          bub.style.left = `${Math.min(80, Math.max(20, p.x * 100))}%`;
-          bub.style.top = `${Math.max(30, Math.min(70, p.y * 100))}%`;
+          // A prop held overhead (the chainsaw) would sit under the bubble: put the bubble beside him instead,
+          // on the side away from his opponent, or the other side if there isn't room.
+          const overhead = m.f[qi].tag <= 0 && sigInfo(infos[qi], m.f[qi].sig).prop === 'chainsaw';
+          const tail = bub.querySelectorAll<HTMLElement>('[data-tail]');
+          if (overhead) {
+            // Wait for the saw to land, then sit above its tip if there's room under the HUD, else beside it.
+            const r = game.propRect(qi as 0 | 1);
+            const W = rootRef.current!.clientWidth, H = rootRef.current!.clientHeight;
+            const bw = bub.offsetWidth / W, bh = bub.offsetHeight / H;
+            bub.style.visibility = r ? 'visible' : 'hidden';
+            if (r) {
+              const top = Math.min(r.y0, p.y) - 0.02;
+              if (top - bh > 0.15) {
+                bub.style.left = `${Math.min(1 - bw / 2 - 0.01, Math.max(bw / 2 + 0.01, (r.x0 + r.x1) / 2)) * 100}%`;
+                bub.style.top = `${top * 100}%`;
+                bub.style.translate = '-50% -100%';
+              } else {
+                const l = Math.min(r.x0, p.x - 0.04) - 0.015, rr = Math.max(r.x1, p.x + 0.04) + 0.015;
+                let side = -m.f[qi].facing;
+                if (side < 0 && l - bw < 0.01) side = 1;
+                if (side > 0 && rr + bw > 0.99) side = -1;
+                bub.style.left = `${(side < 0 ? l : rr) * 100}%`;
+                bub.style.top = `${Math.max(0.15 + bh / 2, Math.min(0.75, (r.y0 + r.y1) / 2)) * 100}%`;
+                bub.style.translate = side < 0 ? '-100% -50%' : '0 -50%';
+              }
+            }
+            tail.forEach((t) => { t.style.display = 'none'; });
+          } else {
+            bub.style.left = `${Math.min(80, Math.max(20, p.x * 100))}%`;
+            bub.style.top = `${Math.max(30, Math.min(70, p.y * 100))}%`;
+            bub.style.translate = '-50% -100%';
+            bub.style.visibility = 'visible';
+            tail.forEach((t) => { t.style.display = ''; });
+          }
         }
       }
 
@@ -421,7 +453,7 @@ function SpeechBubble({ q, info, isCpu }: { q: NonNullable<Quote>; info: Fighter
   const tone = q.side === 0 ? info.color : info.color;
   const kind = q.policy ? 'POLICY MOVE' : counter ? 'COUNTER' : 'SIGNATURE';
   return (
-    <div data-hud="qbubble" className="absolute -translate-x-1/2 -translate-y-full" style={{ left: '50%', top: '40%' }}>
+    <div data-hud="qbubble" className="absolute -translate-x-1/2 -translate-y-full" style={{ left: '50%', top: '40%', visibility: q.sig.prop === 'chainsaw' && !q.policy ? 'hidden' : undefined }}>
       <div className="anim-pop relative w-[min(24rem,80vw)] rounded-[1.4rem] border-[3px] border-black bg-white px-4 pb-3 pt-2.5 text-black shadow-[5px_5px_0_#000]">
         <div className="flex items-center gap-2">
           <span className="display rounded-sm px-1.5 py-0.5 text-xs tracking-wider text-white" style={{ background: tone }}>{kind}</span>
@@ -454,8 +486,8 @@ function SpeechBubble({ q, info, isCpu }: { q: NonNullable<Quote>; info: Fighter
         )}
         {counter && <div className="mono mt-2 text-[10px] tracking-widest text-[#1d6fa0]">HE IS NOT ANSWERING. DON&apos;T HIT HIM.</div>}
         {/* Tail */}
-        <span className="absolute -bottom-[19px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[14px] border-t-[18px] border-x-transparent border-t-black" />
-        <span className="absolute -bottom-[13px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[10px] border-t-[13px] border-x-transparent border-t-white" />
+        <span data-tail className="absolute -bottom-[19px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[14px] border-t-[18px] border-x-transparent border-t-black" />
+        <span data-tail className="absolute -bottom-[13px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[10px] border-t-[13px] border-x-transparent border-t-white" />
       </div>
     </div>
   );

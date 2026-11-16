@@ -86,6 +86,7 @@ export class Game {
   setPaused(p: boolean) { this.paused = p; }
 
   /** Where a fighter's head is on screen, 0..1 from the top-left. */
+  propRect(side: 0 | 1) { return this.renderer.propRect(side); }
   headOnScreen(side: 0 | 1, who?: 'boss' | 'sk') { return this.renderer.headOnScreen(side, this.match, who); }
 
   private onKey = (e: KeyboardEvent) => {

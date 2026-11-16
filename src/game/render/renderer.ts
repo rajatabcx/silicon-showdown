@@ -353,6 +353,14 @@ export class Renderer {
         this.restX[i] = f.x;
       }
     });
+    // The chainsaw lands in his hand: a flash and a jolt.
+    for (const v of this.views) {
+      if (!v.caughtAt) continue;
+      this.spark(v.caughtAt, 1.6, '#fff4d0', 0.25);
+      this.burst(v.caughtAt, 14, '#ffd27a', 5);
+      this.kick(0.12, 0.06, 0.4);
+      v.caughtAt = null;
+    }
     this.updateProjectiles(m, dt);
 
     for (let i = this.gates.length - 1; i >= 0; i--) {
@@ -428,6 +436,21 @@ export class Renderer {
 
     this.stage.update(this.t, dt);
     this.composer.render(dt);
+  }
+
+  /** Screen rectangle (0..1, y down) of the prop a fighter holds, once it has landed in his hands. */
+  propRect(side: 0 | 1) {
+    const o = this.views[side].settledProp;
+    if (!o) return null;
+    const box = new THREE.Box3().setFromObject(o);
+    let x0 = 1, x1 = 0, y0 = 1, y1 = 0;
+    const v = new THREE.Vector3();
+    for (let k = 0; k < 8; k++) {
+      v.set(k & 1 ? box.max.x : box.min.x, k & 2 ? box.max.y : box.min.y, k & 4 ? box.max.z : box.min.z).project(this.cam);
+      const sx = (v.x + 1) / 2, sy = (1 - v.y) / 2;
+      x0 = Math.min(x0, sx); x1 = Math.max(x1, sx); y0 = Math.min(y0, sy); y1 = Math.max(y1, sy);
+    }
+    return { x0, x1, y0, y1 };
   }
 
   /** Screen position (0..1) above a head. `who` picks the billionaire or the sidekick; default is whoever is fighting. */

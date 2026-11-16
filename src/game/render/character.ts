@@ -36,6 +36,8 @@ const SIG_ANIM: Record<string, Win> = {
 };
 
 const HIPS = 'mixamorigHips';
+/** Seconds the chainsaw takes to fall from the sky into his hand. */
+const CHAINSAW_DROP = 0.45;
 const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3();
 const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _q3 = new THREE.Quaternion();
 const _fwd = new THREE.Vector3(), _up = new THREE.Vector3(), _side = new THREE.Vector3();
@@ -83,7 +85,9 @@ export class FighterView {
   hand: { r: THREE.Object3D; l: THREE.Object3D };
   private held: THREE.Object3D | null = null;
   /** Props placed in world space from the arm pose each frame ('grip' follows the forearm, 'both' sits between the hands). */
-  private carried: { o: THREE.Object3D; kind: 'chainsaw' | 'sink' } | null = null;
+  private carried: { o: THREE.Object3D; kind: 'chainsaw' | 'sink'; age: number; caught: boolean } | null = null;
+  /** World position of a chainsaw that was just caught out of the air this frame (for the flash), else null. */
+  caughtAt: THREE.Vector3 | null = null;
   /** Blend weights for the procedural arm poses, 0..1. */
   private poseW = { salute: 0, chest: 0, overhead: 0, carry: 0 };
   /** Cinematic override: what the fighter does while a Super plays. */
@@ -136,11 +140,13 @@ export class FighterView {
     h.add(prop);
   }
   get holding() { return this.held ?? this.carried?.o ?? null; }
+  /** The carried prop, once it has landed in his hands (null while it is still falling). */
+  get settledProp() { return this.carried?.caught ? this.carried.o : null; }
 
   /** Carry a prop posed from the arms (chainsaw in the left fist, sink in both hands). Null drops it. */
   carry(prop: THREE.Object3D | null, kind: 'chainsaw' | 'sink' = 'sink') {
     if (this.carried) this.root.remove(this.carried.o);
-    this.carried = prop ? { o: prop, kind } : null;
+    this.carried = prop ? { o: prop, kind, age: 0, caught: kind !== 'chainsaw' } : null;
     if (prop) { prop.userData.kind = kind; this.root.add(prop); }
   }
 
@@ -254,6 +260,7 @@ export class FighterView {
         this.aim(B[`mixamorig${fore}`], B[`mixamorig${hand}`], grip.sub(el), w.carry);
       }
     }
+    if (this.carried) this.carried.age += dt;
     this.placeCarried(fwd, up);
   }
 
@@ -275,6 +282,16 @@ export class FighterView {
       m.makeBasis(x, y, z);
       // The rear grip sits in the fist.
       pos.copy(hand).addScaledVector(x, 0.18).addScaledVector(y, -0.16);
+      // It falls out of the sky, spinning, and lands in his raised hand.
+      const k = Math.min(1, c.age / CHAINSAW_DROP);
+      if (k < 1) {
+        const e = (1 - k) * (1 - k);
+        pos.y += e * 7;
+        m.premultiply(new THREE.Matrix4().makeRotationZ(e * Math.PI * 5));
+      } else if (!c.caught) {
+        c.caught = true;
+        this.caughtAt = pos.clone();
+      }
     } else {
       const r = B.mixamorigRightHand.getWorldPosition(new THREE.Vector3());
       const l = B.mixamorigLeftHand.getWorldPosition(new THREE.Vector3());
