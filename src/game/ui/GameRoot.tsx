@@ -1,215 +1,208 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { sfx, unlockAudio } from '../audio';
-import { FIGHTERS, fighterById, type Face } from '../data/fighters';
+import { TEAL, TUSK } from '../data/roster';
 import { fill, HEADLINES, PAPERS, pick } from '../data/satire';
-import { drawFace } from '../render/faces';
-import { STAGES } from '../render/stages';
+import { Game } from '../Game';
+import { loadAssets } from '../render/assets';
 import type { Difficulty } from '../sim/ai/cpu';
 import { FightScreen } from './FightScreen';
 
-type Screen = 'gate' | 'menu' | 'help' | 'select' | 'fight' | 'result' | 'champion';
-type Mode = 'arcade' | 'quick';
+type Screen = 'gate' | 'title' | 'fight' | 'result';
 type Paper = { name: string; headline: string; sub: string; won: boolean };
 
-const LEVELS: Difficulty[] = ['easy', 'normal', 'hard'];
-const LEVEL_NAMES: Record<Difficulty, string> = { easy: 'Intern', normal: 'Founder', hard: 'Hostile Takeover' };
-
-function Portrait({ face, className = '' }: { face: Face; className?: string }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  useEffect(() => { if (ref.current) drawFace(face, ref.current); }, [face]);
-  return (
-    <div className={`aspect-square overflow-hidden ${className}`}>
-      <canvas ref={ref} className="-ml-[50%] h-full w-[200%] max-w-none" />
-    </div>
-  );
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center gap-2 text-xs">
-      <span className="w-16 text-white/60">{label}</span>
-      <div className="h-2 flex-1 rounded bg-white/15"><div className="h-full rounded bg-yellow-300" style={{ width: `${Math.round(value * 100)}%` }} /></div>
-    </div>
-  );
-}
+const LEVELS: { id: Difficulty; name: string; note: string }[] = [
+  { id: 'easy', name: 'Intern', note: 'He rarely Fact-Checks you.' },
+  { id: 'normal', name: 'Founder', note: 'Fights back, checks some lines.' },
+  { id: 'hard', name: 'Hostile Takeover', note: 'Reads every line. Punishes talk.' },
+];
 
 export function GameRoot() {
   const [screen, setScreen] = useState<Screen>('gate');
-  const [mode, setMode] = useState<Mode>('arcade');
-  const [playerId, setPlayerId] = useState(FIGHTERS[0].id);
-  const [rivalId, setRivalId] = useState<string | null>(null);
   const [level, setLevel] = useState<Difficulty>('normal');
-  const [ladder, setLadder] = useState<string[]>([]);
-  const [rung, setRung] = useState(0);
-  const [fightKey, setFightKey] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [game, setGame] = useState<Game | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [paper, setPaper] = useState<Paper | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const player = fighterById(playerId);
-  const cpu = fighterById(ladder[rung] ?? FIGHTERS[1].id);
-  const base = LEVELS.indexOf(level);
-  const fightLevel = mode === 'quick' ? level : LEVELS[Math.max(0, Math.min(2, base + (rung < 2 ? -1 : rung < 5 ? 0 : 1)))];
+  // Load models while the satire notice is up, then build the room behind the title screen.
+  useEffect(() => {
+    let g: Game | null = null, dead = false;
+    loadAssets(setProgress).then((assets) => {
+      if (dead || !canvasRef.current) return;
+      g = new Game({ canvas: canvasRef.current, assets, player: TUSK, cpu: TEAL });
+      setGame(g);
+    }).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the models.'));
+    return () => { dead = true; g?.dispose(); };
+  }, []);
+
   const go = (s: Screen) => { sfx('ui'); setScreen(s); };
+  const start = () => { if (!game) return; unlockAudio(); sfx('gavel'); game.start(level); setScreen('fight'); };
+  const done = useCallback((won: boolean) => {
+    const w = won ? TUSK.name : TEAL.name, l = won ? TEAL.name : TUSK.name;
+    setPaper({ name: pick(PAPERS), headline: fill(pick(won ? HEADLINES.win : HEADLINES.lose), { w: w.toUpperCase(), l: l.toUpperCase() }), sub: pick(HEADLINES.sub), won });
+    setScreen('result');
+  }, []);
+  const quit = useCallback(() => { game?.stop(); setScreen('title'); }, [game]);
 
-  const start = () => {
-    const others = FIGHTERS.filter((f) => f.id !== playerId).map((f) => f.id);
-    for (let i = others.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [others[i], others[j]] = [others[j], others[i]]; }
-    setLadder(mode === 'arcade' ? others : [rivalId ?? others[0]]);
-    setRung(0); setFightKey((k) => k + 1); go('fight');
-  };
-
-  const finish = (won: boolean) => {
-    const v = { w: (won ? player : cpu).name.toUpperCase(), l: (won ? cpu : player).name.toUpperCase() };
-    setPaper({ name: pick(PAPERS), headline: fill(pick(won ? HEADLINES.win : HEADLINES.lose), v), sub: pick(HEADLINES.sub), won });
-    if (won && mode === 'arcade' && rung === ladder.length - 1) {
-      try {
-        const done: string[] = JSON.parse(localStorage.getItem('ss:cleared') ?? '[]');
-        localStorage.setItem('ss:cleared', JSON.stringify([...new Set([...done, playerId])]));
-      } catch { /* storage unavailable: progress just isn't saved */ }
-      setScreen('champion');
-    } else setScreen('result');
-  };
-
-  const next = () => { if (paper?.won && mode === 'arcade') setRung((r) => r + 1); setFightKey((k) => k + 1); go('fight'); };
-
-  if (screen === 'fight') {
-    return (
-      <FightScreen key={fightKey} player={player} cpu={cpu} difficulty={fightLevel}
-        stage={STAGES[(rung + (mode === 'quick' ? fightKey : 0)) % STAGES.length].id}
-        label={mode === 'arcade' ? `Fight ${rung + 1} of ${ladder.length} · ${LEVEL_NAMES[fightLevel]}` : LEVEL_NAMES[fightLevel]}
-        onDone={finish} onQuit={() => go('menu')} />
-    );
-  }
+  useEffect(() => {
+    if (screen !== 'title') return;
+    const onKey = (e: KeyboardEvent) => { if (e.code === 'Enter' && game) start(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   return (
-    <main className="flex min-h-dvh flex-1 flex-col items-center justify-center gap-6 bg-[radial-gradient(circle_at_50%_0%,#3b1d5a,#0b0a12_70%)] p-5 text-white">
+    <main className="relative h-dvh w-full overflow-hidden bg-[#0b0910]">
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
+
+      {screen === 'fight' && game && <FightScreen game={game} onDone={done} onQuit={quit} />}
+
       {screen === 'gate' && (
-        <div className="flex max-w-xl flex-col items-center gap-5 text-center">
-          <h1 className="text-4xl font-black italic tracking-tighter sm:text-5xl">SATIRE NOTICE</h1>
-          <p className="text-white/85">
-            Silicon Showdown is satire and parody. Every character is a fictional caricature. Nothing in this game is news,
-            or a factual claim about any real person, company, party or government.
-          </p>
-          <p className="text-white/70" lang="hi">
-            यह खेल व्यंग्य और पैरोडी है। सभी पात्र काल्पनिक हैं। इसका किसी वास्तविक व्यक्ति, कंपनी, पार्टी या सरकार से कोई संबंध नहीं है।
-          </p>
-          <button className="menu-btn" onClick={() => { unlockAudio(); go('menu'); }}>I understand · Continue</button>
-          <Link href="/legal" className="text-xs text-white/50 underline">Full disclaimer</Link>
-        </div>
-      )}
-
-      {screen === 'menu' && (
-        <div className="flex flex-col items-center gap-6 text-center">
-          <div>
-            <h1 className="text-6xl font-black italic leading-none tracking-tighter drop-shadow-[0_6px_0_#e5484d] sm:text-8xl">SILICON<br />SHOWDOWN</h1>
-            <p className="mt-4 text-lg font-semibold text-yellow-300">The Great Cap Table Fight</p>
-          </div>
-          <div className="flex w-64 flex-col gap-3">
-            <button className="menu-btn" onClick={() => { setMode('arcade'); go('select'); }}>Arcade · IPO Run</button>
-            <button className="menu-btn bg-sky-600" onClick={() => { setMode('quick'); go('select'); }}>Quick Fight</button>
-            <button className="menu-btn bg-zinc-700" onClick={() => go('help')}>How to play</button>
-          </div>
-          <p className="max-w-md text-xs text-white/50">Billionaires get tired fast. When they run out of breath, the politician they funded fights for them.</p>
-        </div>
-      )}
-
-      {screen === 'help' && (
-        <div className="flex max-w-2xl flex-col gap-4">
-          <h2 className="text-3xl font-black italic">HOW TO PLAY</h2>
-          <ul className="grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
-            <li><b>A / D</b> or arrows: move</li><li><b>W</b>: jump · <b>S</b>: crouch</li>
-            <li><b>Hold back</b>: block (crouch to block low hits)</li><li><b>J</b>: punch · <b>K</b>: kick</li>
-            <li><b>I</b> (or J+K): grab, beats a block</li><li><b>Forward + J / K</b>: special moves</li>
-            <li><b>Down + K</b>: sweep · <b>Down + Forward + J</b>: uppercut</li><li><b>J J J</b>, <b>J J K</b>, <b>J K K</b>: combos</li>
-            <li><b>L</b> or <b>Space</b>: Super, when HYPE is full</li><li><b>U</b>: call your sidekick when CARDIO is low</li>
-            <li><b>Esc</b>: pause · <b>M</b>: mute</li>
-          </ul>
-          <p className="text-sm text-white/80">
-            <b>CARDIO</b> drains when you attack and jump. At zero your billionaire wheezes, then their funded politician tags in for 8 seconds
-            while they recover at the back. If the sidekick takes 3 hits, that&apos;s a scandal: you lose health and the sidekick is gone for the round.
-            A Super does 30% damage unless the opponent blocks it.
-          </p>
-          <button className="menu-btn w-40" onClick={() => go('menu')}>Back</button>
-        </div>
-      )}
-
-      {screen === 'select' && (
-        <div className="flex w-full max-w-5xl flex-col gap-5">
-          <h2 className="text-3xl font-black italic">{mode === 'arcade' ? 'ARCADE · PICK YOUR BILLIONAIRE' : 'QUICK FIGHT · PICK YOUR BILLIONAIRE'}</h2>
-          <div className="grid gap-5 md:grid-cols-[1fr_20rem]">
-            <div className="grid grid-cols-4 gap-2 self-start">
-              {FIGHTERS.map((f) => (
-                <button key={f.id} onClick={() => { sfx('ui'); setPlayerId(f.id); if (rivalId === f.id) setRivalId(null); }}
-                  className={`overflow-hidden rounded-lg border-4 text-left transition ${f.id === playerId ? 'scale-105 border-yellow-300' : 'border-white/15 hover:border-white/60'}`}>
-                  <Portrait face={f.look.face} />
-                  <div className="truncate px-1.5 py-1 text-xs font-black italic uppercase" style={{ background: f.color }}>{f.name}</div>
-                </button>
-              ))}
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#0b0910] p-5">
+          <div className="anim-rise flex max-w-xl flex-col items-center gap-6 text-center">
+            <Seal />
+            <div className="mono text-xs tracking-[0.3em] text-[#e3b95a]">SATIRE NOTICE</div>
+            <h1 className="display text-4xl leading-none text-[#f3ecdc] sm:text-6xl">Before the hearing begins</h1>
+            <p className="text-base leading-relaxed text-white/80">
+              Silicon Showdown is satire and parody. The fighters are caricatures with made-up names. Every line they speak is a short
+              clip of something the real person said on the record, shown with its source. Everything else (the fight, the jokes,
+              the headlines) is invented and is not news or a claim about anyone.
+            </p>
+            <button className="btn" onClick={() => { unlockAudio(); go('title'); }}>I understand · Continue</button>
+            <div className="flex items-center gap-3 text-xs text-white/40">
+              <Link href="/legal" className="underline hover:text-white/70">Full disclaimer</Link>
+              <span>·</span>
+              <span className="mono">{progress < 1 ? `Loading the room ${Math.round(progress * 100)}%` : 'Room ready'}</span>
             </div>
-            <div className="flex flex-col gap-3 rounded-lg bg-black/40 p-4">
-              <div>
-                <div className="text-2xl font-black italic uppercase" style={{ color: player.color }}>{player.name}</div>
-                <div className="text-xs text-white/60">{player.team}</div>
+          </div>
+        </div>
+      )}
+
+      {screen === 'title' && (
+        <div className="absolute inset-0 z-10 flex flex-col bg-[linear-gradient(180deg,rgb(11_9_16/0.88),rgb(11_9_16/0.15)_38%,rgb(11_9_16/0.25)_62%,rgb(11_9_16/0.95))]">
+          <div className="anim-rise flex flex-col items-center pt-[6vh] text-center">
+            <div className="mono text-[11px] tracking-[0.35em] text-[#e3b95a]">COMMITTEE ON COMMERCE, SCIENCE AND HUBRIS</div>
+            <h1 className="display mt-2 text-6xl leading-[0.85] text-[#f3ecdc] drop-shadow-[0_6px_0_#000] sm:text-[8.5rem]">Silicon Showdown</h1>
+            <div className="mt-3 flex items-center gap-3">
+              <span className="h-px w-10 bg-[#e3b95a]" />
+              <span className="mono text-xs tracking-[0.3em] text-[#ffe6a3] sm:text-sm">THE HEARING · BEST OF THREE</span>
+              <span className="h-px w-10 bg-[#e3b95a]" />
+            </div>
+          </div>
+          <div className="flex-1" />
+          <div className="anim-rise mx-auto grid w-full max-w-5xl grid-cols-[1fr_auto_1fr] items-end gap-4 px-5 pb-[5vh]">
+            <Card f={TUSK} tag="YOU" />
+            <div className="flex flex-col items-center gap-4 pb-1">
+              <div className="flex gap-2" role="radiogroup" aria-label="Difficulty">
+                {LEVELS.map((l) => (
+                  <button key={l.id} className="btn-ghost" role="radio" aria-checked={level === l.id} data-on={level === l.id} onClick={() => { sfx('ui'); setLevel(l.id); }}>{l.name}</button>
+                ))}
               </div>
-              <p className="text-sm text-white/85">{player.blurb}</p>
-              <Stat label="Fitness" value={player.sim.fitness / 1.5} />
-              <Stat label="Speed" value={(player.sim.walk - 1.9) / 0.6} />
-              <div className="text-sm"><span className="text-white/60">Super:</span> <b>{player.superName}</b></div>
-              <div className="text-sm"><span className="text-white/60">Sidekick:</span> <b>{player.sidekick.name}</b> ({player.sidekick.policy})</div>
+              <div className="mono -mt-2 text-[11px] text-white/50">{LEVELS.find((l) => l.id === level)!.note}</div>
+              <button className="btn text-xl" disabled={!game} onClick={start}>{game ? 'Begin the hearing' : `Loading ${Math.round(progress * 100)}%`}</button>
+              <button className="mono text-xs tracking-widest text-white/60 underline-offset-4 hover:text-white hover:underline" onClick={() => { sfx('ui'); setShowHelp(true); }}>HOW TO PLAY</button>
+              {error && <div className="text-sm text-red-300">{error}</div>}
             </div>
-          </div>
-          {mode === 'quick' && (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-white/60">Opponent:</span>
-              <button onClick={() => setRivalId(null)} className={`chip ${rivalId === null ? 'chip-on' : ''}`}>Random</button>
-              {FIGHTERS.filter((f) => f.id !== playerId).map((f) => (
-                <button key={f.id} onClick={() => setRivalId(f.id)} className={`chip ${rivalId === f.id ? 'chip-on' : ''}`}>{f.name}</button>
-              ))}
-            </div>
-          )}
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-white/60">Difficulty:</span>
-            {LEVELS.map((l) => (
-              <button key={l} onClick={() => setLevel(l)} className={`chip ${level === l ? 'chip-on' : ''}`}>{LEVEL_NAMES[l]}</button>
-            ))}
-          </div>
-          <div className="flex gap-3">
-            <button className="menu-btn w-40" onClick={start}>Fight!</button>
-            <button className="menu-btn w-32 bg-zinc-700" onClick={() => go('menu')}>Back</button>
+            <Card f={TEAL} tag="CPU" right />
           </div>
         </div>
       )}
+
+      {showHelp && <Help onClose={() => { sfx('ui'); setShowHelp(false); }} />}
 
       {screen === 'result' && paper && (
-        <div className="flex flex-col items-center gap-5">
-          <article className="w-full max-w-lg -rotate-1 bg-[#f3ecd9] p-6 text-center text-black shadow-2xl">
-            <div className="border-y-4 border-double border-black py-1 font-serif text-3xl font-black tracking-tight">{paper.name}</div>
-            <h2 className="mt-4 font-serif text-3xl font-black leading-tight sm:text-4xl">{paper.headline}</h2>
-            <p className="mt-3 font-serif italic">{paper.sub}</p>
-            <p className="mt-4 text-[10px] uppercase tracking-widest text-black/50">Satire · Not real news</p>
-          </article>
-          <div className="flex gap-3">
-            <button className="menu-btn" onClick={next}>
-              {paper.won ? (mode === 'arcade' ? `Next: ${fighterById(ladder[rung + 1]).name}` : 'Fight again') : 'Rematch'}
-            </button>
-            <button className="menu-btn bg-zinc-700" onClick={() => go('menu')}>Menu</button>
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
+          <div className="anim-pop w-full max-w-xl rotate-[-1.5deg] bg-[#f3ecdc] p-6 text-[#15110a] shadow-[0_30px_80px_rgba(0,0,0,.7)]">
+            <div className="flex items-center justify-between border-b-2 border-black pb-1 text-[10px] tracking-widest">
+              <span className="mono">LATE EDITION</span><span className="mono">PRICE: ONE TWEET</span>
+            </div>
+            <div className="py-2 text-center font-serif text-4xl font-black tracking-tight sm:text-5xl">{paper.name}</div>
+            <div className="border-y-4 border-double border-black py-3 text-center">
+              <div className="display text-3xl leading-tight sm:text-5xl">{paper.headline}</div>
+            </div>
+            <p className="mt-3 text-center font-serif text-base italic">{paper.sub}</p>
+            <div className={`mono mt-4 text-center text-sm font-semibold ${paper.won ? 'text-[#1d6a2e]' : 'text-[#a3212f]'}`}>{paper.won ? 'YOU WON THE HEARING' : 'YOU LOST THE HEARING'}</div>
+            <div className="mt-5 flex justify-center gap-3">
+              <button className="btn" onClick={start}>Rematch</button>
+              <button className="btn-ghost !border-black/30 !bg-transparent !text-black" onClick={() => { game?.stop(); go('title'); }}>Title</button>
+            </div>
           </div>
-        </div>
-      )}
-
-      {screen === 'champion' && (
-        <div className="flex flex-col items-center gap-4 text-center">
-          <div className="text-7xl">🏆</div>
-          <h2 className="text-5xl font-black italic tracking-tighter drop-shadow-[0_5px_0_#e5484d]">IPO COMPLETE</h2>
-          <p className="max-w-md text-white/85">
-            {player.name} beat every other billionaire and is now a public company. &quot;{player.lines.win}&quot;
-          </p>
-          <p className="text-xs text-white/50">Coming next: The Auditor boss fight.</p>
-          <button className="menu-btn" onClick={() => go('menu')}>Back to menu</button>
         </div>
       )}
     </main>
+  );
+}
+
+function Card({ f, tag, right }: { f: typeof TUSK; tag: string; right?: boolean }) {
+  return (
+    <div className={`panel flex flex-col gap-1 p-4 ${right ? 'items-end text-right' : 'items-start text-left'}`} style={{ borderColor: f.color }}>
+      <span className="mono text-[10px] tracking-[0.25em]" style={{ color: f.accent }}>{tag} · {f.title.toUpperCase()}</span>
+      <span className="display text-3xl leading-none text-white sm:text-5xl">{f.name}</span>
+      <ul className="mt-2 hidden flex-col gap-0.5 text-xs text-white/70 sm:flex">
+        {f.sigs.map((s, i) => (
+          <li key={s.name}><span className="mono text-[10px] text-white/40">{['L', 'L+FWD', 'L+DOWN'][i]}</span> {s.name}</li>
+        ))}
+        <li><span className="mono text-[10px] text-white/40">ENTER</span> <span className="text-[#ffe6a3]">{f.super.name}</span></li>
+      </ul>
+      <p className="mt-2 hidden max-w-[16rem] text-[11px] leading-snug text-white/50 md:block">{f.egoNote}</p>
+    </div>
+  );
+}
+
+function Help({ onClose }: { onClose(): void }) {
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.code === 'Escape') onClose(); };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [onClose]);
+  const row = (keys: string[], what: string) => (
+    <div className="flex items-center justify-between gap-6 border-b border-white/10 py-2">
+      <span className="flex gap-1">{keys.map((k) => <span key={k} className="kbd">{k}</span>)}</span>
+      <span className="text-right text-sm text-white/80">{what}</span>
+    </div>
+  );
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/75 p-5 backdrop-blur-sm" onClick={onClose}>
+      <div className="panel anim-pop max-h-[90vh] w-full max-w-2xl overflow-y-auto p-6" onClick={(e) => e.stopPropagation()}>
+        <div className="display text-4xl text-[#ffe6a3]">How the hearing works</div>
+        <div className="mt-4 grid gap-6 md:grid-cols-2">
+          <div>
+            {row(['A', 'D'], 'Move. Hold back to block')}
+            {row(['W', 'S'], 'Jump, duck (duck blocks low)')}
+            {row(['J'], 'Light. Tap three times for a string')}
+            {row(['K'], 'Heavy. Forward+K kicks, down+K sweeps')}
+            {row(['L'], 'Signature: say the line, then do it')}
+            {row(['L', 'D'], 'Second signature (L + forward)')}
+            {row(['L', 'S'], 'Third signature (L + down)')}
+            {row(['Space'], 'Dodge. In a line’s last beat: Fact-Check')}
+            {row(['Enter'], 'Super, once you are Viral')}
+            {row(['Esc'], 'Pause')}
+          </div>
+          <div className="flex flex-col gap-3 text-sm leading-relaxed text-white/80">
+            <p><b className="text-white">Say it, then do it.</b> Every signature starts with a real line. While a fighter talks they are open: hit them and the line is cut.</p>
+            <p><b className="text-[#5fc8ff]">Fact-Check.</b> When the other fighter is talking, the bar under the subtitle shows a blue window at the end. Press Space inside it and the move backfires.</p>
+            <p><b className="text-[#ffb347]">Engagement.</b> Saying wild things fills it: Trending, Viral, Main Character. You hit harder and take more. Viral unlocks your Super. Get Fact-Checked at Main Character and you are Ratioed: a Meltdown.</p>
+            <p className="text-white/60">Melon Tusk goes quiet badly: his meter drains twice as fast. Peter Teal gains Engagement while losing.</p>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end"><button className="btn" onClick={onClose}>Got it</button></div>
+      </div>
+    </div>
+  );
+}
+
+function Seal() {
+  return (
+    <svg viewBox="0 0 120 120" className="h-20 w-20" aria-hidden>
+      <circle cx="60" cy="60" r="57" fill="none" stroke="#e3b95a" strokeWidth="3" />
+      <circle cx="60" cy="60" r="46" fill="#111a33" stroke="#e3b95a" strokeWidth="1.5" />
+      <g transform="rotate(-30 60 60)" fill="#e3b95a"><rect x="30" y="54" width="52" height="12" rx="2" /><rect x="74" y="44" width="14" height="32" rx="2" /></g>
+      <rect x="34" y="80" width="52" height="6" fill="#e3b95a" />
+    </svg>
   );
 }

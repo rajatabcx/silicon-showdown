@@ -87,14 +87,14 @@ export const TUSK: FighterInfo = {
       name: 'My Heart Goes Out',
       line: { clips: ['tusk_heart'], text: 'My heart goes out to you.', source: SOURCES.rally },
       prop: null, context: 'Critics called the gesture a salute. He says it was his heart.',
-      sim: { id: 'heart', kind: 'melee', startup: 9, active: 6, recovery: 26, damage: 13, range: 1.9, knockdown: true, lunge: 0.3 },
+      sim: { id: 'heart', kind: 'melee', startup: 9, active: 6, recovery: 26, damage: 13, range: 2.15, knockdown: true, lunge: 0.3 },
     },
     {
       name: 'Chainsaw for Bureaucracy',
       line: { clips: ['tusk_chainsaw'], text: 'This is the chainsaw for bureaucracy!', source: SOURCES.cpac },
       bark: 'tusk_chainsaw_yell', prop: 'chainsaw',
       context: 'Later post: in retrospect, it lacked empathy.',
-      sim: { id: 'chainsaw', kind: 'melee', startup: 12, active: 36, recovery: 28, damage: 6, hits: 3, range: 2.1, knockdown: true, lunge: 0.7 },
+      sim: { id: 'chainsaw', kind: 'melee', startup: 12, active: 36, recovery: 28, damage: 6, hits: 3, range: 2.35, knockdown: true, lunge: 0.7 },
     },
     {
       name: 'Let That Sink In',

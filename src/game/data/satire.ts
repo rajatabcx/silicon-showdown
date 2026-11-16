@@ -1,13 +1,13 @@
-// News ticker lines and end-of-match headlines. {w} = winner, {l} = loser, {s} = sidekick.
+// Lower-third crawl lines and end-of-match headlines. {w} = winner / actor, {l} = loser / target.
+// These are the game's own jokes, not claims about anyone: they comment on the fight, not on real life.
 
 export const TICKER = {
   idle: [
-    'BREAKING: Nothing has happened yet. Analysts call it "priced in".',
-    'Reminder: this is satire. None of this is news.',
+    'LIVE: Committee hearing on extremely online billionaires enters its ninth hour.',
+    'Reminder: this is satire. Every quote is real; nothing else here is news.',
     'Senator asks whether the fight is "on the cloud".',
-    'Crowd vendor reports record sales of overpriced matcha.',
-    'LinkedIn user is "humbled to announce" he is watching this.',
-    'Markets open flat ahead of scheduled punching.',
+    'Gallery reminded that cheering is not permitted. Gallery cheers.',
+    'Chair notes the witnesses have declined to sit at the witness table.',
   ],
   hit: [
     '{l} takes a hit, blames the media.',
@@ -16,40 +16,31 @@ export const TICKER = {
     '{l} says the bruise is a feature, not a bug.',
   ],
   combo: [
-    'COMBO! {w} is scaling faster than expected.',
+    '{w} lands three in a row. Senators check their notes.',
     '{l} enters "founder mode" (lying down).',
-    '{w} ships three hits before the standup ends.',
   ],
-  winded: [
-    '{l} is out of breath. Wellness coach "deeply concerned".',
-    '{l} pauses to "circle back" on breathing.',
-  ],
-  tagIn: [
-    '{s} enters the ring. Donation records unavailable for comment.',
-    'Sidekick {s} tags in: "This is totally unrelated to the funding."',
-  ],
-  scandal: [
-    'SCANDAL: {s} knocked out. Donor {l} "barely knows him".',
-    'DONOR EXPOSED: {l} loses 10 after {s} goes down.',
+  factCheck: [
+    'FACT-CHECKED: Readers added context to {l}.',
+    '{w} fact-checks {l}. Engagement collapses.',
   ],
   super: [
-    '{w} uses a Super. Valuation up 30%.',
+    '{w} uses a Super. Committee "deeply concerned".',
     'Regulators "monitoring the situation" after {w} Super.',
   ],
   ko: [
-    '{l} K.O. Shareholders asked to remain calm.',
+    '{l} is down. Shareholders asked to remain calm.',
     '{l} is down. Stock is, somehow, up.',
   ],
 };
 
-export const PAPERS = ['THE DAILY GRIFT', 'THE VALUATION TIMES', 'BREAKING BUBBLE', 'TECHCRUNCHED'];
+export const PAPERS = ['THE DAILY HEARING', 'THE VALUATION TIMES', 'THE CONGRESSIONAL RECORDER'];
 
 export const HEADLINES = {
   win: [
-    '{w} CRUSHES {l}; SHARES UP 9%',
+    '{w} WINS HEARING; {l} "STILL THINKING"',
     '{l} "PIVOTS TO LOSING" AFTER MEETING {w}',
     '{w} WINS, THANKS "THE CUSTOMERS WHO PAID FOR THIS"',
-    '{l} HOSPITALISED; SAYS IT WAS "A LEARNING"',
+    '{l} CALLS DEFEAT "A LEARNING"',
   ],
   lose: [
     '{w} BEATS LOCAL PLAYER; MARKETS UNSURPRISED',
@@ -57,13 +48,12 @@ export const HEADLINES = {
     '{w} ACQUIRES YOUR DIGNITY IN ALL-CASH DEAL',
   ],
   sub: [
-    'Sidekicks deny any connection to the funding.',
+    'Committee adjourns; nobody answered the question.',
     'Experts agree nobody involved has ever done cardio.',
-    'Fact-checkers confirm: this did not happen. It is a game.',
+    'Every line spoken in the fight was real. The fight was not.',
     'Analysts raise price target anyway.',
   ],
 };
 
-export const fill = (s: string, v: { w?: string; l?: string; s?: string }) =>
-  s.replace('{w}', v.w ?? '').replace('{l}', v.l ?? '').replace('{s}', v.s ?? '');
+export const fill = (s: string, v: { w?: string; l?: string }) => s.replaceAll('{w}', v.w ?? '').replaceAll('{l}', v.l ?? '');
 export const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];

@@ -1,28 +1,19 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Anton, Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+const display = Anton({ variable: "--ff-display", weight: "400", subsets: ["latin"] });
+const sans = Inter({ variable: "--ff-sans", subsets: ["latin"] });
+const mono = IBM_Plex_Mono({ variable: "--ff-mono", weight: ["500", "600"], subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Silicon Showdown",
-  description: "A satirical browser fighting game: tech billionaires fight, and the politicians they funded tag in.",
+  description: "A satirical fighting game set in a Senate hearing. Every line is something they really said.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
+    <html lang="en" className={`${display.variable} ${sans.variable} ${mono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

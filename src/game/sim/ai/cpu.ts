@@ -43,7 +43,7 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: Sim
     if (sg.kind !== 'counter' && rng() < p.check) {
       const target = sg.quote - FACT_CHECK_WINDOW / 2;
       cpu.checkAt = Math.round(target + (rng() - 0.5) * p.checkJitter);
-    } else if (sg.kind !== 'counter' && dist < 1.6 && rng() < p.aggro) {
+    } else if (sg.kind !== 'counter' && dist < 1.85 && rng() < p.aggro) {
       // Or just punch them while they talk.
       cpu.queue = [[BTN.P, 2], [0, 4], [BTN.P, 2], [0, 4], [BTN.P, 2]];
     } else if (sg.kind === 'counter') {
@@ -80,17 +80,17 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: Sim
   if (f.cardio < 18) { q.push([back, 30]); return 0; }
   if (f.eng >= SUPER_COST && dist < SUPER_REACH - 0.4 && f.melt <= 0 && rng() < p.superUse * 0.2) { q.push([BTN.X, 2]); rest(); return 0; }
   if (f.eng >= SUPER_COST && dist >= SUPER_REACH - 0.4) { q.push([fwd, 10]); return 0; }
-  if (o.state === 'jump' && dist < 1.9 && rng() < p.antiAir) { q.push([BTN.K, 2]); rest(); return 0; }
-  if (o.state === 'knockdown' || o.state === 'getup') { q.push([dist > 1.4 ? fwd : 0, 8]); return 0; }
+  if (o.state === 'jump' && dist < 2.15 && rng() < p.antiAir) { q.push([BTN.K, 2]); rest(); return 0; }
+  if (o.state === 'knockdown' || o.state === 'getup') { q.push([dist > 1.65 ? fwd : 0, 8]); return 0; }
 
   // Signatures: pick by range.
   if (f.melt <= 0 && rng() < p.sig) {
     const opts: number[] = [];
     def.sigs.forEach((s, k) => {
-      if (s.kind === 'projectile' && dist > 2.4) opts.push(k);
-      if (s.kind === 'drop' && dist > 1.6 && dist < s.range) opts.push(k);
+      if (s.kind === 'projectile' && dist > 2.65) opts.push(k);
+      if (s.kind === 'drop' && dist > 1.85 && dist < s.range) opts.push(k);
       if (s.kind === 'melee' && dist < s.range + 0.6) opts.push(k);
-      if (s.kind === 'counter' && dist < 1.8 && (o.state === 'walk' || o.state === 'attack')) opts.push(k);
+      if (s.kind === 'counter' && dist < 2.05 && (o.state === 'walk' || o.state === 'attack')) opts.push(k);
     });
     if (opts.length) {
       const k = opts[Math.floor(rng() * opts.length)];
@@ -99,13 +99,13 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: Sim
     }
   }
 
-  if (dist > 2.3) {
+  if (dist > 2.55) {
     const r = rng();
     if (r < 0.15 * p.aggro) { q.push([BTN.U | fwd, 3]); q.push([0, 14]); q.push([BTN.K, 2]); }
     else q.push([fwd, 6 + Math.round(rng() * p.think)]);
     return 0;
   }
-  if (dist > 1.45) {
+  if (dist > 1.7) {
     if (rng() < p.aggro * 0.35) { q.push([fwd | BTN.K, 2]); rest(); }
     else q.push([fwd, 5]);
     return 0;
