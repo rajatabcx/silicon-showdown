@@ -1,4 +1,4 @@
-import { FACT_CHECK_WINDOW, MOVES, REACH_PAD, SUPER_COST, TAG_MANUAL_CARDIO } from '../constants';
+import { FACT_CHECK_WINDOW, MOVES, REACH_PAD, SUPER_COST, TAG_FRAMES, TAG_MANUAL_CARDIO } from '../constants';
 import { sigOf } from '../match';
 import { makeRng, type Rng } from '../rng';
 import { BTN, type Match, type SimDef } from '../types';
@@ -89,10 +89,9 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: Sim
   if (o.state === 'knockdown' || o.state === 'getup') { q.push([dist > 1.65 ? fwd : 0, 8]); return 0; }
 
   // The sidekick's one Policy Move.
-  if (sk && !f.skPolicy && o.state !== 'quote' && rng() < p.sig * 2) {
-    const pol = def.sidekick.policy;
-    if ((pol.kind === 'projectile' && dist > 2.0) || (pol.kind === 'drop' && dist > 1.85 && dist < pol.range) ||
-        (pol.kind === 'melee' && dist < pol.range + 0.4)) { q.push([BTN.S, 2]); rest(); return 0; }
+  // The sidekick's one Policy Move: it can't be interrupted or missed, so it comes out soon after the tag.
+  if (sk && !f.skPolicy && o.state !== 'quote' && o.state !== 'sig' && f.tag < TAG_FRAMES - 90 && rng() < 0.25) {
+    q.push([BTN.S, 2]); rest(); return 0;
   }
   // Signatures: pick by range.
   if (!sk && f.melt <= 0 && o.state !== 'quote' && rng() < p.sig) {

@@ -125,5 +125,17 @@
     "heard": "chainsaw",
     "source": "musk_chainsaw",
     "note": "cut by hand at 42.45-43.75s; crowd noise defeats auto-alignment"
+  },
+  "covfefe_maga": {
+    "file": "/audio/voice/covfefe_maga.mp3",
+    "seconds": 4.8,
+    "heard": "together we will make america great again",
+    "source": "trump_inaugural"
+  },
+  "veep_cat_ladies": {
+    "file": "/audio/voice/veep_cat_ladies.mp3",
+    "seconds": 3.26,
+    "heard": "by a bunch of childless cat ladies who are miserable at their own lives",
+    "source": "vance_cats"
   }
 }

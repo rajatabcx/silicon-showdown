@@ -441,7 +441,6 @@ function SpeechBubble({ q, info, isCpu }: { q: NonNullable<Quote>; info: Fighter
         )}
         <div className="mono mt-1.5 text-[9px] tracking-[0.18em] text-black/50">
           {q.sig.post ? 'REAL POST' : 'REAL QUOTE'} · {q.sig.post?.source ?? q.sig.line?.source}
-          {q.policy ? ' · NO AUDIO YET' : ''}
         </div>
         {!counter && !q.policy && (
           <div className="relative mt-3 h-2 bg-black/10">

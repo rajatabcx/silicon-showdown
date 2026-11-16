@@ -48,6 +48,8 @@ const isInvincible = (f: Fighter) =>
 const backBit = (f: Fighter) => (f.facing === 1 ? BTN.L : BTN.R);
 const fwdBit = (f: Fighter) => (f.facing === 1 ? BTN.R : BTN.L);
 const holdsBack = (f: Fighter) => (f.cur & backBit(f)) !== 0;
+/** A sidekick in the middle of its Policy Move (the line or the throw). Like a Super, nobody can interrupt it. */
+const inPolicy = (f: Fighter) => f.tag > 0 && f.sig === 3 && (f.state === 'quote' || f.state === 'sig');
 const canGuard = (f: Fighter) => f.melt <= 0 && (isNeutral(f) || f.state === 'blockstun') && holdsBack(f);
 /** Is this fighter in the Fact-Check window of a line? */
 export const factCheckable = (f: Fighter, def: SimDef) =>
@@ -194,7 +196,7 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
       addEng(m, i, ENG_SIG_SAID);
       if (sg.kind === 'counter') { toIdle(f); return; }
       f.state = 'sig'; f.af = 0; f.hit = false;
-      if (sg.kind === 'drop') f.dropX = clampX(f.x + f.facing * Math.min(sg.range, Math.abs(o.x - f.x)));
+      if (sg.kind === 'drop') f.dropX = f.sig === 3 ? o.x : clampX(f.x + f.facing * Math.min(sg.range, Math.abs(o.x - f.x)));
       m.events.push({ t: 'sigGo', by: i, sig: f.sig });
       return;
     }
@@ -206,8 +208,12 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
         const n = sg.hits ?? 1;
         for (let k = 0; k < n; k++) {
           if (f.af !== sg.startup + k * 12) continue;
+          const x0 = f.x + f.facing * 0.7, vx = f.facing * (sg.speed ?? 0.12);
+          // Policy throws are lobbed to land on the (frozen) opponent at chest height, however far away.
+          const T = Math.max(1, Math.abs(o.x - x0) / Math.abs(vx));
+          const vy = f.sig === 3 ? (-0.3 + 0.5 * GRAVITY * 0.8 * T * T) / T || 0.001 : sg.arc ?? 0;
           m.proj.push({
-            owner: i, sig: f.sig, x: f.x + f.facing * 0.7, y: 1.3, vx: f.facing * (sg.speed ?? 0.12), vy: sg.arc ?? 0,
+            owner: i, sig: f.sig, x: x0, y: 1.3, vx, vy,
             dmg: sg.damage, knockdown: !!sg.knockdown,
           });
           m.events.push({ t: 'throw', by: i, sig: f.sig });
@@ -343,8 +349,9 @@ function resolveSig(m: Match, ai: 0 | 1, defs: Defs) {
     else dealHit(m, ai, a.facing, sg.damage, 'sig', { hitstun: 30, knockdown: last && sg.knockdown, heavy: true });
   } else if (sg.kind === 'drop') {
     if (a.af !== sg.startup) return;
-    if (isInvincible(d) || Math.abs(d.x - a.dropX) > 0.9 || d.y > 1.6) return;
-    if (canGuard(d)) dealBlock(m, ai, a.facing, 22, 3, true);
+    const pol = a.sig === 3;
+    if (!pol && (isInvincible(d) || Math.abs(d.x - a.dropX) > 0.9 || d.y > 1.6)) return;
+    if (!pol && canGuard(d)) dealBlock(m, ai, a.facing, 22, 3, true);
     else dealHit(m, ai, a.facing, sg.damage, 'sig', { hitstun: 30, knockdown: sg.knockdown, heavy: true });
   }
 }
@@ -355,9 +362,10 @@ function resolveProjectiles(m: Match, defs: Defs) {
     p.x += p.vx; p.y += p.vy; p.vy -= p.vy !== 0 || p.y > 1.31 ? GRAVITY * 0.8 : 0;
     const d = m.f[1 - p.owner];
     if (Math.abs(p.x) > STAGE_HALF + 1.5 || p.y < 0) { m.proj.splice(k, 1); continue; }
-    if (Math.abs(p.x - d.x) < 0.55 && p.y > d.y && p.y < d.y + 1.9 && !isInvincible(d)) {
+    const pol = p.sig === 3;
+    if (Math.abs(p.x - d.x) < 0.55 && p.y > d.y && p.y < d.y + 1.9 && (pol || !isInvincible(d))) {
       const dir = Math.sign(p.vx);
-      if (canGuard(d)) dealBlock(m, p.owner, dir, 14, 2, p.knockdown);
+      if (!pol && canGuard(d)) dealBlock(m, p.owner, dir, 14, 2, p.knockdown);
       else dealHit(m, p.owner, dir, p.dmg, 'sig', { hitstun: 22, knockdown: p.knockdown, heavy: true });
       m.proj.splice(k, 1);
     }
@@ -484,6 +492,19 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
     const other = m.f[1 - caller];
     other.prev = ins[1 - caller];
     updateFighter(m, caller as 0 | 1, ins[caller], defs);
+    return;
+  }
+  // Policy Move: the same freeze for the opponent while the sidekick says the line and its throw lands.
+  const pi = ([0, 1] as const).find((i) => inPolicy(m.f[i]) || m.proj.some((p) => p.owner === i && p.sig === 3));
+  if (pi !== undefined) {
+    const other = m.f[1 - pi];
+    other.prev = ins[1 - pi];
+    updateFighter(m, pi, ins[pi], defs);
+    if (m.phase !== 'fight') return;
+    resolveProjectiles(m, defs);
+    resolveSig(m, pi, defs);
+    separate(m);
+    checkKo(m);
     return;
   }
 

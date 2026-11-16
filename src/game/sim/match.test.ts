@@ -180,6 +180,30 @@ describe('fight simulation', () => {
     }
   });
 
+  it("a sidekick's Policy Move freezes the opponent and always lands", () => {
+    for (const side of [0, 1] as const) {
+      const m = started();
+      m.f[0].x = -5; m.f[1].x = 5;
+      m.f[side].cardio = 10;
+      const tap = (b: number) => (side === 0 ? step(m, b, 0, DEFS) : step(m, 0, b, DEFS));
+      tap(BTN.T); tap(0);
+      expect(m.f[side].tag).toBeGreaterThan(0);
+      tap(BTN.S);
+      expect(m.f[side].state).toBe('quote');
+      const other = m.f[1 - side], x = other.x;
+      // The opponent holds back to block, and tries to walk and dodge: none of it may happen.
+      const back = side === 0 ? BTN.R : BTN.L;
+      const evs: Ev[] = [];
+      for (let k = 0; k < 400; k++) {
+        step(m, side === 0 ? 0 : back | (k % 20 === 0 ? BTN.G : 0), side === 0 ? back | (k % 20 === 0 ? BTN.G : 0) : 0, DEFS);
+        evs.push(...m.events);
+        if (m.f[side].state === 'quote' || m.f[side].state === 'sig') expect(other.x).toBe(x);
+      }
+      expect(evs.some((e) => e.t === 'hit' && e.by === side)).toBe(true);
+      expect(evs.some((e) => e.t === 'block')).toBe(false);
+    }
+  });
+
   it("Teal's Super drains health over the silence", () => {
     const m = started(); close(m);
     m.f[1].eng = 100;

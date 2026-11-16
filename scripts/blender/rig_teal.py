@@ -184,6 +184,15 @@ def seg_dist(P, a, b):
 
 D = np.stack([seg_dist(V, *seg[n]) for n in DEFORM], axis=1)
 x, z = V[:, 0], V[:, 2]
+NRM = np.empty(len(V) * 3, dtype=np.float32)
+body.data.vertices.foreach_get("normal", NRM)
+NRM = NRM.reshape(-1, 3)
+
+
+def seg_point(P, a, b):
+    ab = b - a
+    t = np.clip(((P - a) @ ab) / max(ab @ ab, 1e-9), 0, 1)
+    return a + t[:, None] * ab
 crotch = T["crotch"]
 for j, n in enumerate(DEFORM):
     bad = np.zeros(len(V), bool)
@@ -195,6 +204,18 @@ for j, n in enumerate(DEFORM):
         side = "Left" if n.startswith("Left") else "Right"
         bad |= np.abs(x) < arm_x[side] * 0.85  # torso never follows the arm
         bad |= z < crotch * 0.5  # nor do shoes and shins (wide-stance feet sit as far out as the hands)
+        if n.endswith(("Arm", "ForeArm")):  # sleeves only: finger sides face outward too and must stay on the hand
+            # Jacket beside a hanging arm: on the body side of the arm's axis but facing away from the body.
+            # That's the suit's flank, not the inside of the sleeve (which faces the body), so it stays on the torso.
+            # The axis is the whole arm (upper arm, forearm, hand), so the coat beside the forearm can't slip onto the
+            # upper arm just because the upper arm's segment stops at the elbow.
+            sgn = 1 if side == "Left" else -1
+            chain = [f"{side}{p}" for p in ("Arm", "ForeArm", "Hand")]
+            cs = np.stack([seg_point(V, *seg[k]) for k in chain])
+            near = np.argmin(np.linalg.norm(cs - V[None], axis=2), axis=0)
+            c = cs[near, np.arange(len(V))]
+            inner = (x - c[:, 0]) * sgn < 0
+            bad |= inner & (NRM[:, 0] * sgn > 0.2)
     if kind_of(n) == "leg":
         bad |= (np.abs(x) > max(arm_x.values()) * 1.15) & (z > crotch * 0.5)  # hanging hands never follow a leg
     if n in ("LeftLeg", "RightLeg", "LeftFoot", "RightFoot", "LeftToeBase", "RightToeBase"):

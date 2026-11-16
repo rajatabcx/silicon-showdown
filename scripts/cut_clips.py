@@ -35,6 +35,9 @@ CLIPS = [
     ("teal_long_time",    "thiel_douthat",  2766, 2772,"i could talk",      "long time"),
     ("teal_greta",        "thiel_douthat",  2993, 3001,"in our world",      "thunberg"),
     ("teal_armageddon",   "thiel_douthat",  2901, 2913,"you have the",      "armageddon"),
+    # Sidekick Policy Moves.
+    ("covfefe_maga",      "trump_inaugural", 1000, 1009,"together",         "great again"),
+    ("veep_cat_ladies",   "vance_cats",       94, 103, "a bunch of",        "own lives"),
 ]
 
 norm = lambda s: re.sub(r"[^a-z' ]", "", s.lower()).split()
@@ -83,6 +86,9 @@ def main():
             text = " ".join(w[0] for w in words(chk))
             manifest[cid] = {"file": f"/audio/voice/{cid}.mp3", "seconds": round(e - s, 2), "heard": text, "source": src}
             print(f"{cid:20s} {e - s:5.2f}s  {text}")
-    if not only: json.dump(manifest, open(f"{OUT}/manifest.json", "w"), indent=2)
+    # A partial run (clip ids on the command line) updates those entries and keeps the rest.
+    path = f"{OUT}/manifest.json"
+    if only and os.path.exists(path): manifest = {**json.load(open(path)), **manifest}
+    json.dump(manifest, open(path, "w"), indent=2)
 
 main()

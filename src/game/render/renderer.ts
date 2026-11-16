@@ -448,8 +448,10 @@ export class Renderer {
     const spread = Math.abs(a.x - b.x), cx = (a.x + b.x) / 2;
     const maxY = Math.max(a.y, b.y);
     const talking = m.f.findIndex((f) => f.state === 'quote');
-    const dist = 7.6 + spread * 0.72 - (talking >= 0 ? 1.0 : 0);
-    const fx = talking >= 0 ? cx * 0.6 + m.f[talking].x * 0.4 : cx;
+    // Lean in on whoever is talking, but only while both still fit in the frame.
+    const lean = talking >= 0 ? Math.max(0, Math.min(1, (4.5 - spread) / 2)) : 0;
+    const dist = 7.6 + spread * 0.72 - lean;
+    const fx = talking >= 0 ? cx * (1 - 0.4 * lean) + m.f[talking].x * 0.4 * lean : cx;
     if (m.phase === 'intro') {
       const k = Math.min(1, m.phaseFrame / INTRO_FRAMES);
       const e = 1 - Math.pow(1 - k, 3);

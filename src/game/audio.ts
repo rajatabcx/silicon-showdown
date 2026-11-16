@@ -20,7 +20,7 @@ let ducks = 0;
 const VOICE_FILES: VoiceId[] = [
   'tusk_heart', 'tusk_chainsaw', 'tusk_chainsaw_yell', 'tusk_blackmail', 'tusk_gfy', 'tusk_omg', 'tusk_too_hard', 'tusk_plus_side',
   'tusk_empathy', 'tusk_next_year', 'teal_hesitation', 'teal_long_hes', 'teal_losers', 'teal_how_much_time', 'teal_long_time',
-  'teal_greta', 'teal_armageddon', 'teal_monopoly',
+  'teal_greta', 'teal_armageddon', 'teal_monopoly', 'covfefe_maga', 'veep_cat_ladies',
 ];
 
 /** Must be called from a user gesture (browsers block audio until then). */

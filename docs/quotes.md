@@ -81,6 +81,8 @@ Cut from the original recordings by `scripts/cut_clips.py` into `public/audio/vo
 | `teal_long_time` | 2.1 s | "I could talk about it for a long time." | Second beat of the lecture move |
 | `teal_greta` | 4.0 s | "In our world, it's far more likely to be Greta Thunberg." | Punchline of the lecture move |
 | `teal_armageddon` | 5.7 s | "You have the one-world state of the Antichrist, or we're sleepwalking towards Armageddon." | Body of the lecture move |
+| `covfefe_maga` | 4.8 s | "Together, we will make America great again." | Sidekick Uncle Covfefe's Policy Move "Make Tariffs Great Again". From the 2017 inaugural address (ABC News full-speech upload, YouTube sRBsJNdK1t0, about 16:40) |
+| `veep_cat_ladies` | 3.3 s | "…by a bunch of childless cat ladies who are miserable at their own lives…" | Sidekick Hillbilly Veep's Policy Move "Cat Lady Barrage". From Tucker Carlson Tonight, Jul 2021 (his Senate campaign's upload, YouTube Ry_pkfj9sN0, about 1:35) |
 
 Notes:
 - The DealBook and Cybertruck recordings are **broadcast versions with the swearing bleeped**. An unbleeped DealBook cut would come from the NYT's full event video.

@@ -8,7 +8,8 @@ export type VoiceId =
   | 'tusk_heart' | 'tusk_chainsaw' | 'tusk_chainsaw_yell' | 'tusk_blackmail' | 'tusk_gfy' | 'tusk_omg' | 'tusk_too_hard'
   | 'tusk_plus_side' | 'tusk_empathy' | 'tusk_next_year'
   | 'teal_hesitation' | 'teal_long_hes' | 'teal_losers' | 'teal_how_much_time' | 'teal_long_time' | 'teal_greta'
-  | 'teal_armageddon' | 'teal_monopoly';
+  | 'teal_armageddon' | 'teal_monopoly'
+  | 'covfefe_maga' | 'veep_cat_ladies';
 
 /** Seconds of each clip, from public/audio/voice/manifest.json. */
 export const VOICE_SECONDS: Record<VoiceId, number> = {
@@ -16,6 +17,7 @@ export const VOICE_SECONDS: Record<VoiceId, number> = {
   tusk_too_hard: 3.36, tusk_plus_side: 2.5, tusk_empathy: 5.28, tusk_next_year: 3.28,
   teal_hesitation: 11.4, teal_long_hes: 1.64, teal_losers: 1.48, teal_how_much_time: 1.08, teal_long_time: 2.14,
   teal_greta: 3.96, teal_armageddon: 5.68, teal_monopoly: 10.18,
+  covfefe_maga: 4.8, veep_cat_ladies: 3.26,
 };
 
 /** On-screen source stamps. Venue and date only; no names of real people. */
@@ -27,7 +29,7 @@ export const SOURCES = {
   post: 'POST ON X · OCT 2022',
   podcast: 'NYT PODCAST INTERVIEW · JUN 2025',
   stanford: 'STANFORD LECTURE · 2014',
-  econClub: 'ECONOMIC CLUB OF CHICAGO · OCT 2024',
+  inaugural: 'INAUGURAL ADDRESS · JAN 2017',
   cable: 'CABLE NEWS INTERVIEW · JUL 2021',
 } as const;
 
@@ -75,7 +77,8 @@ export type SidekickInfo = {
    * out: the billionaire leaving. in: the sidekick arriving. back: the sidekick leaving. scandal: benched.
    */
   banter: { out: string[]; in: string[]; back: string[]; scandal: string[] };
-  policy: { name: string; text: string; source: string; prop: 'tariff' | 'cats'; sim: SigDef };
+  /** The one Policy Move per tag: a real clip, then the move. Nobody can interrupt it (see match.ts inPolicy). */
+  policy: { name: string; clips: VoiceId[]; text: string; source: string; prop: 'tariff' | 'cats'; sim: Omit<SigDef, 'quote'> };
 };
 
 export type FighterInfo = {
@@ -169,9 +172,9 @@ export const TUSK: FighterInfo = {
       scandal: ['Witch hunt! Total witch hunt!', 'I barely know the man.'],
     },
     policy: {
-      name: 'Tariff Everything', prop: 'tariff', source: SOURCES.econClub,
-      text: 'To me, the most beautiful word in the dictionary is "tariff."',
-      sim: { id: 'tariff', quote: 110, kind: 'drop', startup: 22, active: 2, recovery: 28, damage: 10, range: 4.5, knockdown: true },
+      name: 'Make Tariffs Great Again', prop: 'tariff', source: SOURCES.inaugural, clips: ['covfefe_maga'],
+      text: 'Together, we will make America great again.',
+      sim: { id: 'tariff', kind: 'drop', startup: 22, active: 2, recovery: 28, damage: 10, range: 4.5, knockdown: true },
     },
   },
 };
@@ -247,9 +250,9 @@ export const TEAL: FighterInfo = {
       scandal: ['That was a joke. Obviously a joke.', 'I barely know the man.'],
     },
     policy: {
-      name: 'Cat Lady Barrage', prop: 'cats', source: SOURCES.cable,
-      text: '…a bunch of childless cat ladies…',
-      sim: { id: 'cats', quote: 100, kind: 'projectile', startup: 10, active: 26, recovery: 22, damage: 4, hits: 3, range: 7, speed: 0.14, arc: 0.06 },
+      name: 'Cat Lady Barrage', prop: 'cats', source: SOURCES.cable, clips: ['veep_cat_ladies'],
+      text: '…by a bunch of childless cat ladies who are miserable at their own lives…',
+      sim: { id: 'cats', kind: 'projectile', startup: 10, active: 26, recovery: 22, damage: 4, hits: 3, range: 7, speed: 0.14, arc: 0.06 },
     },
   },
 };
@@ -261,7 +264,7 @@ export function simDef(f: FighterInfo): SimDef {
   const sp = f.super;
   return {
     ...f.stats, ego: f.ego, sigs,
-    sidekick: { walk: f.sidekick.walk, policy: f.sidekick.policy.sim },
+    sidekick: { walk: f.sidekick.walk, policy: { ...f.sidekick.policy.sim, quote: lineFrames({ clips: f.sidekick.policy.clips, text: '', source: '' }) } },
     super: {
       frames: Math.round(sp.seconds * FPS), hitAt: Math.round((sp.hitAt ?? 0) * FPS),
       drain: sp.drain ? [Math.round(sp.drain[0] * FPS), Math.round(sp.drain[1] * FPS)] : undefined,
@@ -269,12 +272,12 @@ export function simDef(f: FighterInfo): SimDef {
   };
 }
 
-/** Display info for signature k (3 = the sidekick's Policy Move, shown as a speech bubble with no voice yet). */
+/** Display info for signature k (3 = the sidekick's Policy Move). */
 export function sigInfo(f: FighterInfo, k: number): SigInfo {
   if (k !== 3) return f.sigs[k];
   const p = f.sidekick.policy;
   return {
-    name: p.name, line: { clips: [], text: p.text, source: p.source, speaker: f.sidekick.name },
+    name: p.name, line: { clips: p.clips, text: p.text, source: p.source, speaker: f.sidekick.name },
     prop: null, context: '', sim: p.sim,
   };
 }
