@@ -7,10 +7,12 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { FighterInfo } from '../data/roster';
 import { FPS, INTRO_FRAMES } from '../sim/constants';
+import { sigAt, sigOf } from '../sim/match';
 import type { Ev, Match, Projectile, SimDef } from '../sim/types';
 import type { Assets } from './assets';
 import { FighterView, hipsRest } from './character';
 import { gate, label, modelProp, page, postCard, rocket, talkShowSet, tickerScreen } from './props';
+import { catSprite, SidekickView, tariffStamp } from './sidekick';
 import { Stage, type Mood } from './stage';
 
 const GradeShader = {
@@ -52,6 +54,9 @@ export class Renderer {
   private grade: ShaderPass;
   private stage: Stage;
   views: FighterView[] = [];
+  private sk: SidekickView[] = [];
+  /** Where each billionaire stands while the sidekick fights (walks to the back corner). */
+  private restX = [0, 0];
   private sides: SideSetup[];
   private t = 0;
   private shake = 0;
@@ -97,6 +102,9 @@ export class Renderer {
       const v = new FighterView(gltf, assets.tusk.animations, rest, s.info, i as 0 | 1);
       this.scene.add(v.root);
       this.views.push(v);
+      const sk = new SidekickView(s.info.sidekick);
+      this.scene.add(sk.root);
+      this.sk.push(sk);
     });
 
     this.composer = new EffectComposer(this.gl);
@@ -111,6 +119,20 @@ export class Renderer {
     this.streakTex = new THREE.CanvasTexture(drawStreak());
     this.resize();
     if (process.env.NODE_ENV !== 'production') (window as unknown as { __ss: unknown }).__ss = { r: this, scene: this.scene, bloom: this.bloom, grade: this.grade, stage: this.stage, gl: this.gl };
+  }
+
+  /** A body point on whoever is fighting for this side: the billionaire, or the sidekick cutout. */
+  private part(side: number, name: 'head' | 'chest' | 'hips', m?: Match) {
+    if (m && m.f[side].tag > 0) {
+      const p = this.sk[side].headPos();
+      if (name !== 'head') p.y -= name === 'chest' ? 0.6 : 0.95;
+      return p;
+    }
+    return this.views[side].bonePos(name);
+  }
+
+  private flashSide(side: number, m: Match, k: number) {
+    if (m.f[side].tag > 0) this.sk[side].hitFlash(); else this.views[side].hitFlash(k);
   }
 
   // ---------- effects
@@ -150,9 +172,8 @@ export class Renderer {
   onEvent(e: Ev, m: Match) {
     switch (e.t) {
       case 'hit': {
-        const d = this.views[1 - e.by];
-        d.hitFlash(e.heavy ? 1 : 0.6);
-        const p = d.bonePos(e.move === 'sweep' ? 'hips' : 'chest');
+        this.flashSide(1 - e.by, m, e.heavy ? 1 : 0.6);
+        const p = this.part(1 - e.by, e.move === 'sweep' ? 'hips' : 'chest', m);
         p.z += 0.4;
         this.spark(p, e.heavy ? 2.4 : 1.4, e.heavy ? '#ffb347' : '#fff0a0');
         this.burst(p, e.heavy ? 12 : 6, e.heavy ? '#ffc56b' : '#fff6c8', e.heavy ? 9 : 6);
@@ -161,7 +182,7 @@ export class Renderer {
         break;
       }
       case 'block': {
-        const p = this.views[1 - e.by].bonePos('chest'); p.z += 0.5;
+        const p = this.part(1 - e.by, 'chest', m); p.z += 0.5;
         this.spark(p, e.heavy ? 1.6 : 1.1, '#8fd3ff');
         this.burst(p, 5, '#bfe8ff', 5);
         this.kick(e.heavy ? 0.12 : 0.05);
@@ -174,37 +195,38 @@ export class Renderer {
         this.burst(p, 16, '#9be2ff', 8);
         this.kick(0.35, 0.25, 1.2, 0.012);
         this.stage.cheer(1.2);
-        v.hold(null);
+        v.carry(null);
         void s;
         break;
       }
       case 'counter': {
-        const p = this.views[e.by].bonePos('chest'); p.z += 0.4;
+        const p = this.part(e.by, 'chest', m); p.z += 0.4;
         this.spark(p, 2.4, '#8fd3ff', 0.3);
         this.kick(0.3, 0.1, 0.6, 0.006);
         break;
       }
       case 'sigGo': {
-        const v = this.views[e.by], id = this.sides[e.by].def.sigs[e.sig].id;
-        if (id === 'losers') {
-          const g = gate();
+        const v = this.views[e.by], id = sigAt(this.sides[e.by].def, e.sig).id;
+        if (id === 'losers' || id === 'tariff') {
+          const g = id === 'losers' ? gate() : tariffStamp();
           const f = m.f[e.by];
           g.position.set(f.dropX, 8, -0.2);
-          const l = label('MONOPOLY', '#ffd34d', 0.55); l.position.set(0, 3.2, 0); g.add(l);
+          const l = label(id === 'losers' ? 'MONOPOLY' : 'TARIFF EVERYTHING', id === 'losers' ? '#ffd34d' : '#ff6b6b', 0.55);
+          l.position.set(0, id === 'losers' ? 3.2 : 2.3, 0); g.add(l);
           this.fx.add(g);
-          this.gates.push({ g, life: 0, land: this.sides[e.by].def.sigs[e.sig].startup / FPS, x: f.dropX, by: e.by });
+          this.gates.push({ g, life: 0, land: sigAt(this.sides[e.by].def, e.sig).startup / FPS, x: f.dropX, by: e.by });
         }
-        if (id === 'heart') { const p = v.bonePos('chest'); p.z += 0.3; this.spark(p, 1.6, '#ff8f8f', 0.3); }
+        if (id === 'heart') { const p = v.bonePos('chest'); p.z += 0.3; this.spark(p, 0.8, '#ff8f8f', 0.2); }
         this.kick(0.05, 0, 0.3);
         break;
       }
       case 'throw': {
         const v = this.views[e.by];
-        if (this.sides[e.by].def.sigs[e.sig].id === 'sink') v.hold(null);
+        if (sigAt(this.sides[e.by].def, e.sig).id === 'sink') v.carry(null);
         this.kick(0.06);
         break;
       }
-      case 'quoteCut': this.views[e.by].hold(null); break;
+      case 'quoteCut': this.views[e.by].carry(null); break;
       case 'tier': if (e.tier >= 2) { this.kick(0.1, 0.05, 0.8); this.stage.cheer(1); } break;
       case 'superStart': this.kick(0.08, 0.05, 0.6); break;
       case 'superHit': {
@@ -229,6 +251,21 @@ export class Renderer {
         break;
       }
       case 'roundStart': this.endCine(); break;
+      case 'tagIn': {
+        const f = m.f[e.by];
+        this.restX[e.by] = f.x;
+        const p = new THREE.Vector3(f.x, 1.2, 0.3);
+        this.burst(p, 14, '#ffe2a0', 7); this.ring(f.x, '#ffd34d');
+        this.kick(0.2, 0.05, 0.4); this.stage.cheer(1); this.stage.photo();
+        break;
+      }
+      case 'tagOut': {
+        const p = this.sk[e.by].headPos(); p.y -= 0.5;
+        this.spark(p, e.scandal ? 3 : 1.4, e.scandal ? '#ff5a52' : '#fff0a0', 0.35);
+        this.burst(p, e.scandal ? 18 : 6, e.scandal ? '#ff8f6b' : '#fff6c8', 8);
+        if (e.scandal) { this.kick(0.35, 0.15, 0.8, 0.01); this.stage.photo(); }
+        break;
+      }
     }
   }
 
@@ -246,20 +283,16 @@ export class Renderer {
   private updateSigProps(m: Match) {
     m.f.forEach((f, i) => {
       const v = this.views[i], def = this.sides[i].def;
-      const sg = f.state === 'quote' || f.state === 'sig' ? def.sigs[f.sig] : null;
+      const sg = f.state === 'quote' || f.state === 'sig' ? sigOf(def, f) : null;
       let want: 'chainsaw' | 'sink' | null = null;
       if (sg?.id === 'chainsaw') want = 'chainsaw';
       if (sg?.id === 'sink' && (f.state === 'quote' || f.af < sg.startup)) want = 'sink';
       const have = v.holding?.userData.kind ?? null;
-      if (want === have) {
-        if (want === 'chainsaw' && v.holding && f.state === 'sig') v.holding.position.y = Math.sin(this.t * 90) * 0.01;
-        return;
-      }
-      if (!want) { v.hold(null); return; }
+      if (want === have) return;
+      if (!want) { v.carry(null); v.hold(null); return; }
       const prop = modelProp(this.assets, want);
-      prop.userData.kind = want;
-      if (want === 'chainsaw') v.hold(prop, 'l', (o) => { o.rotation.set(0, 0, -Math.PI / 2); o.position.set(0, 0.08, 0.05); });
-      else v.hold(prop, 'r', (o) => { o.rotation.set(Math.PI / 2, 0, 0); o.position.set(0, 0.25, 0.1); o.scale.multiplyScalar(0.85); });
+      prop.userData.scale = want === 'chainsaw' ? 0.85 : 0.8;
+      v.carry(prop, want);
     });
   }
 
@@ -269,14 +302,16 @@ export class Renderer {
     for (const p of m.proj) {
       let o = this.projViews.get(p);
       if (!o) {
-        const id = this.sides[p.owner].def.sigs[p.sig].id;
-        if (id === 'sink') { o = modelProp(this.assets, 'sink'); o.add(label('LET THAT SINK IN', '#ffffff', 0.26).translateY(0.75)); }
+        const id = sigAt(this.sides[p.owner].def, p.sig).id;
+        if (id === 'sink') { o = modelProp(this.assets, 'sink'); o.scale.setScalar(0.8); o.add(label('LET THAT SINK IN', '#ffffff', 0.3).translateY(0.8)); }
+        else if (id === 'cats') o = catSprite();
         else o = page();
         o.userData.id = id;
         this.fx.add(o); this.projViews.set(p, o);
       }
       o.position.set(p.x, p.y, 0.15);
       if (o.userData.id === 'sink') { o.rotation.z -= dt * 9 * Math.sign(p.vx); }
+      else if (o.userData.id === 'cats') { (o as THREE.Sprite).material.rotation += dt * 8 * -Math.sign(p.vx); }
       else { o.rotation.y += dt * 14; o.rotation.z = Math.sin(this.t * 20) * 0.3; }
     }
   }
@@ -290,7 +325,24 @@ export class Renderer {
     if (cine) cine.t = m.phaseFrame / FPS;
 
     this.updateSigProps(m);
-    this.views.forEach((v, i) => v.update(m.f[i], this.sides[i].def, m, dt, frozen));
+    this.views.forEach((v, i) => {
+      const f = m.f[i];
+      this.sk[i].update(f, dt, frozen);
+      if (f.tag > 0) {
+        // The billionaire walks to the back corner and gets his breath back.
+        const corner = Math.max(-5.6, Math.min(5.6, f.x - f.facing * 1.5));
+        const from = this.restX[i];
+        this.restX[i] += (corner - this.restX[i]) * Math.min(1, dt * 2.5);
+        const moving = Math.abs(corner - from) > 0.3;
+        const proxy = { ...f, x: this.restX[i], y: 0, tag: 0, move: null, state: moving ? 'walk' : 'winded', frame: f.tag,
+          facing: (moving ? Math.sign(corner - from) || 1 : (i === 0 ? 1 : -1)) as 1 | -1, cur: 0 } as typeof f;
+        v.update(proxy, this.sides[i].def, m, dt, frozen);
+        v.root.position.z = -2.4;
+      } else {
+        v.update(f, this.sides[i].def, m, dt, frozen);
+        this.restX[i] = f.x;
+      }
+    });
     this.updateProjectiles(m, dt);
 
     for (let i = this.gates.length - 1; i >= 0; i--) {
@@ -325,7 +377,7 @@ export class Renderer {
     }
 
     // Talking fighters: a "..." over Teal's long pause.
-    const pausing = m.f.findIndex((f, i) => f.state === 'quote' && this.sides[i].def.sigs[f.sig].id === 'pause');
+    const pausing = m.f.findIndex((f, i) => f.state === 'quote' && sigOf(this.sides[i].def, f).id === 'pause');
     if (pausing >= 0 && !this.dots) { this.dots = label('…', '#ffffff', 0.7); this.fx.add(this.dots); }
     if (pausing < 0 && this.dots && !cine) { this.fx.remove(this.dots); this.dots = null; }
     if (this.dots && pausing >= 0) {
@@ -368,8 +420,8 @@ export class Renderer {
     this.composer.render(dt);
   }
 
-  headOnScreen(side: 0 | 1) {
-    const p = this.views[side].bonePos('head');
+  headOnScreen(side: 0 | 1, m?: Match) {
+    const p = m && m.f[side].tag > 0 ? this.sk[side].headPos() : this.views[side].bonePos('head');
     p.y += 0.35;
     p.project(this.cam);
     return { x: (p.x + 1) / 2, y: (1 - p.y) / 2 };
@@ -414,6 +466,7 @@ export class Renderer {
   dispose() {
     this.endCine();
     this.views.forEach((v) => v.dispose());
+    this.sk.forEach((v) => v.dispose());
     this.stage.dispose();
     this.sparkTex.dispose(); this.streakTex.dispose();
     this.composer.dispose();

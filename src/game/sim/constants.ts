@@ -17,8 +17,20 @@ export const SUPER_DAMAGE = 32;
 export const SUPER_CHIP = 6;
 export const SUPER_WHIFF_FRAMES = 40;
 
-export const WINDED_FRAMES = 110;
-export const CARDIO_REGEN = 0.16;
+export const WINDED_FRAMES = 90;
+/** Cardio regained per frame while standing still (x fitness). Walking regains half. */
+export const CARDIO_REGEN = 0.05;
+/** Cardio a signature move costs (/ fitness). */
+export const SIG_CARDIO = 8;
+
+// Sidekick tag system: at 0 cardio (or by choice below TAG_MANUAL_CARDIO) a funded politician tags in.
+export const TAG_FRAMES = 8 * 60;
+export const TAG_MANUAL_CARDIO = 40;
+export const SIDEKICK_HITS = 3;
+export const SCANDAL_DAMAGE = 8;
+export const SIDEKICK_DAMAGE = 0.75;
+/** The billionaire recovers this many times faster while the sidekick fights. */
+export const TAG_REGEN = 4;
 
 /** Dodge: invincible from frame 2 to 16, recovers at 26. Pressed in the last beat of a quote, it's a Fact-Check. */
 export const DODGE_FRAMES = 26;
@@ -45,15 +57,15 @@ export const TIER_TAKEN = [1, 1.08, 1.18, 1.3];
 
 /** Every fighter shares this frame data; fighters differ by stats, signatures and Supers. */
 export const MOVES: Record<MoveKey, MoveDef> = {
-  jab:        { startup: 5,  active: 3, recovery: 10, damage: 4,  hitstun: 17, blockstun: 10, range: 1.55,  cardio: 3, chain: true },
-  cross:      { startup: 6,  active: 3, recovery: 12, damage: 5,  hitstun: 18, blockstun: 11, range: 1.6, cardio: 3, chain: true, lunge: 0.18 },
-  hook:       { startup: 8,  active: 3, recovery: 18, damage: 7,  hitstun: 26, blockstun: 14, range: 1.6, cardio: 4, heavy: true, lunge: 0.25 },
-  roundhouse: { startup: 10, active: 4, recovery: 22, damage: 10, hitstun: 0,  blockstun: 18, range: 2.05,  cardio: 6, knockdown: true, heavy: true },
-  upper:      { startup: 11, active: 4, recovery: 22, damage: 10, hitstun: 0,  blockstun: 24, range: 1.55,  cardio: 7, launch: true, heavy: true },
-  kick:       { startup: 12, active: 4, recovery: 18, damage: 9,  hitstun: 0,  blockstun: 22, range: 2.0, cardio: 6, lunge: 0.4, knockdown: true, heavy: true },
-  sweep:      { startup: 10, active: 4, recovery: 22, damage: 8,  hitstun: 0,  blockstun: 14, range: 1.95,  cardio: 6, low: true, knockdown: true },
-  airPunch:   { startup: 4,  active: 8, recovery: 0,  damage: 6,  hitstun: 20, blockstun: 12, range: 1.55,  cardio: 3, overhead: true },
-  airKick:    { startup: 5,  active: 10, recovery: 0, damage: 7,  hitstun: 20, blockstun: 12, range: 1.8, cardio: 3, overhead: true },
+  jab:        { startup: 5,  active: 3, recovery: 10, damage: 4,  hitstun: 17, blockstun: 10, range: 1.55,  cardio: 5, chain: true },
+  cross:      { startup: 6,  active: 3, recovery: 12, damage: 5,  hitstun: 18, blockstun: 11, range: 1.6, cardio: 5, chain: true, lunge: 0.18 },
+  hook:       { startup: 8,  active: 3, recovery: 18, damage: 7,  hitstun: 26, blockstun: 14, range: 1.6, cardio: 7, heavy: true, lunge: 0.25 },
+  roundhouse: { startup: 10, active: 4, recovery: 22, damage: 10, hitstun: 0,  blockstun: 18, range: 2.05,  cardio: 10, knockdown: true, heavy: true },
+  upper:      { startup: 11, active: 4, recovery: 22, damage: 10, hitstun: 0,  blockstun: 24, range: 1.55,  cardio: 12, launch: true, heavy: true },
+  kick:       { startup: 12, active: 4, recovery: 18, damage: 9,  hitstun: 0,  blockstun: 22, range: 2.0, cardio: 10, lunge: 0.4, knockdown: true, heavy: true },
+  sweep:      { startup: 10, active: 4, recovery: 22, damage: 8,  hitstun: 0,  blockstun: 14, range: 1.95,  cardio: 10, low: true, knockdown: true },
+  airPunch:   { startup: 4,  active: 8, recovery: 0,  damage: 6,  hitstun: 20, blockstun: 12, range: 1.55,  cardio: 5, overhead: true },
+  airKick:    { startup: 5,  active: 10, recovery: 0, damage: 7,  hitstun: 20, blockstun: 12, range: 1.8, cardio: 5, overhead: true },
 };
 
 export const tierOf = (eng: number) => (eng >= TIERS[2] ? 3 : eng >= TIERS[1] ? 2 : eng >= TIERS[0] ? 1 : 0);

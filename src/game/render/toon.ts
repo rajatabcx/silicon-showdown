@@ -34,6 +34,46 @@ export function toonMaterial(src: THREE.Material, rim: THREE.ColorRepresentation
   return m as THREE.MeshToonMaterial & { userData: { u: ToonUniforms } };
 }
 
+/**
+ * Soft physically lit material that keeps the model's own texture (the look of the Blender renders),
+ * with a faint rim light and the hit-flash tint.
+ */
+export function litMaterial(src: THREE.Material, rim: THREE.ColorRepresentation, keepMetal = false): THREE.MeshStandardMaterial & { userData: { u: ToonUniforms } } {
+  const s = src as THREE.MeshStandardMaterial;
+  const m = (s.isMeshStandardMaterial ? s.clone() : new THREE.MeshStandardMaterial({ map: s.map ?? null })) as THREE.MeshStandardMaterial;
+  if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+  m.roughness = Math.max(0.5, m.roughness ?? 0.7);
+  if (!keepMetal) m.metalness = Math.min(0.05, m.metalness ?? 0);
+  m.envMapIntensity = 0.45;
+  const u: ToonUniforms = { uRim: { value: new THREE.Color(rim) }, uRimPow: { value: 3.0 }, uFlash: { value: 0 } };
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRim; uniform float uRimPow; uniform float uFlash;')
+      .replace('#include <opaque_fragment>', `
+        float fres = pow(1.0 - saturate(dot(normalize(normal), normalize(vViewPosition))), uRimPow);
+        outgoingLight += uRim * fres;
+        outgoingLight = mix(outgoingLight, vec3(1.0, 0.96, 0.9), uFlash);
+        #include <opaque_fragment>`);
+  };
+  m.customProgramCacheKey = () => 'lit-rim';
+  m.userData.u = u;
+  return m as THREE.MeshStandardMaterial & { userData: { u: ToonUniforms } };
+}
+
+/** Same soft lit look for a whole prop (no ink line). */
+export function litify(root: THREE.Object3D) {
+  const meshes: THREE.Mesh[] = [];
+  root.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
+  for (const mesh of meshes) {
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    const conv = mats.map((x) => litMaterial(x, 0x000000, true));
+    mesh.material = conv.length === 1 ? conv[0] : conv;
+    mesh.castShadow = true;
+  }
+  return root;
+}
+
 /** Inverted-hull ink outline that follows skinning. Thickness is in the mesh's local units. */
 export function outlineMaterial(thickness: number, color: THREE.ColorRepresentation = 0x0a0608) {
   const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide });

@@ -195,6 +195,7 @@ export class Stage {
 
     // The dais: two curved tiers of desks with nameplates and microphones, chairs behind.
     const daisWood = std({ map: woodT, roughness: 0.4 });
+    const senators: THREE.Vector3[] = [];
     const tiers = [{ r: 12, z: -4.2, h: 1.15, y: 0 }, { r: 13.4, z: -5.7, h: 1.3, y: 0.55 }];
     tiers.forEach((tr, ti) => {
       for (let i = -6; i <= 6; i++) {
@@ -215,18 +216,20 @@ export class Stage {
           const head = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 6), std({ color: '#111', roughness: 0.6 }));
           head.position.set(x + 0.3, tr.y + tr.h + 0.4, z + 0.2); g.add(head);
         }
-        // High-backed leather chair, empty (the senators left for the fight).
+        // High-backed leather chair; about half the senators stayed to watch.
         const chair = box(0.7, 1.5, 0.15, std({ color: '#3d1a14', roughness: 0.55 }), x, tr.y + 0.75 + 0.3, z - 0.75);
         chair.rotation.y = -a;
+        if ((i * 7 + ti * 3) % 3 !== 0) senators.push(new THREE.Vector3(x, tr.y + 1.25, z - 0.5));
       }
     });
 
-    // Gallery: rows of spectators at the sides and behind the rails.
+    // Spectators: senators in their chairs, and gallery rows at the sides, all behind the fighters' line
+    // so nothing stands between the camera and the fight.
     const peg = new THREE.CapsuleGeometry(0.17, 0.5, 4, 8); this.disposables.push(peg);
     const crowdMat = std({ roughness: 0.8 });
-    const spots: THREE.Vector3[] = [];
-    for (const side of [-1, 1]) for (let row = 0; row < 3; row++) for (let k = 0; k < 9; k++) {
-      spots.push(new THREE.Vector3(side * (8.6 + row * 0.9), 0.55 + row * 0.35, -6.5 + k * 1.05 + (row % 2) * 0.4));
+    const spots: THREE.Vector3[] = [...senators];
+    for (const side of [-1, 1]) for (let row = 0; row < 3; row++) for (let k = 0; k < 6; k++) {
+      spots.push(new THREE.Vector3(side * (8.6 + row * 0.9), 0.55 + row * 0.35, -6.5 + k * 1.0 + (row % 2) * 0.4));
     }
     this.crowd = new THREE.InstancedMesh(peg, crowdMat, spots.length);
     const col = new THREE.Color(); const pal = ['#2c3446', '#433a33', '#1f2a3a', '#4b4b55', '#5d4636', '#2a2a2a', '#6b5b4a'];
@@ -246,8 +249,8 @@ export class Stage {
     this.crowd.userData.heads = heads;
     // Brass rails.
     for (const side of [-1, 1]) {
-      box(0.06, 0.06, 12, trim, side * 7.9, 1.0, -0.8, false);
-      for (let k = 0; k < 7; k++) box(0.05, 1.0, 0.05, trim, side * 7.9, 0.5, -6.6 + k * 1.9, false);
+      box(0.06, 0.06, 6.4, trim, side * 7.9, 1.0, -3.6, false);
+      for (let k = 0; k < 5; k++) box(0.05, 1.0, 0.05, trim, side * 7.9, 0.5, -6.6 + k * 1.5, false);
     }
 
     // Pendant lamps: warm practicals that bloom.
@@ -266,18 +269,18 @@ export class Stage {
       const s = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), bulbMat); s.position.set(x, 4.6, -8.6); g.add(s);
     }
 
-    // Press pit in the foreground: dark silhouettes with cameras.
-    const pressMat = std({ color: '#0d0d12', roughness: 0.9 });
-    for (const [x, z, s] of [[-6.6, 4.2, 1.1], [-5.2, 4.8, 1.0], [5.6, 4.4, 1.05], [6.9, 4.0, 1.15]] as const) {
-      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32 * s, 0.6 * s, 4, 8), pressMat); body.position.set(x, 0.65 * s, z); g.add(body);
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.22 * s, 10, 8), pressMat); head.position.set(x, 1.35 * s, z); g.add(head);
-      const cam = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.22, 0.35), pressMat); cam.position.set(x + (x < 0 ? 0.25 : -0.25), 1.35 * s, z - 0.25); g.add(cam);
+    // Press photographers at each side of the floor, outside the fighting area, aiming in.
+    const pressMat = std({ color: '#1a1a22', roughness: 0.9 });
+    for (const [x, z, s] of [[-8.2, -1.6, 1.05], [-8.6, -0.2, 1.0], [8.2, -1.4, 1.05], [8.7, 0.0, 1.1]] as const) {
+      const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3 * s, 0.6 * s, 4, 8), pressMat); body.position.set(x, 0.65 * s, z); g.add(body);
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.2 * s, 10, 8), std({ color: '#c99878', roughness: 0.7 })); head.position.set(x, 1.32 * s, z); g.add(head);
+      const cam = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.22, 0.3), std({ color: '#0b0b0e', roughness: 0.5 })); cam.position.set(x + (x < 0 ? 0.32 : -0.32), 1.3 * s, z); g.add(cam);
     }
-    // Overturned witness tables at the edges of the floor.
+    // Overturned witness tables at the back corners of the floor.
     for (const side of [-1, 1]) {
-      const t = box(2.2, 0.08, 1.0, daisWood, side * 7.0, 0.5, 1.6);
+      const t = box(2.2, 0.08, 1.0, daisWood, side * 7.0, 0.5, -2.4);
       t.rotation.z = side * 1.35; t.rotation.y = side * 0.3;
-      const cloth = box(2.2, 0.02, 1.0, std({ color: '#2b3f7a', roughness: 0.9 }), side * 7.05, 0.5, 1.6);
+      const cloth = box(2.2, 0.02, 1.0, std({ color: '#2b3f7a', roughness: 0.9 }), side * 7.05, 0.5, -2.4);
       cloth.rotation.copy(t.rotation);
     }
 

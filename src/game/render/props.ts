@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Assets } from './assets';
-import { outlineMaterial, toonify } from './toon';
+import { litify, outlineMaterial } from './toon';
 
 // Props for signatures and Supers. The sink, chainsaw and steel ball are Blender models;
 // the rest are built here from primitives and canvas textures.
@@ -11,8 +11,8 @@ function family(v: string, fallback: string) {
   const f = getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   return f ? `${f}, ${fallback}` : fallback;
 }
-const DISPLAY_F = () => family('--ff-display', 'Impact, sans-serif');
-const SANS_F = () => family('--ff-sans', 'Arial, sans-serif');
+export const DISPLAY_F = () => family('--ff-display', 'Impact, sans-serif');
+export const SANS_F = () => family('--ff-sans', 'Arial, sans-serif');
 
 export function canvasPlane(w: number, h: number, px: number, draw: (c: CanvasRenderingContext2D, W: number, H: number) => void, emissive = 0) {
   const cv = document.createElement('canvas'); cv.width = px; cv.height = Math.round((px * h) / w);
@@ -199,13 +199,8 @@ export function talkShowSet() {
 /** Clones of the Blender props, cel-shaded and outlined. */
 export function modelProp(assets: Assets, which: 'sink' | 'chainsaw' | 'ball') {
   const o = assets.props[which].clone(true);
-  o.traverse((x) => {
-    const m = x as THREE.Mesh;
-    if (!m.isMesh) return;
-    const mat = (m.material as THREE.MeshStandardMaterial).clone();
-    // Keep white porcelain and chrome below the bloom threshold.
-    if (mat.color) mat.color.multiplyScalar(0.78);
-    m.material = mat;
-  });
-  return toonify(o, 0x000000, 0.01);
+  litify(o);
+  // Keep white porcelain below the bloom threshold.
+  o.traverse((x) => { const m = x as THREE.Mesh; if (m.isMesh) (m.material as THREE.MeshStandardMaterial).color.multiplyScalar(0.88); });
+  return o;
 }

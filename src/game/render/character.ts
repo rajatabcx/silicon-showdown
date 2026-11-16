@@ -3,8 +3,9 @@ import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import type { FighterInfo } from '../data/roster';
 import { FPS, MOVES } from '../sim/constants';
+import { sigOf } from '../sim/match';
 import type { Fighter, Match, MoveKey, SimDef } from '../sim/types';
-import { outlineMaterial, toonMaterial, type ToonUniforms } from './toon';
+import { litMaterial, type ToonUniforms } from './toon';
 
 /** Which slice of which clip a fight state plays. Clip times are in seconds. */
 type Win = { clip: string; impact: number; lead: number; tail: number };
@@ -23,7 +24,7 @@ const MOVE_ANIM: Record<MoveKey, Win> = {
 
 /** Signature actions, by signature id. */
 const SIG_ANIM: Record<string, Win> = {
-  heart: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.4, tail: 0.9 },
+  heart: { clip: 'Long_Breathe_and_Look_Around', impact: 0.7, lead: 0.2, tail: 0.3 },
   chainsaw: { clip: 'Left_Hook_from_Guard', impact: 0.333, lead: 0.25, tail: 0.3 },
   sink: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.5, tail: 0.7 },
   losers: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.55, tail: 0.38 },
@@ -32,6 +33,9 @@ const SIG_ANIM: Record<string, Win> = {
 };
 
 const HIPS = 'mixamorigHips';
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3();
+const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _q3 = new THREE.Quaternion();
+const _fwd = new THREE.Vector3(), _up = new THREE.Vector3(), _side = new THREE.Vector3();
 
 /** Strip root drift and per-bone stretch from a clip so it plays in place on any body with this skeleton. */
 function prepareClip(clip: THREE.AnimationClip, model: THREE.Object3D, srcHipsRest: THREE.Vector3): THREE.AnimationClip {
@@ -75,8 +79,10 @@ export class FighterView {
   private loopT = 0;
   hand: { r: THREE.Object3D; l: THREE.Object3D };
   private held: THREE.Object3D | null = null;
-  /** Extra arm raise for the straight-arm move, 0..1. */
-  private salute = 0;
+  /** Props placed in world space from the arm pose each frame ('grip' follows the forearm, 'both' sits between the hands). */
+  private carried: { o: THREE.Object3D; kind: 'chainsaw' | 'sink' } | null = null;
+  /** Blend weights for the procedural arm poses, 0..1. */
+  private poseW = { salute: 0, chest: 0, overhead: 0, carry: 0 };
   /** Cinematic override: what the fighter does while a Super plays. */
   role: Role | null = null;
 
@@ -90,15 +96,12 @@ export class FighterView {
       if ((o as THREE.Bone).isBone) this.bones[o.name] = o;
     });
     for (const mesh of meshes) {
-      const mat = toonMaterial(mesh.material as THREE.Material, info.id === 'tusk' ? 0x8a5a44 : 0x4f7088);
+      const mat = litMaterial(mesh.material as THREE.Material, info.id === 'tusk' ? 0x3a2418 : 0x1c2e3c);
       this.uniforms.push(mat.userData.u);
       mesh.material = mat;
       mesh.castShadow = true;
+      mesh.receiveShadow = true;
       mesh.frustumCulled = false;
-      const hull = new THREE.SkinnedMesh(mesh.geometry, outlineMaterial(0.011 / info.height));
-      hull.bind(mesh.skeleton, mesh.bindMatrix);
-      hull.frustumCulled = false;
-      mesh.parent!.add(hull);
     }
     this.hand = { r: this.bones.mixamorigRightHand, l: this.bones.mixamorigLeftHand };
     this.mixer = new THREE.AnimationMixer(this.model);
@@ -122,7 +125,14 @@ export class FighterView {
     offset?.(prop);
     h.add(prop);
   }
-  get holding() { return this.held; }
+  get holding() { return this.held ?? this.carried?.o ?? null; }
+
+  /** Carry a prop posed from the arms (chainsaw in the left fist, sink in both hands). Null drops it. */
+  carry(prop: THREE.Object3D | null, kind: 'chainsaw' | 'sink' = 'sink') {
+    if (this.carried) this.root.remove(this.carried.o);
+    this.carried = prop ? { o: prop, kind } : null;
+    if (prop) { prop.userData.kind = kind; this.root.add(prop); }
+  }
 
   private hitN = 0;
   /** Called on every hit taken: flashes the body and restarts the reaction. */
@@ -149,14 +159,7 @@ export class FighterView {
     this.mixer.update(frozen ? 0 : dt);
     if (pick.t !== undefined) { a.time = pick.t; this.mixer.update(0); }
 
-    // Straight-arm gesture: lift the right arm high and straight at the strike.
-    const wantSalute = f.state === 'sig' && def.sigs[f.sig].id === 'heart' ? 1 : 0;
-    this.salute += (wantSalute - this.salute) * Math.min(1, dt * 10);
-    if (this.salute > 0.01) {
-      const arm = this.bones.mixamorigRightArm, fore = this.bones.mixamorigRightForeArm;
-      arm.rotateZ(-0.9 * this.salute);
-      fore.quaternion.slerp(new THREE.Quaternion(), this.salute * 0.9);
-    }
+    this.armPoses(f, def, dt);
     // Breathing in the guard stance, so the idle never looks frozen.
     if (pick.key === 'idle' && !frozen) {
       const s = Math.sin(this.loopT * 2.4);
@@ -167,6 +170,116 @@ export class FighterView {
 
     this.flash = Math.max(0, this.flash - dt * 6);
     for (const u of this.uniforms) u.uFlash.value = this.flash * 0.75;
+  }
+
+  /** Rotate `bone` (in world space) so the direction to `child` points along `dir`, blended by w. */
+  private aim(bone: THREE.Object3D, child: THREE.Object3D, dir: THREE.Vector3, w: number) {
+    if (w <= 0.001) return;
+    const a = bone.getWorldPosition(_v1), b = child.getWorldPosition(_v2);
+    const cur = b.sub(a).normalize();
+    const delta = _q1.setFromUnitVectors(cur, _v3.copy(dir).normalize());
+    const world = bone.getWorldQuaternion(_q2);
+    const target = delta.multiply(world);
+    const parentQ = bone.parent!.getWorldQuaternion(_q3).invert();
+    bone.quaternion.slerp(parentQ.multiply(target), w);
+    bone.updateMatrixWorld(true);
+  }
+
+  /**
+   * Hand-made arm poses layered over the clips:
+   * - heart: right hand to the chest, then the arm thrown out straight and high, palm down.
+   * - chainsaw: the saw held up overhead while he says the line, then swung.
+   * - sink: carried in both hands in front of the belly, lifted overhead to throw.
+   */
+  private armPoses(f: Fighter, def: SimDef, dt: number) {
+    const sg = f.state === 'quote' || f.state === 'sig' ? sigOf(def, f) : null;
+    const id = sg?.id;
+    const want = { salute: 0, chest: 0, overhead: 0, carry: 0 };
+    if (id === 'heart' && f.state === 'quote') want.chest = 1;
+    if (id === 'heart' && f.state === 'sig') { if (f.af < 5) want.chest = 1; else want.salute = 1; }
+    if (id === 'chainsaw' && f.state === 'quote') want.overhead = 1;
+    if (id === 'sink' && (f.state === 'quote' || f.af < sg!.startup)) want.carry = 1;
+    const k = Math.min(1, dt * 14);
+    for (const n of Object.keys(want) as (keyof typeof want)[]) this.poseW[n] += (want[n] - this.poseW[n]) * k;
+
+    this.model.updateMatrixWorld(true);
+    const B = this.bones;
+    const fwd = _fwd.set(Math.sin(this.root.rotation.y), 0, Math.cos(this.root.rotation.y));
+    const up = _up.set(0, 1, 0);
+    const side = _side.crossVectors(up, fwd).normalize(); // the fighter's left
+    const w = this.poseW;
+
+    if (w.chest > 0.01) {
+      // Right hand flat over the heart.
+      const chest = B.mixamorigSpine2.getWorldPosition(new THREE.Vector3()).addScaledVector(fwd, 0.16).addScaledVector(side, 0.05);
+      this.aim(B.mixamorigRightArm, B.mixamorigRightForeArm, new THREE.Vector3().copy(up).multiplyScalar(-1).addScaledVector(fwd, 0.55).addScaledVector(side, -0.25), w.chest);
+      const elbow = B.mixamorigRightForeArm.getWorldPosition(new THREE.Vector3());
+      this.aim(B.mixamorigRightForeArm, B.mixamorigRightHand, chest.sub(elbow), w.chest);
+    }
+    if (w.salute > 0.01) {
+      // Arm straight out, forward and up at about 40 degrees, hand in line with it.
+      // Aimed at the opponent across the screen (not along the body, which is turned toward the camera).
+      const dir = new THREE.Vector3(f.facing * 0.8, 0.58, 0.06);
+      this.aim(B.mixamorigRightArm, B.mixamorigRightForeArm, dir, w.salute);
+      this.aim(B.mixamorigRightForeArm, B.mixamorigRightHand, dir, w.salute);
+      const tip = B.mixamorigRightHandMiddle1 ?? B.mixamorigRightHandIndex1;
+      if (tip) this.aim(B.mixamorigRightHand, tip, dir, w.salute);
+    }
+    if (w.overhead > 0.01) {
+      // Held high and a little toward the camera so the far arm isn't hidden behind his head.
+      const dir = new THREE.Vector3().copy(up).addScaledVector(fwd, 0.2).add(new THREE.Vector3(0, 0, 0.45));
+      this.aim(B.mixamorigLeftArm, B.mixamorigLeftForeArm, dir, w.overhead);
+      this.aim(B.mixamorigLeftForeArm, B.mixamorigLeftHand, dir, w.overhead);
+    }
+    if (w.carry > 0.01) {
+      // Both hands meet at a point in front of the belly; it rises overhead during the throw's wind-up.
+      const lift = f.state === 'sig' ? Math.min(1, f.af / Math.max(1, sg!.startup)) : 0;
+      const p = B.mixamorigSpine2.getWorldPosition(new THREE.Vector3()).addScaledVector(fwd, 0.42 - lift * 0.25).addScaledVector(up, -0.22 + lift * 0.75);
+      for (const [arm, fore, hand, s] of [['RightArm', 'RightForeArm', 'RightHand', -1], ['LeftArm', 'LeftForeArm', 'LeftHand', 1]] as const) {
+        const grip = p.clone().addScaledVector(side, 0.2 * s);
+        const sh = B[`mixamorig${arm}`].getWorldPosition(new THREE.Vector3());
+        // Upper arm points between the shoulder and the grip, a little outward so the elbow bends.
+        this.aim(B[`mixamorig${arm}`], B[`mixamorig${fore}`], grip.clone().sub(sh).addScaledVector(side, 0.12 * s).addScaledVector(up, -0.1), w.carry);
+        const el = B[`mixamorig${fore}`].getWorldPosition(new THREE.Vector3());
+        this.aim(B[`mixamorig${fore}`], B[`mixamorig${hand}`], grip.sub(el), w.carry);
+      }
+    }
+    this.placeCarried(fwd, up);
+  }
+
+  private placeCarried(fwd: THREE.Vector3, up: THREE.Vector3) {
+    const c = this.carried;
+    if (!c) return;
+    const B = this.bones;
+    const m = new THREE.Matrix4();
+    const pos = new THREE.Vector3();
+    if (c.kind === 'chainsaw') {
+      // Blade (+X) continues the left forearm; handle (+Y) away from the body.
+      const hand = B.mixamorigLeftHand.getWorldPosition(new THREE.Vector3());
+      const el = B.mixamorigLeftForeArm.getWorldPosition(new THREE.Vector3());
+      const x = hand.clone().sub(el).normalize();
+      const y = new THREE.Vector3().copy(up).addScaledVector(x, -x.dot(up));
+      if (y.lengthSq() < 1e-4) y.copy(fwd);
+      y.normalize();
+      const z = new THREE.Vector3().crossVectors(x, y);
+      m.makeBasis(x, y, z);
+      // The rear grip sits in the fist.
+      pos.copy(hand).addScaledVector(x, 0.18).addScaledVector(y, -0.16);
+    } else {
+      const r = B.mixamorigRightHand.getWorldPosition(new THREE.Vector3());
+      const l = B.mixamorigLeftHand.getWorldPosition(new THREE.Vector3());
+      pos.copy(r).add(l).multiplyScalar(0.5).addScaledVector(up, -0.05).addScaledVector(fwd, 0.04);
+      // Basin up (+Y), taps (-Z) toward his body.
+      m.makeBasis(new THREE.Vector3().crossVectors(up, fwd).normalize(), up.clone(), fwd.clone());
+    }
+    // Into the fighter root's local space.
+    this.root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(this.root.matrixWorld).invert();
+    const world = m.setPosition(pos);
+    const local = inv.multiply(world);
+    const sc = c.o.userData.scale ?? 1;
+    local.decompose(c.o.position, c.o.quaternion, c.o.scale);
+    c.o.scale.setScalar(sc);
   }
 
   private play(key: string, clip: string, fade = 0.1) {
@@ -220,12 +333,12 @@ export class FighterView {
         return { key: `atk-${k}-${f.chain}`, clip: w.clip, t: this.win(w, f.af, mv.startup, mv.startup + mv.active + mv.recovery), fade: 0.06 };
       }
       case 'quote': {
-        const sg = def.sigs[f.sig];
+        const sg = sigOf(def, f);
         if (sg.id === 'pause') return { key: 'pause', clip: 'Long_Breathe_and_Look_Around', t: 3.1, fade: 0.25 };
         return { key: `quote-${f.sig}`, clip: 'Long_Breathe_and_Look_Around', t: 0.6 + (fr / FPS) * 0.9, fade: 0.2 };
       }
       case 'sig': {
-        const sg = def.sigs[f.sig], w = SIG_ANIM[sg.id];
+        const sg = sigOf(def, f), w = SIG_ANIM[sg.id] ?? SIG_ANIM.lecture;
         if (sg.id === 'chainsaw') {
           // Three sweeps across the active frames.
           const per = sg.active / (sg.hits ?? 1);

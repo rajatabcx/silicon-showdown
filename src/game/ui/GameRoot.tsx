@@ -180,13 +180,16 @@ function Help({ onClose }: { onClose(): void }) {
             {row(['L', 'D'], 'Second signature (L + forward)')}
             {row(['L', 'S'], 'Third signature (L + down)')}
             {row(['Space'], 'Dodge. In a line’s last beat: Fact-Check')}
-            {row(['Enter'], 'Super, once you are Viral')}
+            {row(['Enter'], 'Super: needs Viral (the gold mark), once per round')}
+            {row(['U'], 'Tag in your sidekick when cardio is low')}
             {row(['Esc'], 'Pause')}
           </div>
           <div className="flex flex-col gap-3 text-sm leading-relaxed text-white/80">
             <p><b className="text-white">Say it, then do it.</b> Every signature starts with a real line. While a fighter talks they are open: hit them and the line is cut.</p>
-            <p><b className="text-[#5fc8ff]">Fact-Check.</b> When the other fighter is talking, the bar under the subtitle shows a blue window at the end. Press Space inside it and the move backfires.</p>
-            <p><b className="text-[#ffb347]">Engagement.</b> Saying wild things fills it: Trending, Viral, Main Character. You hit harder and take more. Viral unlocks your Super. Get Fact-Checked at Main Character and you are Ratioed: a Meltdown.</p>
+            <p><b className="text-white">One speaker at a time.</b> Nobody can start a line while the other is still talking: the chair calls it out of order.</p>
+            <p><b className="text-[#5fc8ff]">Fact-Check.</b> When the other fighter is talking, the bar in their speech bubble shows a blue window at the end. Press Space inside it and the move backfires.</p>
+            <p><b className="text-[#ffb347]">Engagement.</b> Saying wild things fills it: Trending, Viral, Main Character. You hit harder and take more. Viral unlocks your Super: one per round, and time stops while it starts. Get Fact-Checked at Main Character and you are Ratioed: a Meltdown.</p>
+            <p><b className="text-[#7fd3ff]">Cardio.</b> Every swing, jump and block costs breath. Run out and your funded politician tags in for 8 seconds while you recover. Let it take 3 hits and it&apos;s a scandal: you lose 8 health and it&apos;s benched for the round.</p>
             <p className="text-white/60">Melon Tusk goes quiet badly: his meter drains twice as fast. Peter Teal gains Engagement while losing.</p>
           </div>
         </div>

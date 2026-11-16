@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { simDef, TEAL, TUSK } from '../data/roster';
 import { cpuInput, makeCpu } from './ai/cpu';
-import { FACT_CHECK_WINDOW, INTRO_FRAMES, MOVES, SUPER_COST, SUPER_DAMAGE } from './constants';
+import {
+  FACT_CHECK_WINDOW, INTRO_FRAMES, MOVES, SCANDAL_DAMAGE, SUPER_COST, SUPER_DAMAGE, SUPER_STARTUP, TAG_FRAMES, WINDED_FRAMES,
+} from './constants';
 import { hashMatch, newMatch, step } from './match';
 import { BTN, type Ev, type Match, type SimDef } from './types';
 
@@ -200,5 +202,71 @@ describe('fight simulation', () => {
     m.f[0].cardio = 0;
     const evs = run(m, 5);
     expect(evs.some((e) => e.t === 'winded')).toBe(true);
+  });
+
+  it('only one fighter can talk at a time', () => {
+    const m = started(); m.f[0].x = -3; m.f[1].x = 3;
+    step(m, BTN.S, 0, DEFS);
+    expect(m.f[0].state).toBe('quote');
+    const evs = run(m, 2, 0, BTN.S);
+    expect(m.f[1].state).not.toBe('quote');
+    expect(evs.some((e) => e.t === 'outOfOrder' && e.by === 1)).toBe(true);
+  });
+
+  it('a Super stops time for the opponent', () => {
+    const m = started(); close(m);
+    m.f[0].eng = 100;
+    step(m, BTN.X, 0, DEFS);
+    const x = m.f[1].x, timer = m.timer;
+    run(m, SUPER_STARTUP - 2, 0, BTN.P);
+    expect(m.f[1].state).toBe('idle');
+    expect(m.f[1].x).toBe(x);
+    expect(m.f[0].hp).toBe(100);
+    expect(m.timer).toBe(timer);
+  });
+
+  it('a Super can be used once per round', () => {
+    const m = started(); m.f[0].x = -5; m.f[1].x = 5;
+    m.f[0].eng = 100;
+    step(m, BTN.X, 0, DEFS);
+    run(m, 120);
+    m.f[0].eng = 100;
+    const evs = run(m, 1, BTN.X);
+    expect(evs.some((e) => e.t === 'superStart')).toBe(false);
+  });
+
+  it('out of cardio, the sidekick tags in and soaks hits; three is a scandal', () => {
+    const m = started(); close(m);
+    m.f[1].cardio = 0;
+    const evs = run(m, WINDED_FRAMES + 2);
+    expect(evs.some((e) => e.t === 'tagIn' && e.by === 1)).toBe(true);
+    expect(m.f[1].tag).toBeGreaterThan(0);
+    const hp = m.f[1].hp;
+    const out: Ev[] = [];
+    for (let k = 0; k < 3; k++) {
+      close(m); m.f[0].state = 'idle'; m.f[1].state = 'idle';
+      step(m, BTN.P, 0, DEFS); out.push(...run(m, 30));
+    }
+    out.push(...run(m, 60));
+    expect(m.f[1].skHits).toBeGreaterThanOrEqual(3);
+    expect(out.some((e) => e.t === 'tagOut' && e.scandal)).toBe(true);
+    expect(m.f[1].hp).toBeCloseTo(hp - SCANDAL_DAMAGE);
+    expect(m.f[1].skOut).toBe(true);
+  });
+
+  it('the sidekick leaves after its time and the billionaire is rested', () => {
+    const m = started(); m.f[0].x = -5; m.f[1].x = 5;
+    m.f[0].cardio = 30;
+    step(m, BTN.T, 0, DEFS);
+    expect(m.f[0].tag).toBe(TAG_FRAMES);
+    const evs = run(m, TAG_FRAMES + 2);
+    expect(evs.some((e) => e.t === 'tagOut' && !e.scandal)).toBe(true);
+    expect(m.f[0].cardio).toBeGreaterThan(80);
+  });
+
+  it('cardio drains under steady pressure', () => {
+    const m = started(); close(m);
+    for (let k = 0; k < 12; k++) { step(m, BTN.K, 0, DEFS); run(m, 40); close(m); m.f[1].hp = 100; }
+    expect(m.f[0].cardio).toBeLessThan(40);
   });
 });

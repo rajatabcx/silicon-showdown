@@ -3,7 +3,8 @@ import {
   ENG_FACT_CHECK, ENG_HIT, ENG_QUIET_FRAMES, ENG_SIG_LAND, ENG_SIG_SAID, FACT_CHECK_WINDOW, GRAVITY, INTRO_FRAMES,
   JUMP_SCALE, MELTDOWN_FRAMES, MOVES, ROUND_END_FRAMES, ROUND_FRAMES, STAGE_HALF, START_X, STUN_FRAMES, SUPER_CHIP,
   SUPER_COST, SUPER_DAMAGE, SUPER_REACH, SUPER_STARTUP, SUPER_WHIFF_FRAMES, TIER_DEALT, TIER_TAKEN, tierOf,
-  WALK_SCALE, WINDED_FRAMES,
+  WALK_SCALE, WINDED_FRAMES, SIG_CARDIO, TAG_FRAMES, TAG_MANUAL_CARDIO, SIDEKICK_HITS, SCANDAL_DAMAGE, SIDEKICK_DAMAGE,
+  TAG_REGEN,
 } from './constants';
 import { BTN, type Fighter, type Match, type MoveKey, type SigDef, type SimDef } from './types';
 
@@ -15,6 +16,7 @@ function newFighter(side: 0 | 1): Fighter {
     hp: 100, eng: 0, cardio: 100, state: 'idle', frame: 0, stun: 0,
     move: null, af: 0, hit: false, chain: 0, buf: 0, combo: 0, prev: 0, cur: 0,
     sig: 0, sigHits: 0, dropX: 0, quiet: 0, melt: 0, wins: 0,
+    superUsed: false, tag: 0, skHits: 0, skOut: false, skPolicy: false,
   };
 }
 
@@ -35,6 +37,10 @@ function resetRound(m: Match) {
   m.proj = []; m.timer = ROUND_FRAMES; m.hitstop = 0; m.roundWinner = -1; m.phaseFrame = 0;
 }
 
+/** The signature being said or done: 0..2 are the billionaire's, 3 is the sidekick's Policy Move. */
+export const sigAt = (def: SimDef, k: number): SigDef => (k === 3 ? def.sidekick.policy : def.sigs[k]);
+export const sigOf = (def: SimDef, f: Fighter): SigDef => sigAt(def, f.sig);
+
 const isNeutral = (f: Fighter) => f.state === 'idle' || f.state === 'walk' || f.state === 'crouch';
 const dodging = (f: Fighter) => f.state === 'dodge' && f.frame >= DODGE_INVULN[0] && f.frame <= DODGE_INVULN[1];
 const isInvincible = (f: Fighter) =>
@@ -45,8 +51,8 @@ const holdsBack = (f: Fighter) => (f.cur & backBit(f)) !== 0;
 const canGuard = (f: Fighter) => f.melt <= 0 && (isNeutral(f) || f.state === 'blockstun') && holdsBack(f);
 /** Is this fighter in the Fact-Check window of a line? */
 export const factCheckable = (f: Fighter, def: SimDef) =>
-  f.state === 'quote' && def.sigs[f.sig].kind !== 'counter' && f.frame >= def.sigs[f.sig].quote - FACT_CHECK_WINDOW;
-const counterArmed = (f: Fighter, def: SimDef) => f.state === 'quote' && def.sigs[f.sig].kind === 'counter';
+  f.state === 'quote' && f.sig !== 3 && sigOf(def, f).kind !== 'counter' && f.frame >= sigOf(def, f).quote - FACT_CHECK_WINDOW;
+const counterArmed = (f: Fighter, def: SimDef) => f.state === 'quote' && sigOf(def, f).kind === 'counter';
 
 function addEng(m: Match, i: 0 | 1, n: number) {
   const f = m.f[i];
@@ -59,7 +65,7 @@ function addEng(m: Match, i: 0 | 1, n: number) {
 function startAttack(m: Match, i: 0 | 1, key: MoveKey, def: SimDef) {
   const f = m.f[i];
   f.state = 'attack'; f.move = key; f.af = 0; f.hit = false; f.buf = 0; f.frame = 0;
-  f.cardio -= MOVES[key].cardio / def.fitness;
+  if (f.tag <= 0) f.cardio -= MOVES[key].cardio / def.fitness;
   m.events.push({ t: 'whiff', by: i, move: key });
 }
 
@@ -70,6 +76,21 @@ function airborne(f: Fighter) {
 }
 
 function toIdle(f: Fighter) { f.state = 'idle'; f.move = null; f.frame = 0; f.af = 0; }
+
+function tagIn(m: Match, i: 0 | 1, manual: boolean) {
+  const f = m.f[i];
+  f.tag = TAG_FRAMES; f.skHits = 0; f.skPolicy = false;
+  toIdle(f); f.combo = 0;
+  m.events.push({ t: 'tagIn', by: i, manual });
+}
+
+function tagOut(m: Match, i: 0 | 1, scandal: boolean) {
+  const f = m.f[i];
+  f.tag = 0;
+  if (scandal) { f.skOut = true; f.hp = Math.max(1, f.hp - SCANDAL_DAMAGE); }
+  if (f.state === 'quote' || f.state === 'sig' || f.state === 'attack') toIdle(f);
+  m.events.push({ t: 'tagOut', by: i, scandal });
+}
 
 function factCheck(m: Match, checker: 0 | 1, defs: Defs) {
   const c = m.f[checker], si = (1 - checker) as 0 | 1, s = m.f[si];
@@ -96,35 +117,47 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
   switch (f.state) {
     case 'idle': case 'walk': case 'crouch': {
       f.combo = 0; f.chain = 0; f.move = null;
-      if (f.cardio <= 0) { f.state = 'winded'; f.frame = 0; m.events.push({ t: 'winded', by: i }); return; }
-      f.cardio = Math.min(100, f.cardio + CARDIO_REGEN * def.fitness);
+      const sk = f.tag > 0;
+      if (!sk && f.cardio <= 0) { f.state = 'winded'; f.frame = 0; m.events.push({ t: 'winded', by: i }); return; }
+      if (!sk) f.cardio = Math.min(100, f.cardio + CARDIO_REGEN * def.fitness * (f.state === 'walk' ? 0.5 : 1));
       const fwd = (inp & fwdBit(f)) !== 0, back = (inp & backBit(f)) !== 0, down = (inp & BTN.D) !== 0;
-      if (pressed & BTN.X && f.eng >= SUPER_COST && f.melt <= 0) {
-        f.eng = 0; f.state = 'superStart'; f.frame = 0; m.events.push({ t: 'superStart', by: i }); return;
+      if (!sk && pressed & BTN.T && f.cardio < TAG_MANUAL_CARDIO && !f.skOut) { tagIn(m, i, true); return; }
+      if (!sk && pressed & BTN.X && f.eng >= SUPER_COST && f.melt <= 0 && !f.superUsed) {
+        f.eng = 0; f.superUsed = true; f.state = 'superStart'; f.frame = 0; m.events.push({ t: 'superStart', by: i }); return;
       }
-      if (pressed & BTN.G) {
+      if (sk && pressed & BTN.S) {
+        if (f.skPolicy) return;
+        if (o.state === 'quote') { m.events.push({ t: 'outOfOrder', by: i }); return; }
+        f.skPolicy = true; f.sig = 3; f.sigHits = 0; f.state = 'quote'; f.frame = 0;
+        m.events.push({ t: 'quote', by: i, sig: 3 });
+        return;
+      }
+      if (!sk && pressed & BTN.G) {
         if (factCheckable(o, defs[1 - i])) { factCheck(m, i, defs); }
         f.state = 'dodge'; f.frame = 0; m.events.push({ t: 'dodge', by: i });
         return;
       }
-      if (pressed & BTN.S && f.melt <= 0) {
+      if (!sk && pressed & BTN.S && f.melt <= 0) {
+        // One speaker has the floor: no new line while the other side is still talking.
+        if (o.state === 'quote') { m.events.push({ t: 'outOfOrder', by: i }); return; }
         f.sig = down ? 2 : fwd ? 1 : 0; f.sigHits = 0;
+        f.cardio -= SIG_CARDIO / def.fitness;
         f.state = 'quote'; f.frame = 0; f.quiet = 0;
         m.events.push({ t: 'quote', by: i, sig: f.sig });
         return;
       }
       if (pressed & BTN.P) { f.chain = 1; startAttack(m, i, 'jab', def); return; }
-      if (pressed & BTN.K) { f.chain = 0; startAttack(m, i, down ? 'sweep' : fwd ? 'kick' : 'upper', def); return; }
+      if (pressed & BTN.K) { f.chain = 0; startAttack(m, i, sk ? 'kick' : down ? 'sweep' : fwd ? 'kick' : 'upper', def); return; }
       if (inp & BTN.U) {
         f.state = 'jump'; f.vy = def.jump * JUMP_SCALE; f.frame = 0;
         f.vx = (fwd ? 1 : back ? -0.8 : 0) * f.facing * def.walk * WALK_SCALE * 1.25;
-        f.cardio -= 3 / def.fitness;
+        f.cardio -= 5 / def.fitness;
         m.events.push({ t: 'jump', by: i }); return;
       }
       if (down) { f.state = 'crouch'; f.frame++; return; }
       if (fwd || back) {
         f.state = 'walk'; f.frame++;
-        f.x += f.facing * (fwd ? 1 : -0.78) * def.walk * WALK_SCALE;
+        f.x += f.facing * (fwd ? 1 : -0.78) * (sk ? def.sidekick.walk : def.walk) * WALK_SCALE;
         return;
       }
       if (f.state !== 'idle') f.frame = 0;
@@ -148,6 +181,7 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
       if (f.buf && mv.chain && f.af > mv.startup + mv.active) {
         const punch = (f.buf & BTN.P) !== 0;
         f.chain++;
+        if (f.tag > 0 && f.chain > 2) { f.buf = 0; return; }
         startAttack(m, i, f.chain === 2 ? (punch ? 'cross' : 'roundhouse') : punch ? 'hook' : 'roundhouse', def);
         return;
       }
@@ -155,7 +189,7 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
       return;
     }
     case 'quote': {
-      const sg = def.sigs[f.sig];
+      const sg = sigOf(def, f);
       if (++f.frame < sg.quote) return;
       addEng(m, i, ENG_SIG_SAID);
       if (sg.kind === 'counter') { toIdle(f); return; }
@@ -165,7 +199,7 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
       return;
     }
     case 'sig': {
-      const sg = def.sigs[f.sig];
+      const sg = sigOf(def, f);
       f.af++;
       if (sg.lunge && f.af <= sg.startup) f.x += (f.facing * sg.lunge) / sg.startup;
       if (sg.kind === 'projectile') {
@@ -202,7 +236,9 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
       return;
     }
     case 'winded': {
-      if (++f.frame >= WINDED_FRAMES) { f.cardio = 40; toIdle(f); }
+      if (++f.frame >= WINDED_FRAMES) {
+        if (f.skOut) { f.cardio = 40; toIdle(f); } else tagIn(m, i, false);
+      }
       return;
     }
     case 'superStart': {
@@ -218,6 +254,7 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
         m.events.push({ t: 'superWhiff', by: i });
       } else {
         m.phase = 'cine'; m.phaseFrame = 0; m.cineBy = i;
+        if (o.tag > 0) tagOut(m, (1 - i) as 0 | 1, false);
         o.move = null; o.vx = 0; o.state = 'hitstun'; o.stun = 1;
         m.proj = [];
         m.events.push({ t: 'superHit', by: i });
@@ -243,11 +280,14 @@ function dealHit(
   o: { hitstun: number; knockdown?: boolean; launch?: boolean; heavy?: boolean },
 ) {
   const a = m.f[ai], d = m.f[1 - ai];
-  const dmg = base * Math.max(0.5, 1 - 0.1 * d.combo) * TIER_DEALT[tierOf(a.eng)] * TIER_TAKEN[tierOf(d.eng)] * (a.melt > 0 ? 0.5 : 1);
+  const dmg = base * Math.max(0.5, 1 - 0.1 * d.combo) * TIER_DEALT[tierOf(a.eng)] * TIER_TAKEN[tierOf(d.eng)] *
+    (a.melt > 0 ? 0.5 : 1) * (a.tag > 0 ? SIDEKICK_DAMAGE : 1);
   if (d.state === 'quote') m.events.push({ t: 'quoteCut', by: (1 - ai) as 0 | 1, sig: d.sig });
   d.combo++;
   const knock = !!o.knockdown || d.y > 0;
-  d.hp -= dmg;
+  // A sidekick soaks hits instead of the billionaire's health; three and it's a scandal.
+  if (d.tag > 0) d.skHits++;
+  else d.hp -= dmg;
   if (d.state === 'winded') d.cardio = Math.max(d.cardio, 30);
   addEng(m, ai, key === 'sig' ? ENG_SIG_LAND : ENG_HIT);
   a.quiet = key === 'sig' ? 0 : a.quiet;
@@ -262,7 +302,7 @@ function dealHit(
 function dealBlock(m: Match, ai: 0 | 1, dir: number, blockstun: number, chip: number, heavy = false) {
   const d = m.f[1 - ai];
   d.state = 'blockstun'; d.stun = blockstun; d.vx = dir * 0.07; d.frame = 0;
-  d.cardio -= heavy ? 6 : 2; d.hp = Math.max(1, d.hp - chip);
+  if (d.tag <= 0) { d.cardio -= heavy ? 9 : 4; d.hp = Math.max(1, d.hp - chip); }
   m.hitstop = heavy ? 6 : 4;
   m.events.push({ t: 'block', by: ai, x: d.x, y: d.y + 1.3, heavy });
 }
@@ -300,7 +340,7 @@ function resolveMelee(m: Match, ai: 0 | 1, defs: Defs) {
 function resolveSig(m: Match, ai: 0 | 1, defs: Defs) {
   const a = m.f[ai], d = m.f[1 - ai];
   if (a.state !== 'sig') return;
-  const sg: SigDef = defs[ai].sigs[a.sig];
+  const sg: SigDef = sigOf(defs[ai], a);
   if (sg.kind === 'melee') {
     const n = sg.hits ?? 1;
     if (a.sigHits >= n || a.af <= sg.startup || a.af > sg.startup + sg.active) return;
@@ -351,6 +391,18 @@ function checkKo(m: Match) {
   if (ko < 0) return;
   m.phase = 'roundEnd'; m.phaseFrame = 0; m.hitstop = 24;
   m.roundWinner = both ? -1 : ((1 - ko) as 0 | 1);
+}
+
+function tagTick(m: Match, defs: Defs) {
+  for (const i of [0, 1] as const) {
+    const f = m.f[i];
+    if (f.tag <= 0) continue;
+    f.cardio = Math.min(100, f.cardio + CARDIO_REGEN * defs[i].fitness * TAG_REGEN);
+    const busy = f.state === 'quote' || f.state === 'sig' || f.state === 'attack' || f.state === 'jump';
+    if (f.skHits >= SIDEKICK_HITS && f.state !== 'hitstun' && f.state !== 'knockdown' && f.state !== 'getup') tagOut(m, i, true);
+    else if (--f.tag <= 0 && busy) f.tag = 1;
+    else if (f.tag <= 0) tagOut(m, i, false);
+  }
 }
 
 function egoTick(m: Match, defs: Defs) {
@@ -437,7 +489,17 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   }
 
   // fight
+  // Super flash: time stops for everyone but the fighter calling the Super.
+  const caller = m.f[0].state === 'superStart' ? 0 : m.f[1].state === 'superStart' ? 1 : -1;
+  if (caller >= 0) {
+    const other = m.f[1 - caller];
+    other.prev = ins[1 - caller];
+    updateFighter(m, caller as 0 | 1, ins[caller], defs);
+    return;
+  }
+
   m.timer--;
+  tagTick(m, defs);
   updateFighter(m, 0, in0, defs);
   if (m.phase !== 'fight') return;
   updateFighter(m, 1, in1, defs);

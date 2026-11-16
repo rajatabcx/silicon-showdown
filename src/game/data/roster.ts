@@ -27,6 +27,8 @@ export const SOURCES = {
   post: 'POST ON X · OCT 2022',
   podcast: 'NYT PODCAST INTERVIEW · JUN 2025',
   stanford: 'STANFORD LECTURE · 2014',
+  econClub: 'ECONOMIC CLUB OF CHICAGO · OCT 2024',
+  cable: 'CABLE NEWS INTERVIEW · JUL 2021',
 } as const;
 
 /** A line as said in the game: one or more clips back to back, the subtitle, and its source. */
@@ -60,6 +62,15 @@ export type SuperInfo = {
   beats: Beat[];
 };
 
+/** The funded politician who tags in when the billionaire runs out of cardio. Parody name; no voice clips yet. */
+export type SidekickInfo = {
+  name: string; title: string;
+  look: { suit: string; tie: string; skin: string; hair: string; hairStyle: 'swoop' | 'beard' };
+  walk: number;
+  tagLine: string;
+  policy: { name: string; text: string; source: string; prop: 'tariff' | 'cats'; sim: SigDef };
+};
+
 export type FighterInfo = {
   id: 'tusk' | 'teal';
   name: string; title: string; color: string; accent: string;
@@ -69,6 +80,7 @@ export type FighterInfo = {
   barks: { heavy?: VoiceId; block?: VoiceId; checked?: VoiceId; taunt?: VoiceId; winded?: VoiceId; intro?: VoiceId };
   ego: SimDef['ego'];
   egoNote: string;
+  sidekick: SidekickInfo;
   stats: { walk: number; jump: number; fitness: number };
   win: string;
 };
@@ -128,6 +140,17 @@ export const TUSK: FighterInfo = {
     ],
   },
   barks: { heavy: 'tusk_too_hard', block: 'tusk_plus_side', checked: 'tusk_omg', taunt: 'tusk_empathy' },
+  sidekick: {
+    name: 'Uncle Covfefe', title: 'Funded Politician',
+    look: { suit: '#1b2440', tie: '#c8102e', skin: '#f0a868', hair: '#f3d27a', hairStyle: 'swoop' },
+    walk: 1.7,
+    tagLine: 'DONOR NEEDS A BREATHER',
+    policy: {
+      name: 'Tariff Everything', prop: 'tariff', source: SOURCES.econClub,
+      text: 'To me, the most beautiful word in the dictionary is "tariff."',
+      sim: { id: 'tariff', quote: 110, kind: 'drop', startup: 22, active: 2, recovery: 28, damage: 10, range: 4.5, knockdown: true },
+    },
+  },
 };
 
 export const TEAL: FighterInfo = {
@@ -179,6 +202,17 @@ export const TEAL: FighterInfo = {
     ],
   },
   barks: { checked: 'teal_long_hes', taunt: 'teal_greta', intro: 'teal_losers' },
+  sidekick: {
+    name: 'Hillbilly Veep', title: 'Funded Politician',
+    look: { suit: '#232a33', tie: '#2b4f8a', skin: '#efc3a4', hair: '#3b2a1e', hairStyle: 'beard' },
+    walk: 1.8,
+    tagLine: 'DONOR NEEDS A BREATHER',
+    policy: {
+      name: 'Cat Lady Barrage', prop: 'cats', source: SOURCES.cable,
+      text: '…a bunch of childless cat ladies…',
+      sim: { id: 'cats', quote: 100, kind: 'projectile', startup: 10, active: 26, recovery: 22, damage: 4, hits: 3, range: 7, speed: 0.14, arc: 0.06 },
+    },
+  },
 };
 
 export const ROSTER = [TUSK, TEAL] as const;
@@ -188,9 +222,20 @@ export function simDef(f: FighterInfo): SimDef {
   const sp = f.super;
   return {
     ...f.stats, ego: f.ego, sigs,
+    sidekick: { walk: f.sidekick.walk, policy: f.sidekick.policy.sim },
     super: {
       frames: Math.round(sp.seconds * FPS), hitAt: Math.round((sp.hitAt ?? 0) * FPS),
       drain: sp.drain ? [Math.round(sp.drain[0] * FPS), Math.round(sp.drain[1] * FPS)] : undefined,
     },
+  };
+}
+
+/** Display info for signature k (3 = the sidekick's Policy Move, shown as a speech bubble with no voice yet). */
+export function sigInfo(f: FighterInfo, k: number): SigInfo {
+  if (k !== 3) return f.sigs[k];
+  const p = f.sidekick.policy;
+  return {
+    name: p.name, line: { clips: [], text: p.text, source: p.source, speaker: f.sidekick.name },
+    prop: null, context: '', sim: p.sim,
   };
 }

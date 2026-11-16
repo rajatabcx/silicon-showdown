@@ -1,7 +1,7 @@
 // Pure simulation types. Nothing in sim/ may import three, React or the DOM.
 
-/** Input bits. L/R/U/D move, P light (J), K heavy (K), S signature (L), G dodge (Space), X super (Enter). */
-export const BTN = { L: 1, R: 2, U: 4, D: 8, P: 16, K: 32, S: 64, G: 128, X: 256 } as const;
+/** Input bits. L/R/U/D move, P light (J), K heavy (K), S signature (L), G dodge (Space), X super (Enter), T tag sidekick (U). */
+export const BTN = { L: 1, R: 2, U: 4, D: 8, P: 16, K: 32, S: 64, G: 128, X: 256, T: 512 } as const;
 
 export type MoveKey =
   | 'jab' | 'cross' | 'hook' | 'upper' | 'kick' | 'sweep' | 'roundhouse' | 'airPunch' | 'airKick';
@@ -50,6 +50,8 @@ export type SimDef = {
   sigs: [SigDef, SigDef, SigDef];
   super: SuperDef;
   ego: Ego;
+  /** The funded politician who tags in when cardio runs out. Its one Policy Move is sig index 3. */
+  sidekick: { walk: number; policy: SigDef };
 };
 
 export type Fighter = {
@@ -65,6 +67,16 @@ export type Fighter = {
   /** Meltdown frames left after being Ratioed: weak attacks, can't block, no signatures. */
   melt: number;
   wins: number;
+  /** Super already used this round (one per round). */
+  superUsed: boolean;
+  /** Frames the sidekick has left on stage (0 = the billionaire is fighting). */
+  tag: number;
+  /** Hits the sidekick has taken this tag; at SIDEKICK_HITS it is exposed (scandal). */
+  skHits: number;
+  /** The sidekick was exposed this round and can't come back. */
+  skOut: boolean;
+  /** The sidekick's Policy Move is spent for this tag. */
+  skPolicy: boolean;
 };
 
 export type Projectile = { owner: 0 | 1; sig: number; x: number; y: number; vx: number; vy: number; dmg: number; knockdown: boolean };
@@ -89,6 +101,9 @@ export type Ev =
   | { t: 'superDamage'; by: 0 | 1 }
   | { t: 'superLand'; by: 0 | 1 }
   | { t: 'winded'; by: 0 | 1 }
+  | { t: 'outOfOrder'; by: 0 | 1 }
+  | { t: 'tagIn'; by: 0 | 1; manual: boolean }
+  | { t: 'tagOut'; by: 0 | 1; scandal: boolean }
   | { t: 'ko'; by: 0 | 1 }
   | { t: 'timeUp' }
   | { t: 'roundStart'; round: number }

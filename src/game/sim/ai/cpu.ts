@@ -1,4 +1,5 @@
-import { FACT_CHECK_WINDOW, MOVES, SUPER_COST, SUPER_REACH } from '../constants';
+import { FACT_CHECK_WINDOW, MOVES, SUPER_COST, SUPER_REACH, TAG_MANUAL_CARDIO } from '../constants';
+import { sigOf } from '../match';
 import { makeRng, type Rng } from '../rng';
 import { BTN, type Match, type SimDef } from '../types';
 
@@ -38,9 +39,9 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: Sim
 
   // The opponent started a line: decide once whether to Fact-Check it, and when to press.
   if (o.state === 'quote' && o.frame === 1) {
-    const sg = oppDef.sigs[o.sig];
+    const sg = sigOf(oppDef, o);
     cpu.checkAt = -1;
-    if (sg.kind !== 'counter' && rng() < p.check) {
+    if (sg.kind !== 'counter' && o.sig !== 3 && f.tag <= 0 && rng() < p.check) {
       const target = sg.quote - FACT_CHECK_WINDOW / 2;
       cpu.checkAt = Math.round(target + (rng() - 0.5) * p.checkJitter);
     } else if (sg.kind !== 'counter' && dist < 1.85 && rng() < p.aggro) {
@@ -77,14 +78,23 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: Sim
   const q = cpu.queue;
   const rest = () => q.push([0, Math.round(p.think * (0.4 + rng()))]);
 
-  if (f.cardio < 18) { q.push([back, 30]); return 0; }
-  if (f.eng >= SUPER_COST && dist < SUPER_REACH - 0.4 && f.melt <= 0 && rng() < p.superUse * 0.2) { q.push([BTN.X, 2]); rest(); return 0; }
-  if (f.eng >= SUPER_COST && dist >= SUPER_REACH - 0.4) { q.push([fwd, 10]); return 0; }
+  const sk = f.tag > 0;
+  if (!sk && f.cardio < TAG_MANUAL_CARDIO * 0.6 && !f.skOut && rng() < 0.03) { q.push([BTN.T, 2]); return 0; }
+  if (!sk && f.cardio < 18) { q.push([back, 30]); return 0; }
+  const canSuper = !sk && f.eng >= SUPER_COST && f.melt <= 0 && !f.superUsed;
+  if (canSuper && dist < SUPER_REACH - 0.4 && rng() < p.superUse * 0.2) { q.push([BTN.X, 2]); rest(); return 0; }
+  if (canSuper && dist >= SUPER_REACH - 0.4) { q.push([fwd, 10]); return 0; }
   if (o.state === 'jump' && dist < 2.15 && rng() < p.antiAir) { q.push([BTN.K, 2]); rest(); return 0; }
   if (o.state === 'knockdown' || o.state === 'getup') { q.push([dist > 1.65 ? fwd : 0, 8]); return 0; }
 
+  // The sidekick's one Policy Move.
+  if (sk && !f.skPolicy && o.state !== 'quote' && rng() < p.sig * 2) {
+    const pol = def.sidekick.policy;
+    if ((pol.kind === 'projectile' && dist > 2.0) || (pol.kind === 'drop' && dist > 1.85 && dist < pol.range) ||
+        (pol.kind === 'melee' && dist < pol.range + 0.4)) { q.push([BTN.S, 2]); rest(); return 0; }
+  }
   // Signatures: pick by range.
-  if (f.melt <= 0 && rng() < p.sig) {
+  if (!sk && f.melt <= 0 && o.state !== 'quote' && rng() < p.sig) {
     const opts: number[] = [];
     def.sigs.forEach((s, k) => {
       if (s.kind === 'projectile' && dist > 2.65) opts.push(k);
