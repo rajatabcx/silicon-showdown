@@ -67,7 +67,7 @@ function prepareClip(clip: THREE.AnimationClip, model: THREE.Object3D, srcHipsRe
   return new THREE.AnimationClip(clip.name, clip.duration, tracks);
 }
 
-export type Role = 'fight' | 'talk' | 'pump' | 'reel' | 'frozen' | 'down' | 'shrug';
+export type Role = 'fight' | 'talk' | 'pump' | 'reel' | 'frozen' | 'down' | 'shrug' | 'strike' | 'fall';
 
 /** One fighter on screen: the model, its cel materials and ink outline, and a mixer driven by the simulation. */
 export class FighterView {
@@ -92,6 +92,11 @@ export class FighterView {
   private poseW = { salute: 0, chest: 0, overhead: 0, carry: 0 };
   /** Cinematic override: what the fighter does while a Super plays. */
   role: Role | null = null;
+  /** For the staged roles: how far through the move he is (0..1, 'strike' and 'fall') and how fast time runs for him. */
+  roleT = 0;
+  roleSpeed = 1;
+  /** A Super left him flat on the floor: the knockdown that follows starts lying down instead of falling again. */
+  floored = false;
 
   /**
    * `limited`: a sidekick politician. Same skeleton and clips, but a small move set: no kicks, no boxing guard,
@@ -171,6 +176,8 @@ export class FighterView {
     this.yaw += (want - this.yaw) * Math.min(1, dt * 12);
     this.root.rotation.y = this.yaw;
 
+    if (this.floored && !this.role && f.state !== 'knockdown' && f.state !== 'ko' && f.state !== 'hitstun') this.floored = false;
+    if (this.floored && (f.state === 'knockdown' || f.state === 'ko')) this.root.position.y = 0;
     const pick = this.pick(f, def);
     this.play(pick.key, pick.clip, pick.fade);
     const a = this.cur!;
@@ -338,7 +345,9 @@ export class FighterView {
       switch (this.role) {
         case 'talk': return { key: 'c-talk', clip: 'Long_Breathe_and_Look_Around', speed: 1.1, fade: 0.25 };
         case 'pump': return { key: 'c-pump', clip: 'Victory_Fist_Pump', speed: 1, fade: 0.2 };
-        case 'reel': return { key: 'c-reel', clip: 'Hit_Reaction', speed: 0.8, fade: 0.15 };
+        case 'reel': return { key: 'c-reel', clip: 'Hit_Reaction', speed: 0.8 * this.roleSpeed, fade: 0.15 };
+        case 'strike': return { key: 'c-strike', clip: 'Right_Jab_from_Guard', t: 0.6 + this.roleT * 0.22, fade: 0.06 };
+        case 'fall': return { key: 'c-down', clip: 'Knock_Down', t: 0.5 + Math.min(1, this.roleT) * 1.95, fade: 0.1 };
         case 'frozen': return { key: 'c-frozen', clip: 'Long_Breathe_and_Look_Around', t: 2.0, fade: 0.3 };
         case 'down': return { key: 'c-down', clip: 'Knock_Down', t: 2.45, fade: 0.2 };
         case 'shrug': return { key: 'c-shrug', clip: 'Long_Breathe_and_Look_Around', speed: 0.6, fade: 0.3 };
@@ -406,12 +415,14 @@ export class FighterView {
       case 'hitstun': return { key: `hit-${this.hitN}`, clip: 'Hit_Reaction', t: 0.3 + (fr / Math.max(1, fr + f.stun)) * 0.7, fade: 0.05 };
       case 'blockstun': return { key: 'block', clip: 'Block1', t: 1.15 + Math.min(1, fr / 10) * 0.35, fade: 0.06 };
       case 'stunned': return { key: 'stunned', clip: 'Face_Punch_Reaction', t: 0.1 + Math.min(1, fr / Math.max(1, fr + f.stun)) * 2.3, fade: 0.06 };
-      case 'knockdown': return { key: 'down', clip: 'Knock_Down', t: Math.min(2.45, 0.5 + (fr / FPS) * 1.6 + (f.y > 0 ? 0 : 0.3)), fade: 0.06 };
+      case 'knockdown': if (this.floored) return { key: 'c-down', clip: 'Knock_Down', t: 2.45, fade: 0.05 };
+        return { key: 'down', clip: 'Knock_Down', t: Math.min(2.45, 0.5 + (fr / FPS) * 1.6 + (f.y > 0 ? 0 : 0.3)), fade: 0.06 };
       case 'getup': return { key: 'getup', clip: 'Stand_Up1', t: 3.2 + (fr / 26) * 3.6, fade: 0.1 };
       case 'dodge': return { key: 'dodge', clip: 'Stand_Dodge', t: 0.15 + (fr / 26) * 1.0, fade: 0.05 };
       case 'winded': return { key: 'winded', clip: 'Long_Breathe_and_Look_Around', speed: 1.6, fade: 0.25 };
       case 'superStart': return { key: 'super', clip: 'Right_Jab_from_Guard', t: 0.3 + (fr / 18) * 0.33, fade: 0.06 };
-      case 'ko': return { key: 'ko', clip: 'Knock_Down', t: Math.min(2.45, 0.5 + (fr / FPS) * 1.2), fade: 0.08 };
+      case 'ko': if (this.floored) return { key: 'c-down', clip: 'Knock_Down', t: 2.45, fade: 0.05 };
+        return { key: 'ko', clip: 'Knock_Down', t: Math.min(2.45, 0.5 + (fr / FPS) * 1.2), fade: 0.08 };
       case 'win': return { key: 'win', clip: 'Victory_Fist_Pump', speed: 0.9, fade: 0.25 };
     }
     return { key: 'idle', clip: 'Block1', t: 0.1 };

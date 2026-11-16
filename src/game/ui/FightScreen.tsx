@@ -15,6 +15,8 @@ type Check = { k: number; speaker: 0 | 1; context: string; ratioed: boolean };
 type Quote = { side: 0 | 1; sig: SigInfo; frames: number; policy: boolean } | null;
 type Tag = { hits: number } | null;
 type Callout = { k: number; side: number; text: string; tone: string };
+/** The running combo count for one side: one line that updates in place, never a pile of them. */
+type Combo = { k: number; n: number } | null;
 /** A short text-only banter line over a head at a tag (never voiced, never a quote). */
 type Chat = { k: number; side: 0 | 1; who: 'boss' | 'sk'; name: string; text: string };
 type CineView = { by: 0 | 1; title: boolean; sub: number; bubbles: number[]; stamp: number; question: boolean } | null;
@@ -27,7 +29,10 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
   const [check, setCheck] = useState<Check | null>(null);
   const [quote, setQuote] = useState<Quote>(null);
   const [callouts, setCallouts] = useState<Callout[]>([]);
+  const [combos, setCombos] = useState<[Combo, Combo]>([null, null]);
   const [cine, setCine] = useState<CineView>(null);
+  /** The camera has left the fight view (Super or Policy Move): letterbox bars on, lower third off. */
+  const [cinema, setCinema] = useState(false);
   const [ticker, setTicker] = useState(TICKER.idle[0]);
   const [paused, setPaused] = useState(false);
   const [muted, setMutedState] = useState(isMuted());
@@ -61,12 +66,17 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
     const off = game.on((e, m) => {
       switch (e.t) {
         case 'roundStart':
-          setCine(null); setQuote(null); setChats([]);
+          setCine(null); setCinema(false); setQuote(null); setChats([]); setCombos([null, null]); setCallouts([]);
           later(() => announce(m.round === 3 ? 'FINAL ROUND' : `ROUND ${e.round}`, 'The hearing will come to order.', 1.7), 250);
           break;
         case 'fight': announce('FIGHT', undefined, 0.8, 'white'); break;
         case 'hit':
-          if (e.combo >= 3) { callout(e.by, `${e.combo} HIT COMBO`); news(TICKER.combo, e.by); }
+          if (e.combo >= 3) {
+            const k = ++id, by = e.by;
+            setCombos((c) => (by === 0 ? [{ k, n: e.combo }, c[1]] : [c[0], { k, n: e.combo }]));
+            later(() => setCombos((c) => (c[by]?.k === k ? (by === 0 ? [null, c[1]] : [c[0], null]) : c)), 1500);
+            news(TICKER.combo, e.by);
+          }
           else if (Math.random() < 0.15) news(TICKER.hit, e.by);
           if (e.move === 'counter') callout(e.by, 'COUNTERED', '#8fd3ff');
           break;
@@ -112,6 +122,17 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
     let lastQuote = '';
     let lastCine = '';
     let stampShown = '';
+    let lastCinema = false;
+    /**
+     * The lowest "top" (in % of the screen) at which a bubble that grows upward still clears the HUD and the
+     * combo / callout lines under it, so no two pieces of text ever sit on top of each other.
+     */
+    const underHud = (bubble: HTMLElement) => {
+      const root = rootRef.current, zone = el.hudzone;
+      if (!root || !zone) return 30;
+      const r = root.getBoundingClientRect();
+      return Math.max(30, ((zone.getBoundingClientRect().bottom - r.top + bubble.offsetHeight + 10) / r.height) * 100);
+    };
     const frame = () => {
       raf = requestAnimationFrame(frame);
       const m = game.match;
@@ -189,7 +210,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
             tail.forEach((t) => { t.style.display = 'none'; });
           } else {
             bub.style.left = `${Math.min(80, Math.max(20, p.x * 100))}%`;
-            bub.style.top = `${Math.max(30, Math.min(70, p.y * 100))}%`;
+            bub.style.top = `${Math.max(underHud(bub), Math.min(70, p.y * 100))}%`;
             bub.style.translate = '-50% -100%';
             bub.style.visibility = 'visible';
             tail.forEach((t) => { t.style.display = ''; });
@@ -197,13 +218,18 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
         }
       }
 
+      // Anything directed by the camera: a Super (its flash and its cinematic) or a sidekick's Policy Move.
+      const policy = m.phase === 'fight' && (m.proj.some((p) => p.sig === 3) || m.f.some((f) => f.tag > 0 && f.sig === 3 && (f.state === 'quote' || f.state === 'sig')));
+      const cinema = m.phase === 'cine' || policy || (m.phase === 'fight' && m.f.some((f) => f.state === 'superStart'));
+      if (cinema !== lastCinema) { lastCinema = cinema; setCinema(cinema); }
+
       // Banter bubbles follow their speaker's head; they step aside while a real line or a Super is on screen.
       rootRef.current?.querySelectorAll<HTMLElement>('[data-chat]').forEach((b) => {
         const [side, who] = b.dataset.chat!.split('-') as ['0' | '1', 'boss' | 'sk'];
         const p = game.headOnScreen(Number(side) as 0 | 1, who);
         b.style.left = `${Math.min(82, Math.max(18, p.x * 100))}%`;
-        b.style.top = `${Math.max(30, Math.min(70, p.y * 100))}%`;
-        b.style.visibility = qi >= 0 || m.phase === 'cine' ? 'hidden' : 'visible';
+        b.style.top = `${Math.max(underHud(b), Math.min(70, p.y * 100))}%`;
+        b.style.visibility = qi >= 0 || cinema ? 'hidden' : 'visible';
       });
 
       // Super overlays, keyed to the same seconds as the 3D script.
@@ -247,24 +273,32 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
   return (
     <div ref={rootRef} className="pointer-events-none absolute inset-0 select-none overflow-hidden">
       {/* Letterbox in Supers */}
-      <div className="absolute inset-x-0 top-0 bg-black transition-[height] duration-300" style={{ height: cine ? '9%' : 0 }} />
-      <div className="absolute inset-x-0 bottom-0 bg-black transition-[height] duration-300" style={{ height: cine ? '9%' : 0 }} />
+      <div className="absolute inset-x-0 top-0 bg-black transition-[height] duration-300" style={{ height: cinema ? '9%' : 0 }} />
+      <div className="absolute inset-x-0 bottom-0 bg-black transition-[height] duration-300" style={{ height: cinema ? '9%' : 0 }} />
 
-      {/* Top HUD */}
-      <div className={`absolute inset-x-0 top-0 px-3 pt-3 transition-opacity duration-300 sm:px-6 sm:pt-4 ${cine ? 'opacity-40' : ''}`}>
+      {/* Top HUD. The combo count and the callouts sit in the same column as the bars, one line each. */}
+      <div data-hud="hudzone" className={`absolute inset-x-0 top-0 px-3 pt-3 transition-opacity duration-300 sm:px-6 sm:pt-4 ${cine ? 'opacity-40' : ''}`}>
         <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto_1fr] items-start gap-3 sm:gap-5">
-          <Side i={0} info={infos[0]} tag={tags[0]} />
-          <Timer />
-          <Side i={1} info={infos[1]} tag={tags[1]} />
+          {([0, 1] as const).map((i) => (
+            <div key={i} className={i === 1 ? 'order-3 min-w-0' : 'min-w-0'}>
+              <Side i={i} info={infos[i]} tag={tags[i]} />
+              <div className={`mt-1 flex flex-col gap-0.5 ${i === 1 ? 'items-end text-right' : 'items-start'}`}>
+                {combos[i] && (
+                  <div key={combos[i]!.k} className="display anim-pop whitespace-nowrap text-2xl leading-none text-[#ffe6a3] drop-shadow-[0_3px_0_#000] sm:text-4xl">
+                    <span className="text-[1.25em] text-white">{combos[i]!.n}</span> HIT COMBO
+                  </div>
+                )}
+                {callouts.filter((c) => c.side === i).map((c) => (
+                  <div key={c.k} className="display anim-pop whitespace-nowrap text-xl leading-none drop-shadow-[0_3px_0_#000] sm:text-3xl" style={{ color: c.tone }}>
+                    {c.text}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="order-2"><Timer /></div>
         </div>
       </div>
-
-      {/* Callouts */}
-      {callouts.map((c) => (
-        <div key={c.k} className={`display anim-pop absolute top-[23%] text-2xl drop-shadow-[0_3px_0_#000] sm:text-4xl ${c.side === 0 ? 'left-[8%]' : 'right-[8%]'}`} style={{ color: c.tone }}>
-          {c.text}
-        </div>
-      ))}
 
       {/* Round / KO banners */}
       {banner && (
@@ -352,7 +386,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
       )}
 
       {/* Lower third: live crawl and the controls */}
-      <div className={`absolute inset-x-0 bottom-0 transition-opacity duration-300 ${cine ? 'opacity-0' : ''}`}>
+      <div className={`absolute inset-x-0 bottom-0 transition-opacity duration-300 ${cinema ? 'opacity-0' : ''}`}>
         <div className="flex items-stretch bg-[#0b0910]/85 text-xs sm:text-sm">
           <span className="display flex items-center bg-[#c8202f] px-3 tracking-wider text-white">LIVE</span>
           <span className="mono flex items-center bg-[#e3b95a] px-3 text-[10px] font-semibold tracking-widest text-black sm:text-xs">SENATE HEARING ROOM</span>

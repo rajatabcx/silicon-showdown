@@ -75,6 +75,40 @@ export function label(text: string, color = '#ffd34d', size = 0.5) {
   return s;
 }
 
+/**
+ * A chat "typing" bubble: three dots that bob one after another, like someone composing a reply that never comes.
+ * Call userData.tick(seconds, height) every frame; it always faces the camera.
+ */
+export function typingDots() {
+  const cv = document.createElement('canvas'); cv.width = 320; cv.height = 220;
+  const c = cv.getContext('2d')!;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  s.renderOrder = 10;
+  s.center.set(0.5, 0);
+  s.userData.tick = (t: number, size = 0.7) => {
+    c.clearRect(0, 0, 320, 220);
+    c.lineJoin = 'round'; c.lineWidth = 12; c.strokeStyle = '#120a0a'; c.fillStyle = '#ffffff';
+    // Bubble with a small tail at the bottom left.
+    c.beginPath();
+    c.moveTo(70, 172); c.lineTo(46, 212); c.lineTo(112, 172);
+    c.lineTo(250, 172); c.quadraticCurveTo(310, 172, 310, 112); c.lineTo(310, 72); c.quadraticCurveTo(310, 12, 250, 12);
+    c.lineTo(70, 12); c.quadraticCurveTo(10, 12, 10, 72); c.lineTo(10, 112); c.quadraticCurveTo(10, 172, 70, 172);
+    c.closePath(); c.fill(); c.stroke();
+    for (let i = 0; i < 3; i++) {
+      // Each dot rises and brightens in turn, then rests.
+      const ph = (t * 1.25 - i * 0.16) % 1;
+      const up = ph < 0.45 ? Math.sin((ph / 0.45) * Math.PI) : 0;
+      c.fillStyle = `rgb(${Math.round(150 - up * 110)},${Math.round(156 - up * 112)},${Math.round(168 - up * 116)})`;
+      c.beginPath(); c.arc(92 + i * 68, 96 - up * 26, 21 + up * 4, 0, Math.PI * 2); c.fill();
+    }
+    tex.needsUpdate = true;
+    s.scale.set((size * 320) / 220, size, 1);
+  };
+  s.userData.tick(0);
+  return s;
+}
+
 /** "NO COMPETITION": a gilded monolith that drops from the ceiling. */
 export function gate() {
   const g = new THREE.Group();

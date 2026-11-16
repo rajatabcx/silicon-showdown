@@ -479,7 +479,8 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
     }
     if (fr < sp.frames) return;
     if (d.hp <= 0.001) d.hp = 0;
-    d.state = 'knockdown'; d.vy = 0.12; d.vx = a.facing * 0.05; d.frame = 0; d.combo = 0;
+    // The cinematic already put them on the floor: they stay down and get up from there.
+    d.state = 'knockdown'; d.y = 0; d.vy = 0; d.vx = 0; d.frame = 0; d.combo = 0;
     a.state = 'idle'; a.frame = 0;
     m.phase = 'fight'; m.hitstop = 8;
     m.events.push({ t: 'superLand', by: ai });

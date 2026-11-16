@@ -546,7 +546,7 @@ describe('a Super cannot be lost or interrupted', () => {
         for (const i of [0, 1] as const) {
           const f = m.f[i];
           if (asked[i] === null) continue;
-          if (m.phase === 'roundEnd' || m.phase === 'intro' || m.phase === 'matchEnd' || f.tag > 0 || f.melt > 0) { asked[i] = null; continue; }
+          if ((m.phase as string) !== 'fight' && (m.phase as string) !== 'cine' || f.tag > 0 || f.melt > 0) { asked[i] = null; continue; }
           const waiting = f.state === 'knockdown' || f.state === 'ko' || m.phase === 'cine' || m.hitstop > 0 || live !== null ||
             m.f[1 - i].tag > 0;
           if (!waiting) expect(n - asked[i]!, `seed ${seed}: side ${i} pressed Enter at ${asked[i]} and is ${f.state}`).toBeLessThan(3);

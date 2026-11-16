@@ -6,23 +6,23 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { FighterInfo } from '../data/roster';
-import { FPS, INTRO_FRAMES } from '../sim/constants';
+import { FPS, INTRO_FRAMES, SUPER_STARTUP } from '../sim/constants';
 import { sigAt, sigOf } from '../sim/match';
 import type { Ev, Match, Projectile, SimDef } from '../sim/types';
 import type { Assets } from './assets';
 import { FighterView, hipsRest } from './character';
-import { gate, label, modelProp, page, postCard, rocket, talkShowSet, tickerScreen } from './props';
+import { gate, label, modelProp, page, postCard, rocket, talkShowSet, tickerScreen, typingDots } from './props';
 import { catSprite, tariffStamp } from './sidekick';
 import { Stage, type Mood } from './stage';
 
 const GradeShader = {
   uniforms: {
     tDiffuse: { value: null }, uSat: { value: 1 }, uVig: { value: 0.32 }, uFlash: { value: 0 }, uTint: { value: new THREE.Color(1, 1, 1) },
-    uAberr: { value: 0 }, uTime: { value: 0 }, uGrain: { value: 0.035 },
+    uAberr: { value: 0 }, uTime: { value: 0 }, uGrain: { value: 0.035 }, uBlur: { value: 0 },
   },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
   fragmentShader: `
-    uniform sampler2D tDiffuse; uniform float uSat, uVig, uFlash, uAberr, uTime, uGrain; uniform vec3 uTint; varying vec2 vUv;
+    uniform sampler2D tDiffuse; uniform float uSat, uVig, uFlash, uAberr, uTime, uGrain, uBlur; uniform vec3 uTint; varying vec2 vUv;
     float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898,78.233)) + uTime) * 43758.5453); }
     void main(){
       vec2 d = (vUv - 0.5);
@@ -30,6 +30,12 @@ const GradeShader = {
       c.r = texture2D(tDiffuse, vUv + d * uAberr).r;
       c.g = texture2D(tDiffuse, vUv).g;
       c.b = texture2D(tDiffuse, vUv - d * uAberr).b;
+      // Slow motion: the edges of the frame streak toward the centre, the middle stays sharp.
+      if (uBlur > 0.001) {
+        vec3 acc = c;
+        for (int i = 1; i < 8; i++) acc += texture2D(tDiffuse, vUv - d * uBlur * 0.11 * float(i) / 8.0).rgb;
+        c = mix(c, acc / 8.0, smoothstep(0.05, 0.4, length(d)));
+      }
       float l = dot(c, vec3(0.299, 0.587, 0.114));
       c = mix(vec3(l), c, uSat) * uTint;
       c *= 1.0 - uVig * smoothstep(0.25, 0.85, length(d * vec2(1.25, 1.0)));
@@ -77,6 +83,9 @@ export class Renderer {
   private sigProps: (THREE.Object3D | null)[] = [null, null];
   private gates: { g: THREE.Object3D; life: number; land: number; x: number; by: number }[] = [];
   private cine: CineState | null = null;
+  private policy: PolicyCine | null = null;
+  private flashBy = -1;
+  private blur = 0;
   private dots: THREE.Sprite | null = null;
   /** Title-screen mode: slow orbit of the room. */
   attract = true;
@@ -230,7 +239,7 @@ export class Renderer {
       }
       case 'quoteCut': this.views[e.by].carry(null); break;
       case 'tier': if (e.tier >= 2) { this.kick(0.1, 0.05, 0.8); this.stage.cheer(1); } break;
-      case 'superStart': this.kick(0.08, 0.05, 0.6); break;
+      case 'superStart': this.kick(0.12, 0.35, 1.2, 0.01); this.stage.setMood('dark'); break;
       case 'superHit': {
         this.cine = new CineState(e.by);
         this.kick(0.25, 0.3, 1);
@@ -239,9 +248,9 @@ export class Renderer {
       case 'superLand': {
         this.endCine();
         const d = this.views[1 - e.by];
+        d.floored = true;
         this.ring(m.f[1 - e.by].x);
-        d.hitFlash(1);
-        this.kick(0.3, 0.1, 0.5);
+        this.kick(0.2, 0.05, 0.4);
         break;
       }
       case 'ko': {
@@ -275,7 +284,7 @@ export class Renderer {
     if (!this.cine) return;
     this.cine.dispose(this.fx);
     this.cine = null;
-    this.views.forEach((v) => { v.role = null; });
+    this.views.forEach((v) => { v.role = null; v.roleSpeed = 1; v.roleT = 0; });
     this.stage.setMood('normal');
     if (this.dots) { this.fx.remove(this.dots); this.dots = null; }
   }
@@ -394,25 +403,45 @@ export class Renderer {
       if (r.life > 0.5) { this.fx.remove(r.m); r.m.geometry.dispose(); (r.m.material as THREE.Material).dispose(); this.rings.splice(i, 1); }
     }
 
-    // Talking fighters: a "..." over Teal's long pause.
+    // Teal's long pause: a "typing…" bubble over his head.
     const pausing = m.f.findIndex((f, i) => f.state === 'quote' && sigOf(this.sides[i].def, f).id === 'pause');
-    if (pausing >= 0 && !this.dots) { this.dots = label('…', '#ffffff', 0.7); this.fx.add(this.dots); }
-    if (pausing < 0 && this.dots && !cine) { this.fx.remove(this.dots); this.dots = null; }
+    if (pausing >= 0 && !this.dots) { this.dots = typingDots(); this.fx.add(this.dots); }
+    if (pausing < 0 && this.dots) { this.fx.remove(this.dots); this.dots = null; }
     if (this.dots && pausing >= 0) {
-      this.views[pausing].bonePos('head', this.dots.position).y += 0.85;
-      this.dots.scale.setScalar(0.5 + m.f[pausing].frame / 120);
+      this.views[pausing].bonePos('head', this.dots.position).y += 0.62;
+      (this.dots.userData.tick as (t: number, size: number) => void)(this.t, 0.55 + m.f[pausing].frame / 400);
     }
 
-    // Camera.
+    // Camera. A Super's cinematic, a sidekick's Policy Move and the flash when a Super is called each direct it;
+    // otherwise it follows the fight.
     let shot: Shot;
     let snap = false;
+    const fighting = !cine && m.phase === 'fight';
+    const flashBy = fighting ? m.f.findIndex((f) => f.state === 'superStart') : -1;
+    const polBy = fighting && flashBy < 0
+      ? m.f.findIndex((f, i) => (f.tag > 0 && f.sig === 3 && (f.state === 'quote' || f.state === 'sig')) || m.proj.some((p) => p.owner === i && p.sig === 3))
+      : -1;
+    if (polBy >= 0 && this.policy?.by !== polBy) { this.policy = new PolicyCine(polBy as 0 | 1); this.stage.setMood('gold'); }
+    if (polBy < 0 && this.policy) { this.policy = null; if (!cine && flashBy < 0) this.stage.setMood('normal'); }
+    let wantBlur = 0;
     if (cine) {
       const r = cine.direct(this, m, dt);
-      shot = r.shot; snap = r.cut;
+      shot = r.shot; snap = r.cut; wantBlur = cine.blur;
+    } else if (flashBy >= 0) {
+      // The call: a fast low push-in on whoever called it, while the room goes dark.
+      const f = m.f[flashBy], k = Math.min(1, f.frame / SUPER_STARTUP);
+      const head = this.views[flashBy].bonePos('head');
+      shot = { pos: new THREE.Vector3(f.x + f.facing * (2.5 - k * 0.9), 0.95, 4.4 - k * 1.5), look: new THREE.Vector3(f.x, head.y - 0.2, 0), fov: 36 - k * 6 };
+      snap = this.flashBy !== flashBy;
+      wantBlur = 0.9;
+    } else if (this.policy) {
+      const r = this.policy.direct(this, m);
+      shot = r.shot; snap = r.cut; wantBlur = this.policy.blur;
     } else shot = this.fightShot(m);
+    this.flashBy = flashBy;
     if (snap) { this.camPos.copy(shot.pos); this.camLook.copy(shot.look); this.camFov = shot.fov; }
     else {
-      const k = Math.min(1, dt * (m.phase === 'intro' ? 2.2 : 5));
+      const k = Math.min(1, dt * (m.phase === 'intro' ? 2.2 : flashBy >= 0 ? 20 : 5));
       this.camPos.lerp(shot.pos, k); this.camLook.lerp(shot.look, k); this.camFov += (shot.fov - this.camFov) * k;
     }
     this.shake = Math.max(0, this.shake - dt * 1.8);
@@ -431,7 +460,9 @@ export class Renderer {
     u.uTime.value = this.t % 100;
     const wantSat = cine?.sat ?? 1;
     u.uSat.value += (wantSat - u.uSat.value) * Math.min(1, dt * 3);
-    u.uVig.value = cine ? 0.55 : 0.34;
+    u.uVig.value += ((cine || flashBy >= 0 || this.policy ? 0.55 : 0.34) - u.uVig.value) * Math.min(1, dt * 6);
+    this.blur += (wantBlur - this.blur) * Math.min(1, dt * 14);
+    u.uBlur.value = this.blur;
     this.bloom.strength = 0.2 + this.bloomKick * 0.7 + (cine?.bloom ?? 0);
 
     this.stage.update(this.t, dt);
@@ -483,8 +514,14 @@ export class Renderer {
     return { pos: new THREE.Vector3(fx, 1.6 + maxY * 0.35 + spread * 0.04, dist), look: new THREE.Vector3(fx, 1.32 + maxY * 0.4, 0), fov: 30 };
   }
 
-  /** Used by the Super scripts. */
+  /** Used by the Super and Policy Move scripts. */
   scene3d() { return this.fx; }
+  now() { return this.t; }
+  defOf(side: number) { return this.sides[side].def; }
+  /** Head of whoever is fighting for a side (billionaire or tagged-in sidekick). */
+  headOf(side: number, m: Match) { return this.part(side, 'head', m); }
+  /** Height of the tariff stamp a sidekick is dropping, or null once it is gone. */
+  stampY(by: number) { const g = this.gates.find((x) => x.by === by); return g ? g.g.position.y : null; }
   stageRef() { return this.stage; }
   propsFor() { return this.assets; }
   fxKick(shake: number, flash = 0, bloom = 0, aberr = 0) { this.kick(shake, flash, bloom, aberr); }
@@ -513,11 +550,22 @@ export class Renderer {
 
 // ---------- Supers
 
-/** Runs one Super: camera cuts, props, lighting and roles, keyed to the seconds in data/roster.ts. */
+const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+type Beat = { name: string; shot: Shot };
+
+/**
+ * Runs one Super: camera cuts, props, lighting and roles, keyed to the seconds in data/roster.ts.
+ *
+ * The simulation is stopped for the whole cinematic and a real voice clip plays under it, so the clock here runs at
+ * full speed. Slow motion is staged instead: fighters and props move at a fraction of their speed in the beats that
+ * call for it (`roleSpeed`, the rocket's fall), with the frame streaking at the edges (`blur`).
+ */
 class CineState {
   t = 0;
   sat = 1;
   bloom = 0;
+  blur = 0;
   private props: THREE.Object3D[] = [];
   private beat = '';
   private objs: Record<string, THREE.Object3D> = {};
@@ -532,38 +580,65 @@ class CineState {
     const atk = m.f[this.by], vic = m.f[1 - this.by];
     const av = r.views[this.by], vv = r.views[1 - this.by];
     const dir = atk.facing;
-    const t = this.t;
+    this.blur = 0;
+    av.roleSpeed = 1; vv.roleSpeed = 1;
     const id = av.info.id;
-    const shot = id === 'tusk' ? this.tusk(r, atk.x, vic.x, dir, t, av, vv, dt) : this.teal(r, atk.x, vic.x, dir, t, av, vv, dt);
-    const cut = shot.name !== this.beat;
-    this.beat = shot.name;
-    return { shot: shot.shot, cut };
+    const b = id === 'tusk' ? this.tusk(r, atk.x, vic.x, dir, this.t, av, vv) : this.teal(r, atk.x, vic.x, dir, this.t, av, vv);
+    const cut = b.name !== this.beat;
+    this.beat = b.name;
+    void dt;
+    return { shot: b.shot, cut };
   }
 
-  private tusk(r: Renderer, ax: number, vx: number, dir: number, t: number, av: FighterView, vv: FighterView, dt: number): { name: string; shot: Shot } {
-    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  /** Beat 1, shared: the blow that starts it, from low behind the attacker, in slow motion. */
+  private contact(ax: number, vx: number, dir: number, t: number, av: FighterView, vv: FighterView): Beat {
+    const k = clamp01(t / 0.6), mid = (ax + vx) / 2;
+    av.role = 'strike'; av.roleT = k; vv.role = 'reel'; vv.roleSpeed = 0.3;
+    this.blur = 0.9 - k * 0.5;
+    return { name: 'contact', shot: { pos: V(mid - dir * (1.9 - k * 0.5), 0.9, 4.7 - k * 0.8), look: V(mid + dir * 0.35, 1.35, 0), fov: 36 } };
+  }
+
+  /**
+   * The final blow, shared: the victim is thrown up and comes down flat, slowly, seen from the floor.
+   * `k` runs 0..1 across the fall; the first tenth is a held frame.
+   */
+  private blow(vx: number, dir: number, k: number, vv: FighterView, height: number): Shot {
+    const kk = clamp01((k - 0.1) / 0.9);
+    const arc = Math.sin(Math.PI * Math.min(1, kk * 1.05)) * height;
+    vv.role = 'fall'; vv.roleT = kk;
+    vv.root.position.y += arc;
+    this.blur = 0.6 - kk * 0.4;
+    return { pos: V(vx - dir * (2.5 + kk * 0.3), 0.5, 4.3), look: V(vx, 1.15 + arc * 0.45, 0), fov: 42 };
+  }
+
+  private tusk(r: Renderer, ax: number, vx: number, dir: number, t: number, av: FighterView, vv: FighterView): Beat {
     const st = r.stageRef();
-    if (t < 0.6) { av.role = 'fight'; vv.role = 'reel'; return { name: 'contact', shot: { pos: V((ax + vx) / 2, 1.6, 6.5), look: V((ax + vx) / 2, 1.2, 0), fov: 30 } }; }
+    const mid = (ax + vx) / 2;
+    if (t < 0.6) return this.contact(ax, vx, dir, t, av, vv);
     if (t < 2.4) {
+      // Title: a low hero close-up that drifts around him.
       av.role = 'talk'; vv.role = 'fight';
       if (this.once('dark')) st.setMood('dark');
-      const k = (t - 0.6) / 1.8;
-      return { name: 'title', shot: { pos: V(ax + dir * 2.1, 1.25 - k * 0.1, 2.6 - k * 0.3), look: V(ax, 1.55, 0), fov: 34 } };
+      const k = (t - 0.6) / 1.8, head = av.bonePos('head');
+      return { name: 'title', shot: { pos: V(ax + dir * (2.3 - k * 0.7), 0.75 + k * 0.1, 2.7 - k * 0.25), look: V(ax, head.y - 0.12, 0), fov: 34 } };
     }
     if (t < 4.4) {
       if (this.once('post')) {
         st.setMood('normal');
         const card = postCard('Am considering taking Tesla private at $420. Funding secured.', '@melontusk', 'Melon Tusk', 'POST ON X · AUG 2018', 3.6);
-        card.position.set((ax + vx) / 2, 9, -1.2);
+        card.position.set(mid, 9, -1.2);
         this.add(r, 'post', card);
-        r.stageRef().cheer(1);
+        st.cheer(1);
       }
       const card = this.objs.post;
       const k = Math.min(1, (t - 2.4) / 0.45);
       card.position.y = 9 - (9 - 3.4) * (1 - Math.pow(1 - k, 3)) + (k >= 1 ? Math.sin(t * 2) * 0.03 : 0);
       card.rotation.z = (1 - k) * 0.4;
       if (k >= 1 && this.once('postLand')) r.fxKick(0.25, 0.05, 0.4);
-      return { name: 'prop', shot: { pos: V((ax + vx) / 2 - dir * 1.5, 2.2, 9.2), look: V((ax + vx) / 2, 2.3, -1), fov: 30 } };
+      // The post drops in: wide first, then from behind the opponent, looking up at it over his shoulder.
+      if (t < 3.5) return { name: 'prop', shot: { pos: V(mid - dir * 1.5, 2.2, 9.2), look: V(mid, 2.3, -1), fov: 30 } };
+      const k2 = (t - 3.5) / 0.9;
+      return { name: 'reverse', shot: { pos: V(vx + dir * (2.1 - k2 * 0.2), 1.6, 4.4), look: V(mid - dir * 0.3, 1.9, -0.6), fov: 48 } };
     }
     if (t < 5.4) {
       if (this.once('ticker')) {
@@ -574,53 +649,73 @@ class CineState {
       (this.objs.ticker.userData.tick as (k: number) => void)(k);
       return { name: 'insert', shot: { pos: V(0, 3.0, 0.2 - k * 0.3), look: V(0, 3.0, -2.6), fov: 34 } };
     }
-    if (t < 8.0) {
-      av.role = t < 7.4 ? 'pump' : 'talk'; vv.role = t < 7.5 ? 'fight' : 'down';
-      if (this.once('rocket')) {
-        if (this.objs.ticker) this.objs.ticker.visible = false;
-        st.setMood('red');
-        const rk = rocket(); rk.scale.setScalar(0.55); this.add(r, 'rocket', rk);
-        rk.add(label('TO THE MOON', '#ffd34d', 0.9).translateY(3.6));
-        this.bloom = 0.3;
-      }
-      const rk = this.objs.rocket;
-      const sx = ax - dir * 2.2;
-      if (t < 6.6) {
-        // Lift off behind him.
-        const k = (t - 5.4) / 1.2;
-        rk.position.set(sx, -1.5 + k * k * 14, -1.5); rk.rotation.z = 0;
-      } else if (t < 7.5) {
-        // Flip and come down on the victim.
-        const k = (t - 6.6) / 0.9;
-        rk.position.set(sx + (vx - sx) * k, 12.5 - k * k * 11.3, -1.5 + k * 1.5);
-        rk.rotation.z = Math.PI;
-      } else {
-        rk.visible = false;
-        if (this.once('boom')) {
-          const p = V(vx, 0.8, 0.3);
-          r.fxSpark(p, 7, '#ffffff', 0.5); r.fxSpark(p, 5, '#ff7a3a', 0.7); r.fxBurst(p, 30, '#ffb347', 14);
-          r.fxRing(vx, '#ff9b6a'); r.fxKick(0.9, 0.7, 2.2, 0.025); vv.hitFlash(1); st.cheer(2);
-        }
-      }
-      if (t < 6.6) return { name: 'launch', shot: { pos: V(THREE.MathUtils.clamp(sx - dir * 1.5, -3.6, 3.6), 0.9, 5.2), look: V(sx, 2.0 + (t - 5.4) * 2.4, -1.5), fov: 38 } };
-      return { name: 'payoff', shot: { pos: V((ax + vx) / 2, 2.6, 12), look: V((ax + vx) / 2 + dir * 0.6, 1.8, 0), fov: 32 } };
+    if (this.once('rocket')) {
+      if (this.objs.ticker) this.objs.ticker.visible = false;
+      st.setMood('red');
+      const rk = rocket(); rk.scale.setScalar(0.55); this.add(r, 'rocket', rk);
+      const tag = label('TO THE MOON', '#ffd34d', 0.9).translateY(3.6); tag.name = 'tag'; rk.add(tag);
+      this.bloom = 0.3;
     }
-    av.role = 'talk'; vv.role = 'down';
+    const rk = this.objs.rocket;
+    const sx = ax - dir * 2.2;
+    if (t < 6.5) {
+      // Lift-off behind him, seen from the floor.
+      av.role = 'pump'; vv.role = 'fight';
+      const k = (t - 5.4) / 1.1;
+      rk.position.set(sx, -1.5 + k * k * 11, -1.5); rk.rotation.z = 0;
+      if (this.once('rumble')) r.fxKick(0.35, 0.1, 0.6);
+      return { name: 'launch', shot: { pos: V(THREE.MathUtils.clamp(sx - dir * 1.5, -3.6, 3.6), 0.9, 5.2), look: V(sx, 2.0 + k * k * 6.5, -1.5), fov: 38 } };
+    }
+    if (t < 7.5) {
+      // It turns over and comes down on the opponent, in slow motion: first from the floor looking up past them,
+      // then tight on their face as its light reaches them.
+      av.role = 'pump'; vv.role = 'reel'; vv.roleSpeed = 0.22;
+      const k = t - 6.5;
+      rk.rotation.z = Math.PI;
+      const tag = rk.getObjectByName('tag'); if (tag) tag.visible = false;
+      rk.position.set(sx + (vx - sx) * Math.min(1, k * 2.5), 7.4 - Math.pow(k, 1.6) * 5.6, -1.5 + Math.min(1, k * 2.5) * 1.5);
+      this.blur = 0.4 + k * 0.25;
+      if (t < 7.12) return { name: 'lookup', shot: { pos: V(vx + dir * 1.4, 0.3, 3.5), look: V(vx - dir * 0.1, 1.9, 0), fov: 56 } };
+      const head = vv.bonePos('head'), kf = (t - 7.12) / 0.38;
+      this.sat = 0.6;
+      return { name: 'face', shot: { pos: V(head.x - dir * 0.6, head.y + 0.1, 2.0 - kf * 0.3), look: V(head.x, head.y + 0.08, 0), fov: 30 } };
+    }
+    rk.visible = false;
+    this.sat = 1;
+    if (this.once('boom')) {
+      const p = V(vx, 0.8, 0.3);
+      r.fxSpark(p, 5, '#ffffff', 0.3); r.fxSpark(p, 3.5, '#ff7a3a', 0.45); r.fxBurst(p, 30, '#ffb347', 14);
+      r.fxRing(vx, '#ff9b6a'); r.fxKick(1.0, 0.8, 1.2, 0.03); vv.hitFlash(1); st.cheer(2);
+    }
+    const fall = (t - 7.5) / 1.25;
+    if (t < 8.3) {
+      // The final blow.
+      av.role = 'pump';
+      if (fall > 0.3 && this.once('boom2')) { r.fxBurst(V(vx, 1.4, 0.3), 18, '#ffd27a', 9); r.fxKick(0.45, 0.2, 1.2, 0.012); }
+      return { name: 'impact', shot: this.blow(vx, dir, fall, vv, 1.25) };
+    }
+    if (fall < 1) this.blow(vx, dir, fall, vv, 1.25); else { vv.role = 'down'; if (this.once('thud')) { r.fxRing(vx, '#ffd9a8'); r.fxKick(0.4, 0.05, 0.3); } }
+    this.blur = 0;
+    if (t < 9.3) {
+      av.role = 'pump';
+      return { name: 'payoff', shot: { pos: V(mid, 2.6, 11.5), look: V(mid + dir * 0.6, 1.7, 0), fov: 32 } };
+    }
+    // Last word: from the floor beside the loser, looking up at him.
+    av.role = 'talk';
     this.bloom = 0;
     if (t > 9.6 && this.once('relight')) st.setMood('normal');
-    return { name: 'punch', shot: { pos: V((ax + vx) / 2, 1.9, 8.2 - (t - 8) * 0.25), look: V((ax + vx) / 2, 1.0, 0), fov: 30 } };
-    void dt;
+    const k = (t - 9.3) / 1.3;
+    return { name: 'punch', shot: { pos: V(mid + dir * 0.5, 0.5, 4.3 - k * 0.3), look: V(mid - dir * 0.1, 1.25, 0), fov: 40 } };
   }
 
-  private teal(r: Renderer, ax: number, vx: number, dir: number, t: number, av: FighterView, vv: FighterView, dt: number): { name: string; shot: Shot } {
-    const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  private teal(r: Renderer, ax: number, vx: number, dir: number, t: number, av: FighterView, vv: FighterView): Beat {
     const st = r.stageRef();
     const mid = (ax + vx) / 2;
     if (this.objs.set) {
       const clock = this.objs.set.getObjectByName('hand');
       if (clock && t > 3.6) clock.rotation.z = -Math.floor((t - 3.6) * 2) * (Math.PI / 6);
     }
-    if (t < 0.6) { av.role = 'fight'; vv.role = 'reel'; return { name: 'contact', shot: { pos: V(mid, 1.6, 6.5), look: V(mid, 1.2, 0), fov: 30 } }; }
+    if (t < 0.6) return this.contact(ax, vx, dir, t, av, vv);
     if (t < 2.0) {
       av.role = 'talk'; vv.role = 'fight';
       if (this.once('dark')) st.setMood('dark');
@@ -647,21 +742,90 @@ class CineState {
     if (t < 11.4) {
       av.role = 'frozen'; vv.role = 'fight';
       if (this.once('grey')) { st.setMood('grey'); this.sat = 0.12; }
-      if (!this.objs.dots) { const d = label('…', '#ffffff', 1); this.add(r, 'dots', d); }
-      const d = this.objs.dots as THREE.Sprite;
+      // A "typing…" bubble that never turns into an answer; it grows as the silence drags on.
+      if (!this.objs.dots) this.add(r, 'dots', typingDots());
       const head = av.bonePos('head');
-      d.position.set(head.x, head.y + 1.0, head.z);
-      d.scale.setScalar(0.6 + (t - 5.6) * 0.35);
+      this.objs.dots.position.set(head.x, head.y + 0.62, head.z);
+      (this.objs.dots.userData.tick as (t: number, size: number) => void)(r.now(), 0.55 + (t - 5.6) * 0.075);
       const k = (t - 5.6) / 5.8;
       return { name: 'freeze', shot: { pos: V(mid + Math.sin(k * 1.4) * 1.2, 2.0 + k * 0.6, 8.5 - k * 1.2), look: V(mid, 1.3, 0), fov: 30 } };
     }
-    av.role = 'shrug'; vv.role = 'down';
-    if (this.once('unfreeze')) { st.setMood('normal'); this.sat = 1; r.fxKick(0.4, 0.3, 0.8); if (this.objs.dots) this.objs.dots.visible = false; }
+    // The silence finally lands: the opponent drops, slowly, seen from the floor; then he shrugs.
+    av.role = 'shrug';
+    if (this.once('unfreeze')) {
+      st.setMood('normal'); this.sat = 1; r.fxKick(0.8, 0.45, 0.9, 0.02); if (this.objs.dots) this.objs.dots.visible = false;
+      const p = V(vx, 1.3, 0.3);
+      r.fxSpark(p, 3, '#ffffff', 0.3); r.fxBurst(p, 22, '#cfe6ff', 11); r.fxRing(vx, '#cfe6ff'); vv.hitFlash(1); st.cheer(1.5);
+    }
+    const fall = (t - 11.4) / 1.0;
+    if (t < 12.05) return { name: 'impact', shot: this.blow(vx, dir, fall, vv, 0.8) };
+    if (fall < 1) this.blow(vx, dir, fall, vv, 0.8); else vv.role = 'down';
+    this.blur = 0;
     return { name: 'payoff', shot: { pos: V(mid, 1.9, 8), look: V(mid, 1.1, 0), fov: 30 } };
-    void dt;
   }
 
   dispose(fx: THREE.Object3D) { for (const p of this.props) fx.remove(p); }
+}
+
+// ---------- Policy Moves
+
+/**
+ * Directs a sidekick's Policy Move. The fight is frozen for the opponent while it plays, so the camera can leave the
+ * fight view: a low close-up as the line starts, over the sidekick's shoulder at the frozen opponent, tight on the
+ * opponent just before it lands, then the move itself in slow motion and a hard low shot on the hit.
+ */
+class PolicyCine {
+  blur = 0;
+  private beat = '';
+
+  constructor(public by: 0 | 1) {}
+
+  direct(r: Renderer, m: Match): { shot: Shot; cut: boolean } {
+    const f = m.f[this.by], v = m.f[1 - this.by];
+    const def = sigAt(r.defOf(this.by), 3);
+    const dir = v.x >= f.x ? 1 : -1;
+    const head = r.headOf(this.by, m), vh = r.headOf(1 - this.by, m);
+    let b: Beat;
+    this.blur = 0;
+    if (f.state === 'quote') {
+      const t = f.frame / FPS, T = def.quote / FPS;
+      if (t < Math.min(1.4, T * 0.35)) {
+        b = { name: 'hero', shot: { pos: V(f.x + dir * (1.7 - t * 0.2), 0.8, 2.7 - t * 0.2), look: V(f.x, head.y - 0.12, 0), fov: 34 } };
+      } else if (t < T - 1.1) {
+        const k = (t - 1.4) / Math.max(0.1, T - 2.5);
+        b = { name: 'shoulder', shot: { pos: V(f.x - dir * (1.5 - k * 0.2), 1.95, 3.1), look: V(f.x + (v.x - f.x) * 0.55, 1.25, 0), fov: 40 } };
+      } else {
+        const k = clamp01((t - (T - 1.1)) / 1.1);
+        this.blur = 0.3;
+        b = { name: 'target', shot: { pos: V(v.x - dir * 1.7, vh.y - 0.05, 2.8 - k * 0.4), look: V(v.x, vh.y - 0.15, 0), fov: 32 } };
+      }
+    } else if (def.kind === 'drop') {
+      const y = r.stampY(this.by);
+      if (f.state === 'sig' && f.af <= def.startup) {
+        this.blur = 0.7;
+        b = { name: 'drop', shot: { pos: V(v.x - dir * 2.2, 0.35, 4.0), look: V(v.x, 1.0 + Math.min(8, y ?? 0) * 0.1, 0), fov: 56 } };
+      } else {
+        this.blur = 0.35;
+        b = { name: 'impact', shot: { pos: V(v.x - dir * 3.0, 0.7, 5.4), look: V(v.x, 1.0, 0), fov: 40 } };
+      }
+    } else {
+      // Thrown things: ride alongside the one in front, then stay on the opponent as the rest arrive.
+      const ps = m.proj.filter((p) => p.owner === this.by && p.sig === 3);
+      const lead = ps.sort((a, c) => Math.abs(a.x - v.x) - Math.abs(c.x - v.x))[0];
+      if (lead && Math.abs(lead.x - v.x) > 1.6 && this.beat !== 'impact') {
+        this.blur = 0.6;
+        b = { name: 'track', shot: { pos: V(lead.x - dir * 1.3, 0.6 + lead.y * 0.5, 3.4), look: V(lead.x + dir * 0.9, 0.3 + lead.y * 0.75, 0), fov: 40 } };
+      } else if (f.state === 'sig' && f.af <= def.startup && !lead) {
+        b = { name: 'windup', shot: { pos: V(f.x + dir * 2.4, 1.2, 3.6), look: V(f.x, 1.35, 0), fov: 36 } };
+      } else {
+        this.blur = 0.5;
+        b = { name: 'impact', shot: { pos: V(v.x - dir * 2.6, 0.7, 4.6), look: V(v.x, 0.95, 0), fov: 40 } };
+      }
+    }
+    const cut = b.name !== this.beat;
+    this.beat = b.name;
+    return { shot: b.shot, cut };
+  }
 }
 
 function drawStar() {
