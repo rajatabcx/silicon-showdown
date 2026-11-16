@@ -430,8 +430,10 @@ export class Renderer {
     this.composer.render(dt);
   }
 
-  headOnScreen(side: 0 | 1, m?: Match) {
-    const p = m && m.f[side].tag > 0 ? this.sk[side].bonePos('head') : this.views[side].bonePos('head');
+  /** Screen position (0..1) above a head. `who` picks the billionaire or the sidekick; default is whoever is fighting. */
+  headOnScreen(side: 0 | 1, m?: Match, who?: 'boss' | 'sk') {
+    const sk = who ? who === 'sk' : !!m && m.f[side].tag > 0;
+    const p = sk ? this.sk[side].bonePos('head') : this.views[side].bonePos('head');
     p.y += 0.35;
     p.project(this.cam);
     return { x: (p.x + 1) / 2, y: (1 - p.y) / 2 };

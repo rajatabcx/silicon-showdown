@@ -40,7 +40,7 @@ export type SuperDef = {
 export type FState =
   | 'idle' | 'walk' | 'crouch' | 'jump' | 'attack' | 'hitstun' | 'blockstun'
   | 'knockdown' | 'getup' | 'winded' | 'dodge' | 'quote' | 'sig' | 'stunned'
-  | 'superStart' | 'superWhiff' | 'ko' | 'win';
+  | 'superStart' | 'ko' | 'win';
 
 export type Ego = 'needy' | 'contrarian';
 
@@ -96,8 +96,6 @@ export type Ev =
   | { t: 'tier'; by: 0 | 1; tier: number }
   | { t: 'superStart'; by: 0 | 1 }
   | { t: 'superHit'; by: 0 | 1 }
-  | { t: 'superWhiff'; by: 0 | 1 }
-  | { t: 'superBlocked'; by: 0 | 1 }
   | { t: 'superDamage'; by: 0 | 1 }
   | { t: 'superLand'; by: 0 | 1 }
   | { t: 'winded'; by: 0 | 1 }

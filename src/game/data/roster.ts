@@ -69,6 +69,12 @@ export type SidekickInfo = {
   model: 'covfefe' | 'veep'; height: number;
   walk: number;
   tagLine: string;
+  /**
+   * Text-only banter at the tag (no voice). Invented parody lines, shown as BANTER, never as a quote; each one only
+   * riffs on something public (subsidies, tax returns, campaign funding, missed deadlines).
+   * out: the billionaire leaving. in: the sidekick arriving. back: the sidekick leaving. scandal: benched.
+   */
+  banter: { out: string[]; in: string[]; back: string[]; scandal: string[] };
   policy: { name: string; text: string; source: string; prop: 'tariff' | 'cats'; sim: SigDef };
 };
 
@@ -146,6 +152,22 @@ export const TUSK: FighterInfo = {
     model: 'covfefe', height: 1.0,
     walk: 1.7,
     tagLine: 'DONOR NEEDS A BREATHER',
+    banter: {
+      out: [
+        'Bringing in the big daddy. Now you will see.',
+        'Back in a minute. Robotaxi minutes.',
+        'I paid for this seat. Get in there.',
+        'Taking a break. Government subsidized, obviously.',
+      ],
+      in: [
+        "Daddy's home.",
+        "I'll hide him like I hide my tax returns.",
+        'Tremendous donor. The best donor. Very tired.',
+        'Nobody does tariffs better than me. Nobody.',
+      ],
+      back: ['I have a tee time.', 'Total success. Many people are saying.'],
+      scandal: ['Witch hunt! Total witch hunt!', 'I barely know the man.'],
+    },
     policy: {
       name: 'Tariff Everything', prop: 'tariff', source: SOURCES.econClub,
       text: 'To me, the most beautiful word in the dictionary is "tariff."',
@@ -208,6 +230,22 @@ export const TEAL: FighterInfo = {
     model: 'veep', height: 1.03,
     walk: 1.8,
     tagLine: 'DONOR NEEDS A BREATHER',
+    banter: {
+      out: [
+        'I funded your Senate run. Earn it.',
+        "Contrarian take: I'm not tired. Tag.",
+        'My Roth IRA needs me. Tax-free, of course.',
+        "Don't worry. I'll be watching. Professionally.",
+      ],
+      in: [
+        'Fifteen million dollars says I go in now.',
+        'I used to be a never-Covfefe guy. Now look at me.',
+        'I wrote a whole book about grit.',
+        'Donor speaks, I fight.',
+      ],
+      back: ['Back to the Senate. Wait, I left the Senate.', 'Mentor, the floor is yours.'],
+      scandal: ['That was a joke. Obviously a joke.', 'I barely know the man.'],
+    },
     policy: {
       name: 'Cat Lady Barrage', prop: 'cats', source: SOURCES.cable,
       text: '…a bunch of childless cat ladies…',

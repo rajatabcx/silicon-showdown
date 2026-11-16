@@ -1,8 +1,8 @@
 import {
-  BACKFIRE_DAMAGE, BODY_WIDTH, CARDIO_REGEN, COUNTER_DAMAGE, DODGE_FRAMES, DODGE_INVULN, DODGE_SLIDE, ENG_DECAY,
+  BACKFIRE_DAMAGE, BODY_WIDTH, CARDIO_REGEN, REACH_PAD, COUNTER_DAMAGE, DODGE_FRAMES, DODGE_INVULN, DODGE_SLIDE, ENG_DECAY,
   ENG_FACT_CHECK, ENG_HIT, ENG_QUIET_FRAMES, ENG_SIG_LAND, ENG_SIG_SAID, FACT_CHECK_WINDOW, GRAVITY, INTRO_FRAMES,
-  JUMP_SCALE, MELTDOWN_FRAMES, MOVES, ROUND_END_FRAMES, ROUND_FRAMES, STAGE_HALF, START_X, STUN_FRAMES, SUPER_CHIP,
-  SUPER_COST, SUPER_DAMAGE, SUPER_REACH, SUPER_STARTUP, SUPER_WHIFF_FRAMES, TIER_DEALT, TIER_TAKEN, tierOf,
+  JUMP_SCALE, MELTDOWN_FRAMES, MOVES, ROUND_END_FRAMES, ROUND_FRAMES, STAGE_HALF, START_X, STUN_FRAMES,
+  SUPER_COST, SUPER_DAMAGE, SUPER_REACH, SUPER_STARTUP, TIER_DEALT, TIER_TAKEN, tierOf,
   WALK_SCALE, WINDED_FRAMES, SIG_CARDIO, TAG_FRAMES, TAG_MANUAL_CARDIO, SIDEKICK_HITS, SCANDAL_DAMAGE, SIDEKICK_DAMAGE,
   TAG_REGEN,
 } from './constants';
@@ -243,26 +243,15 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
     }
     case 'superStart': {
       if (++f.frame < SUPER_STARTUP) return;
-      const inReach = Math.abs(o.x - f.x) < SUPER_REACH && o.y < 1.5;
-      if (inReach && canGuard(o)) {
-        o.state = 'blockstun'; o.stun = 30; o.vx = f.facing * 0.09;
-        o.hp = Math.max(1, o.hp - SUPER_CHIP);
-        f.state = 'superWhiff'; f.frame = 0;
-        m.events.push({ t: 'superBlocked', by: i });
-      } else if (!inReach || isInvincible(o)) {
-        f.state = 'superWhiff'; f.frame = 0;
-        m.events.push({ t: 'superWhiff', by: i });
-      } else {
-        m.phase = 'cine'; m.phaseFrame = 0; m.cineBy = i;
-        if (o.tag > 0) tagOut(m, (1 - i) as 0 | 1, false);
-        o.move = null; o.vx = 0; o.state = 'hitstun'; o.stun = 1;
-        m.proj = [];
-        m.events.push({ t: 'superHit', by: i });
-      }
-      return;
-    }
-    case 'superWhiff': {
-      if (++f.frame >= SUPER_WHIFF_FRAMES) toIdle(f);
+      // A Super always plays in full: it can't be blocked, dodged or missed, so everyone gets to see it.
+      // From too far away the caller closes the distance first; an airborne opponent is pulled down.
+      if (Math.abs(o.x - f.x) > SUPER_REACH) f.x = clampX(o.x - f.facing * (SUPER_REACH - 0.6));
+      o.y = 0; o.vy = 0;
+      m.phase = 'cine'; m.phaseFrame = 0; m.cineBy = i;
+      if (o.tag > 0) tagOut(m, (1 - i) as 0 | 1, false);
+      o.move = null; o.vx = 0; o.state = 'hitstun'; o.stun = 1;
+      m.proj = [];
+      m.events.push({ t: 'superHit', by: i });
       return;
     }
     case 'ko': case 'win': {
@@ -318,7 +307,7 @@ function counterHit(m: Match, ci: 0 | 1) {
 }
 
 function inFront(a: Fighter, d: Fighter, range: number) {
-  return (d.x - a.x) * a.facing >= -0.3 && Math.abs(d.x - a.x) <= range;
+  return (d.x - a.x) * a.facing >= -0.3 && Math.abs(d.x - a.x) <= range + REACH_PAD;
 }
 
 function resolveMelee(m: Match, ai: 0 | 1, defs: Defs) {

@@ -86,7 +86,7 @@ export class Game {
   setPaused(p: boolean) { this.paused = p; }
 
   /** Where a fighter's head is on screen, 0..1 from the top-left. */
-  headOnScreen(side: 0 | 1) { return this.renderer.headOnScreen(side, this.match); }
+  headOnScreen(side: 0 | 1, who?: 'boss' | 'sk') { return this.renderer.headOnScreen(side, this.match, who); }
 
   private onKey = (e: KeyboardEvent) => {
     const bit = KEYS[e.code];
@@ -199,7 +199,6 @@ export class Game {
       case 'counter': sfx('heavy'); break;
       case 'tier': sfx('tier'); break;
       case 'superStart': sfx('superStart'); break;
-      case 'superWhiff': case 'superBlocked': sfx('thud'); break;
       case 'superHit': {
         sfx('riser');
         this.say(e.by, 3, this.infos[e.by].super.audio.map((a) => ({ id: a.clip, at: a.at })));

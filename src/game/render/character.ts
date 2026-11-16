@@ -389,7 +389,6 @@ export class FighterView {
       case 'dodge': return { key: 'dodge', clip: 'Stand_Dodge', t: 0.15 + (fr / 26) * 1.0, fade: 0.05 };
       case 'winded': return { key: 'winded', clip: 'Long_Breathe_and_Look_Around', speed: 1.6, fade: 0.25 };
       case 'superStart': return { key: 'super', clip: 'Right_Jab_from_Guard', t: 0.3 + (fr / 18) * 0.33, fade: 0.06 };
-      case 'superWhiff': return { key: 'superWhiff', clip: 'Right_Jab_from_Guard', t: 0.63 + (fr / 40) * 1.0, fade: 0.06 };
       case 'ko': return { key: 'ko', clip: 'Knock_Down', t: Math.min(2.45, 0.5 + (fr / FPS) * 1.2), fade: 0.08 };
       case 'win': return { key: 'win', clip: 'Victory_Fist_Pump', speed: 0.9, fade: 0.25 };
     }

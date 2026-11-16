@@ -167,6 +167,19 @@ describe('fight simulation', () => {
     expect(m.f[1].hp).toBeCloseTo(100 - SUPER_DAMAGE);
   });
 
+  it("a Super can't be blocked, dodged or missed, even from across the room", () => {
+    for (const setup of ['block', 'dodge', 'far'] as const) {
+      const m = started();
+      if (setup === 'far') { m.f[0].x = -5; m.f[1].x = 5; } else close(m);
+      m.f[0].eng = 100;
+      step(m, BTN.X, 0, DEFS);
+      const hold = setup === 'block' ? BTN.R : setup === 'dodge' ? BTN.G : 0;
+      const evs = run(m, SUPER_STARTUP + 2, 0, hold);
+      expect(evs.some((e) => e.t === 'superHit')).toBe(true);
+      expect(m.phase).toBe('cine');
+    }
+  });
+
   it("Teal's Super drains health over the silence", () => {
     const m = started(); close(m);
     m.f[1].eng = 100;

@@ -1,4 +1,4 @@
-import { FACT_CHECK_WINDOW, MOVES, SUPER_COST, SUPER_REACH, TAG_MANUAL_CARDIO } from '../constants';
+import { FACT_CHECK_WINDOW, MOVES, REACH_PAD, SUPER_COST, TAG_MANUAL_CARDIO } from '../constants';
 import { sigOf } from '../match';
 import { makeRng, type Rng } from '../rng';
 import { BTN, type Match, type SimDef } from '../types';
@@ -34,7 +34,8 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: Sim
   const { rng, p } = cpu;
   const fwd = f.facing === 1 ? BTN.R : BTN.L;
   const back = f.facing === 1 ? BTN.L : BTN.R;
-  const dist = Math.abs(o.x - f.x);
+  // Measured as if bodies were 1 m wide: REACH_PAD keeps every threshold below unchanged.
+  const dist = Math.abs(o.x - f.x) - REACH_PAD;
   const neutral = f.state === 'idle' || f.state === 'walk' || f.state === 'crouch';
 
   // The opponent started a line: decide once whether to Fact-Check it, and when to press.
@@ -82,8 +83,8 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: Sim
   if (!sk && f.cardio < TAG_MANUAL_CARDIO * 0.6 && !f.skOut && rng() < 0.03) { q.push([BTN.T, 2]); return 0; }
   if (!sk && f.cardio < 18) { q.push([back, 30]); return 0; }
   const canSuper = !sk && f.eng >= SUPER_COST && f.melt <= 0 && !f.superUsed;
-  if (canSuper && dist < SUPER_REACH - 0.4 && rng() < p.superUse * 0.2) { q.push([BTN.X, 2]); rest(); return 0; }
-  if (canSuper && dist >= SUPER_REACH - 0.4) { q.push([fwd, 10]); return 0; }
+  // A Super can't miss, so the CPU fires it as soon as it is ready (once the opponent isn't mid-line).
+  if (canSuper && o.state !== 'quote' && o.state !== 'sig') { q.push([BTN.X, 2]); rest(); return 0; }
   if (o.state === 'jump' && dist < 2.15 && rng() < p.antiAir) { q.push([BTN.K, 2]); rest(); return 0; }
   if (o.state === 'knockdown' || o.state === 'getup') { q.push([dist > 1.65 ? fwd : 0, 8]); return 0; }
 

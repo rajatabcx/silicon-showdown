@@ -7,15 +7,16 @@ export const START_X = 2.2;
 export const GRAVITY = 0.0105;
 export const WALK_SCALE = 0.022;
 export const JUMP_SCALE = 0.025;
-export const BODY_WIDTH = 1.0;
+export const BODY_WIDTH = 1.35;
+/** Extra reach added to every melee range and AI distance check, so a wider body doesn't change the fight. */
+export const REACH_PAD = BODY_WIDTH - 1.0;
 
 export const INTRO_FRAMES = 150;
 export const ROUND_END_FRAMES = 240;
 export const SUPER_STARTUP = 18;
+/** A Super can't miss: if the opponent is further than this, the caller dashes in before the cinematic. */
 export const SUPER_REACH = 2.85;
 export const SUPER_DAMAGE = 32;
-export const SUPER_CHIP = 6;
-export const SUPER_WHIFF_FRAMES = 40;
 
 export const WINDED_FRAMES = 90;
 /** Cardio regained per frame while standing still (x fitness). Walking regains half. */

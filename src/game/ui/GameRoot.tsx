@@ -180,7 +180,7 @@ function Help({ onClose }: { onClose(): void }) {
             {row(['L', 'D'], 'Second signature (L + forward)')}
             {row(['L', 'S'], 'Third signature (L + down)')}
             {row(['Space'], 'Dodge. In a line’s last beat: Fact-Check')}
-            {row(['Enter'], 'Super: needs Viral (the gold mark), once per round')}
+            {row(['Enter'], 'Super: needs Viral (the gold mark), once per round. It always lands and nobody can interrupt it')}
             {row(['U'], 'Tag in your sidekick when cardio is low')}
             {row(['Esc'], 'Pause')}
           </div>

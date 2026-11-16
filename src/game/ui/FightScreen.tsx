@@ -15,6 +15,8 @@ type Check = { k: number; speaker: 0 | 1; context: string; ratioed: boolean };
 type Quote = { side: 0 | 1; sig: SigInfo; frames: number; policy: boolean } | null;
 type Tag = { hits: number } | null;
 type Callout = { k: number; side: number; text: string; tone: string };
+/** A short text-only banter line over a head at a tag (never voiced, never a quote). */
+type Chat = { k: number; side: 0 | 1; who: 'boss' | 'sk'; name: string; text: string };
 type CineView = { by: 0 | 1; title: boolean; sub: number; bubbles: number[]; stamp: number; question: boolean } | null;
 
 const TIER_NAMES = ['', 'TRENDING', 'VIRAL', 'MAIN CHARACTER'];
@@ -30,6 +32,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
   const [paused, setPaused] = useState(false);
   const [muted, setMutedState] = useState(isMuted());
   const [tags, setTags] = useState<[Tag, Tag]>([null, null]);
+  const [chats, setChats] = useState<Chat[]>([]);
   const infos = game.infos;
 
   useEffect(() => {
@@ -46,12 +49,19 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
       setCallouts((c) => [...c.slice(-2), { k, side, text, tone }]);
       later(() => setCallouts((c) => c.filter((x) => x.k !== k)), 1300);
     };
+    // One banter line at a time: a new one replaces whatever is up.
+    const chat = (side: 0 | 1, who: Chat['who'], text: string, delay: number, dur: number) => later(() => {
+      const k = ++id;
+      const name = who === 'sk' ? infos[side].sidekick.name : infos[side].name;
+      setChats([{ k, side, who, name, text }]);
+      later(() => setChats((c) => c.filter((x) => x.k !== k)), dur);
+    }, delay);
     const news = (pool: string[], w: number) => setTicker(fill(pick(pool), { w: infos[w].name, l: infos[1 - w].name }));
 
     const off = game.on((e, m) => {
       switch (e.t) {
         case 'roundStart':
-          setCine(null); setQuote(null);
+          setCine(null); setQuote(null); setChats([]);
           later(() => announce(m.round === 3 ? 'FINAL ROUND' : `ROUND ${e.round}`, 'The hearing will come to order.', 1.7), 250);
           break;
         case 'fight': announce('FIGHT', undefined, 0.8, 'white'); break;
@@ -74,15 +84,20 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
         case 'tagIn':
           callout(e.by, `TAG IN: ${infos[e.by].sidekick.name.toUpperCase()}`, '#ffe6a3');
           setTicker(`${infos[e.by].name} is out of breath. ${infos[e.by].sidekick.name} has been sent in by the donor.`);
+          chat(e.by, 'boss', pick(infos[e.by].sidekick.banter.out), 0, 1900);
+          chat(e.by, 'sk', pick(infos[e.by].sidekick.banter.in), 1950, 2300);
           break;
         case 'tagOut':
           if (e.scandal) {
             announce('DONOR EXPOSED', `${infos[e.by].sidekick.name} is out for the round · ${infos[e.by].name} -8`, 1.6, 'red');
             setTicker(`SCANDAL: ${infos[e.by].sidekick.name}'s funding traced back to ${infos[e.by].name}. Sidekick benched.`);
-          } else callout(e.by, 'BACK IN', '#ffffff');
+            chat(e.by, 'sk', pick(infos[e.by].sidekick.banter.scandal), 0, 2000);
+          } else {
+            callout(e.by, 'BACK IN', '#ffffff');
+            if (m.phase !== 'cine') chat(e.by, 'sk', pick(infos[e.by].sidekick.banter.back), 0, 1900);
+          }
           break;
-        case 'superWhiff': callout(e.by, 'MISSED', '#ffffff'); break;
-        case 'superBlocked': callout(1 - e.by, 'BLOCKED', '#8fd3ff'); break;
+        case 'superStart': setChats([]); break;
         case 'superHit': news(TICKER.super, e.by); break;
         case 'ko': announce('K.O.', `${infos[1 - e.by].name}: "${infos[1 - e.by].win}"`, 2.6, 'red'); news(TICKER.ko, 1 - e.by); break;
         case 'timeUp': announce('TIME', 'The chair has run out of patience.', 1.8); break;
@@ -149,6 +164,15 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
           bub.style.top = `${Math.max(30, Math.min(70, p.y * 100))}%`;
         }
       }
+
+      // Banter bubbles follow their speaker's head; they step aside while a real line or a Super is on screen.
+      rootRef.current?.querySelectorAll<HTMLElement>('[data-chat]').forEach((b) => {
+        const [side, who] = b.dataset.chat!.split('-') as ['0' | '1', 'boss' | 'sk'];
+        const p = game.headOnScreen(Number(side) as 0 | 1, who);
+        b.style.left = `${Math.min(82, Math.max(18, p.x * 100))}%`;
+        b.style.top = `${Math.max(30, Math.min(70, p.y * 100))}%`;
+        b.style.visibility = qi >= 0 || m.phase === 'cine' ? 'hidden' : 'visible';
+      });
 
       // Super overlays, keyed to the same seconds as the 3D script.
       let cv: CineView = null;
@@ -222,6 +246,21 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
 
       {/* The line being said, with its source and the Fact-Check window */}
       {quote && !cine && <SpeechBubble key={`${quote.side}-${quote.sig.name}`} q={quote} info={infos[quote.side]} isCpu={quote.side === 1} />}
+
+      {/* Tag banter */}
+      {chats.map((c) => (
+        <div key={c.k} data-chat={`${c.side}-${c.who}`} className="absolute -translate-x-1/2 -translate-y-full" style={{ left: '50%', top: '40%', visibility: 'hidden' }}>
+          <div className="anim-pop relative max-w-[min(18rem,70vw)] rounded-[1.2rem] border-[3px] border-black bg-[#fff8e6] px-3.5 pb-2 pt-1.5 text-black shadow-[4px_4px_0_#000]">
+            <div className="flex items-center gap-2">
+              <span className="display rounded-sm bg-black px-1.5 py-0.5 text-[10px] tracking-wider text-[#ffe6a3]">BANTER</span>
+              <span className="mono truncate text-[10px] tracking-widest text-black/55">{c.name.toUpperCase()}</span>
+            </div>
+            <div className="mt-1 text-base font-bold leading-snug sm:text-lg">{c.text}</div>
+            <span className="absolute -bottom-[17px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[12px] border-t-[16px] border-x-transparent border-t-black" />
+            <span className="absolute -bottom-[11px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[9px] border-t-[11px] border-x-transparent border-t-[#fff8e6]" />
+          </div>
+        </div>
+      ))}
 
       {/* Fact-Check result */}
       {check && (
