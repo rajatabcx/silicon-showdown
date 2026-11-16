@@ -1,45 +1,59 @@
 import type { MoveDef, MoveKey } from './types';
 
 export const FPS = 60;
-export const ROUND_FRAMES = 60 * FPS;
-export const STAGE_HALF = 7;
-export const START_X = 2.4;
+export const ROUND_FRAMES = 90 * FPS;
+export const STAGE_HALF = 6.2;
+export const START_X = 2.2;
 export const GRAVITY = 0.0105;
 export const WALK_SCALE = 0.022;
 export const JUMP_SCALE = 0.025;
-export const BODY_WIDTH = 0.8;
+export const BODY_WIDTH = 0.75;
 
-export const INTRO_FRAMES = 100;
-export const ROUND_END_FRAMES = 170;
-export const SUPER_STARTUP = 24;
-export const CINE_FRAMES = 170;
-export const SUPER_DAMAGE = 30;
-export const SUPER_CHIP = 8;
+export const INTRO_FRAMES = 150;
+export const ROUND_END_FRAMES = 240;
+export const SUPER_STARTUP = 18;
+export const SUPER_REACH = 2.6;
+export const SUPER_DAMAGE = 32;
+export const SUPER_CHIP = 6;
+export const SUPER_WHIFF_FRAMES = 40;
 
-export const WINDED_FRAMES = 90;
-export const SK_FRAMES = 8 * FPS;
-export const SK_MAX_HITS = 3;
-export const SK_COOLDOWN = 5 * FPS;
-export const SK_DAMAGE_SCALE = 0.7;
-export const SCANDAL_DAMAGE = 10;
-export const TAG_CARDIO_MAX = 40;
+export const WINDED_FRAMES = 110;
 export const CARDIO_REGEN = 0.16;
 
-/** Every fighter shares this frame data; fighters differ by stats, names and effects. */
+/** Dodge: invincible from frame 2 to 16, recovers at 26. Pressed in the last beat of a quote, it's a Fact-Check. */
+export const DODGE_FRAMES = 26;
+export const DODGE_INVULN: [number, number] = [2, 16];
+export const DODGE_SLIDE = 0.035;
+export const FACT_CHECK_WINDOW = 36;
+export const STUN_FRAMES = 80;
+export const MELTDOWN_FRAMES = 170;
+export const BACKFIRE_DAMAGE = 6;
+export const COUNTER_DAMAGE = 12;
+
+/** Engagement: 0..100, three tiers. Viral unlocks the Super. */
+export const TIERS = [34, 67, 100] as const;
+export const SUPER_COST = 67;
+export const ENG_SIG_LAND = 24;
+export const ENG_SIG_SAID = 8;
+export const ENG_HIT = 1.5;
+export const ENG_FACT_CHECK = 22;
+export const ENG_QUIET_FRAMES = 3 * FPS;
+export const ENG_DECAY = 0.05;
+/** Damage dealt and taken per tier (0..3). The higher you climb, the harder you hit and the harder you fall. */
+export const TIER_DEALT = [1, 1.12, 1.25, 1.4];
+export const TIER_TAKEN = [1, 1.08, 1.18, 1.3];
+
+/** Every fighter shares this frame data; fighters differ by stats, signatures and Supers. */
 export const MOVES: Record<MoveKey, MoveDef> = {
-  jab:        { startup: 4,  active: 3, recovery: 9,  damage: 4,  hitstun: 17, blockstun: 10, range: 1.3,  cardio: 3, pose: 'punch', chain: true },
-  kick:       { startup: 7,  active: 3, recovery: 12, damage: 6,  hitstun: 19, blockstun: 12, range: 1.55, cardio: 4, pose: 'kick', chain: true },
-  lowJab:     { startup: 5,  active: 3, recovery: 9,  damage: 3,  hitstun: 16, blockstun: 9,  range: 1.25, cardio: 3, pose: 'low', low: true, chain: true },
-  sp1:        { startup: 11, active: 4, recovery: 17, damage: 9,  hitstun: 22, blockstun: 14, range: 1.6,  cardio: 7, pose: 'heavy', lunge: 0.5, heavy: true },
-  sp2:        { startup: 13, active: 4, recovery: 19, damage: 10, hitstun: 22, blockstun: 15, range: 1.8,  cardio: 7, pose: 'spin', lunge: 0.9, heavy: true, knockdown: true },
-  sweep:      { startup: 9,  active: 4, recovery: 20, damage: 7,  hitstun: 0,  blockstun: 12, range: 1.65, cardio: 6, pose: 'sweep', low: true, knockdown: true },
-  uppercut:   { startup: 6,  active: 5, recovery: 24, damage: 10, hitstun: 0,  blockstun: 16, range: 1.25, cardio: 7, pose: 'upper', launch: true, heavy: true },
-  grab:       { startup: 5,  active: 2, recovery: 22, damage: 9,  hitstun: 0,  blockstun: 0,  range: 1.05, cardio: 6, pose: 'grab', unblockable: true, knockdown: true, heavy: true },
-  finisher:   { startup: 8,  active: 4, recovery: 20, damage: 8,  hitstun: 0,  blockstun: 16, range: 1.6,  cardio: 5, pose: 'heavy', lunge: 0.3, knockdown: true, heavy: true },
-  roundhouse: { startup: 9,  active: 4, recovery: 21, damage: 9,  hitstun: 0,  blockstun: 16, range: 1.75, cardio: 5, pose: 'spin', knockdown: true, heavy: true },
-  airPunch:   { startup: 4,  active: 8, recovery: 0,  damage: 6,  hitstun: 20, blockstun: 12, range: 1.3,  cardio: 3, pose: 'airP', overhead: true },
-  airKick:    { startup: 5,  active: 10, recovery: 0, damage: 7,  hitstun: 20, blockstun: 12, range: 1.5,  cardio: 3, pose: 'airK', overhead: true },
-  policy:     { startup: 14, active: 5, recovery: 24, damage: 14, hitstun: 0,  blockstun: 18, range: 2.2,  cardio: 0, pose: 'heavy', lunge: 0.4, knockdown: true, heavy: true },
+  jab:        { startup: 5,  active: 3, recovery: 10, damage: 4,  hitstun: 17, blockstun: 10, range: 1.3,  cardio: 3, chain: true },
+  cross:      { startup: 6,  active: 3, recovery: 12, damage: 5,  hitstun: 18, blockstun: 11, range: 1.35, cardio: 3, chain: true, lunge: 0.18 },
+  hook:       { startup: 8,  active: 3, recovery: 18, damage: 7,  hitstun: 26, blockstun: 14, range: 1.35, cardio: 4, heavy: true, lunge: 0.25 },
+  roundhouse: { startup: 10, active: 4, recovery: 22, damage: 10, hitstun: 0,  blockstun: 18, range: 1.8,  cardio: 6, knockdown: true, heavy: true },
+  upper:      { startup: 11, active: 4, recovery: 22, damage: 10, hitstun: 0,  blockstun: 24, range: 1.3,  cardio: 7, launch: true, heavy: true },
+  kick:       { startup: 12, active: 4, recovery: 18, damage: 9,  hitstun: 0,  blockstun: 22, range: 1.75, cardio: 6, lunge: 0.4, knockdown: true, heavy: true },
+  sweep:      { startup: 10, active: 4, recovery: 22, damage: 8,  hitstun: 0,  blockstun: 14, range: 1.7,  cardio: 6, low: true, knockdown: true },
+  airPunch:   { startup: 4,  active: 8, recovery: 0,  damage: 6,  hitstun: 20, blockstun: 12, range: 1.3,  cardio: 3, overhead: true },
+  airKick:    { startup: 5,  active: 10, recovery: 0, damage: 7,  hitstun: 20, blockstun: 12, range: 1.55, cardio: 3, overhead: true },
 };
 
-export const PROJECTILE_SPEED = 0.14;
+export const tierOf = (eng: number) => (eng >= TIERS[2] ? 3 : eng >= TIERS[1] ? 2 : eng >= TIERS[0] ? 1 : 0);

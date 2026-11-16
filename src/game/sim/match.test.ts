@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { simDef, TEAL, TUSK } from '../data/roster';
 import { cpuInput, makeCpu } from './ai/cpu';
-import { INTRO_FRAMES, MOVES, SK_FRAMES } from './constants';
+import { FACT_CHECK_WINDOW, INTRO_FRAMES, MOVES, SUPER_COST, SUPER_DAMAGE } from './constants';
 import { hashMatch, newMatch, step } from './match';
 import { BTN, type Ev, type Match, type SimDef } from './types';
 
-const DEF: SimDef = { walk: 2.2, jump: 7.6, fitness: 1 };
-const DEFS: [SimDef, SimDef] = [DEF, DEF];
+const DEFS: [SimDef, SimDef] = [simDef(TUSK), simDef(TEAL)];
 
 function started(): Match {
   const m = newMatch();
@@ -16,10 +16,10 @@ function started(): Match {
 /** Put the fighters in jab range. */
 function close(m: Match) { m.f[0].x = -0.5; m.f[1].x = 0.5; }
 /** Same, but with the defender's back to the wall so holding back can't walk out of range. */
-function corner(m: Match) { m.f[0].x = 6; m.f[1].x = 7; }
-function run(m: Match, frames: number, in0 = 0, in1 = 0, defs = DEFS) {
+function corner(m: Match) { m.f[0].x = 5; m.f[1].x = 6; }
+function run(m: Match, frames: number, in0 = 0, in1 = 0) {
   const evs: Ev[] = [];
-  for (let i = 0; i < frames; i++) { step(m, in0, in1, defs); evs.push(...m.events); }
+  for (let i = 0; i < frames; i++) { step(m, in0, in1, DEFS); evs.push(...m.events); }
   return evs;
 }
 
@@ -27,7 +27,9 @@ function cpuMatch(seed: number) {
   const m = newMatch();
   const a = makeCpu('hard', seed), b = makeCpu('normal', seed + 1);
   let n = 0;
-  while (m.phase !== 'matchEnd' && n++ < 60 * 60 * 8) step(m, cpuInput(a, m, 0, DEF), cpuInput(b, m, 1, DEF), DEFS);
+  while (m.phase !== 'matchEnd' && n++ < 60 * 60 * 12) {
+    step(m, cpuInput(a, m, 0, DEFS[0], DEFS[1]), cpuInput(b, m, 1, DEFS[1], DEFS[0]), DEFS);
+  }
   return m;
 }
 
@@ -49,7 +51,7 @@ describe('fight simulation', () => {
     step(m, BTN.P, 0, DEFS);
     const evs = run(m, 12);
     expect(evs.some((e) => e.t === 'hit')).toBe(true);
-    expect(m.f[1].hp).toBe(100 - MOVES.jab.damage);
+    expect(m.f[1].hp).toBeCloseTo(100 - MOVES.jab.damage);
   });
 
   it('holding back blocks a mid, but not a low', () => {
@@ -63,69 +65,140 @@ describe('fight simulation', () => {
     expect(m.f[1].hp).toBeLessThan(100);
   });
 
-  it('grab beats block', () => {
-    const m = started(); corner(m);
-    step(m, BTN.G, BTN.R, DEFS);
-    run(m, 12, 0, BTN.R);
-    expect(m.f[1].hp).toBeLessThan(100);
-  });
-
-  it('a 3-hit string scales damage and knocks down', () => {
+  it('J, J, J is a three-hit string that scales damage', () => {
     const m = started(); close(m);
     const evs: Ev[] = [];
-    for (let i = 0; i < 70; i++) { step(m, i % 6 < 3 ? BTN.P : 0, 0, DEFS); evs.push(...m.events); }
-    const hits = evs.filter((e) => e.t === 'hit');
-    expect(hits.length).toBe(3);
-    expect(hits[2].t === 'hit' && hits[2].move).toBe('finisher');
-    expect(m.f[1].hp).toBeCloseTo(100 - (4 + 4 * 0.9 + 8 * 0.8));
+    for (let i = 0; i < 80; i++) { step(m, i % 6 < 3 ? BTN.P : 0, 0, DEFS); evs.push(...m.events); }
+    const hits = evs.filter((e): e is Extract<Ev, { t: 'hit' }> => e.t === 'hit');
+    expect(hits.slice(0, 3).map((h) => h.move)).toEqual(['jab', 'cross', 'hook']);
+    expect(m.f[1].hp).toBeLessThan(100 - 4 - 5 * 0.9);
+  });
+
+  it('a signature says the line first, then lands', () => {
+    const m = started(); close(m);
+    step(m, BTN.S, 0, DEFS);
+    expect(m.f[0].state).toBe('quote');
+    const quote = DEFS[0].sigs[0].quote;
+    const evs = run(m, quote + 30);
+    const go = evs.findIndex((e) => e.t === 'sigGo');
+    const hit = evs.findIndex((e) => e.t === 'hit' && e.move === 'sig');
+    expect(go).toBeGreaterThanOrEqual(0);
+    expect(hit).toBeGreaterThan(go);
+    expect(m.f[1].hp).toBeLessThan(100);
+    expect(m.f[0].eng).toBeGreaterThan(20);
+  });
+
+  it('dodging in the last beat of a line Fact-Checks it', () => {
+    const m = started(); close(m);
+    step(m, BTN.S, 0, DEFS);
+    const quote = DEFS[0].sigs[0].quote;
+    run(m, quote - FACT_CHECK_WINDOW / 2);
+    const evs: Ev[] = [];
+    step(m, 0, BTN.G, DEFS); evs.push(...m.events);
+    evs.push(...run(m, 60));
+    expect(evs.some((e) => e.t === 'factCheck')).toBe(true);
+    expect(evs.some((e) => e.t === 'sigGo')).toBe(false);
+    expect(m.f[0].hp).toBeLessThan(100);
+    expect(m.f[1].hp).toBe(100);
+  });
+
+  it('dodging too early is just a dodge', () => {
+    const m = started(); close(m);
+    step(m, BTN.S, 0, DEFS);
+    run(m, 10);
+    step(m, 0, BTN.G, DEFS);
+    expect(m.events.some((e) => e.t === 'factCheck')).toBe(false);
+    expect(m.events.some((e) => e.t === 'dodge')).toBe(true);
+  });
+
+  it('getting Fact-Checked at Main Character means a Meltdown', () => {
+    const m = started(); close(m);
+    m.f[0].eng = 100;
+    step(m, BTN.S, 0, DEFS);
+    run(m, DEFS[0].sigs[0].quote - 10);
+    step(m, 0, BTN.G, DEFS);
+    const fc = m.events.find((e) => e.t === 'factCheck');
+    expect(fc && fc.t === 'factCheck' && fc.ratioed).toBe(true);
+    expect(m.f[0].eng).toBe(0);
+    expect(m.f[0].melt).toBeGreaterThan(0);
+  });
+
+  it('hitting a talking fighter cuts the line', () => {
+    const m = started(); close(m);
+    step(m, BTN.S, 0, DEFS);
+    step(m, 0, BTN.P, DEFS);
+    const evs = run(m, 12);
+    expect(evs.some((e) => e.t === 'quoteCut')).toBe(true);
+    expect(m.f[0].state).not.toBe('quote');
+  });
+
+  it("Teal's long pause counters a punch", () => {
+    const m = started(); close(m);
+    step(m, 0, BTN.S | BTN.D, DEFS);
+    expect(m.f[1].state).toBe('quote');
+    step(m, BTN.P, 0, DEFS);
+    const evs = run(m, 12);
+    expect(evs.some((e) => e.t === 'counter')).toBe(true);
+    expect(m.f[0].hp).toBeLessThan(100);
+    expect(m.f[1].hp).toBe(100);
+  });
+
+  it('the Monopoly gate drops where the opponent stood', () => {
+    const m = started();
+    m.f[0].x = -2; m.f[1].x = 1;
+    step(m, 0, BTN.S, DEFS);
+    const evs = run(m, DEFS[1].sigs[0].quote + DEFS[1].sigs[0].startup + 4);
+    expect(evs.some((e) => e.t === 'hit' && e.by === 1)).toBe(true);
+  });
+
+  it('a Super needs Viral engagement and lands for full damage', () => {
+    const m = started(); close(m);
+    step(m, BTN.X, 0, DEFS);
+    expect(m.f[0].state).not.toBe('superStart');
+    m.f[0].eng = SUPER_COST;
+    step(m, 0, 0, DEFS);
+    step(m, BTN.X, 0, DEFS);
+    expect(m.f[0].state).toBe('superStart');
+    const evs = run(m, DEFS[0].super.frames + 40);
+    expect(evs.some((e) => e.t === 'superHit')).toBe(true);
+    expect(evs.some((e) => e.t === 'superLand')).toBe(true);
+    expect(m.f[1].hp).toBeCloseTo(100 - SUPER_DAMAGE);
+  });
+
+  it("Teal's Super drains health over the silence", () => {
+    const m = started(); close(m);
+    m.f[1].eng = 100;
+    step(m, 0, BTN.X, DEFS);
+    run(m, 30);
+    expect(m.phase).toBe('cine');
+    const [from, to] = DEFS[1].super.drain!;
+    run(m, from + (to - from) / 2 - 12);
+    expect(m.f[0].hp).toBeGreaterThan(100 - SUPER_DAMAGE);
+    expect(m.f[0].hp).toBeLessThan(100);
+    run(m, DEFS[1].super.frames);
+    expect(m.f[0].hp).toBeCloseTo(100 - SUPER_DAMAGE);
   });
 
   it('KO ends the round and best of three ends the match', () => {
     const m = started(); close(m);
     m.f[1].hp = 1;
     step(m, BTN.P, 0, DEFS);
-    run(m, 10);
+    run(m, 30);
     expect(m.phase).toBe('roundEnd');
-    run(m, 400);
+    run(m, 500);
     expect(m.f[0].wins).toBe(1);
     expect(m.round).toBe(2);
     close(m); m.f[1].hp = 1;
     step(m, BTN.P, 0, DEFS);
-    run(m, 400);
+    run(m, 500);
     expect(m.phase).toBe('matchEnd');
     expect(m.winner).toBe(0);
   });
 
-  it('running out of cardio brings in the sidekick, who leaves after 8 seconds', () => {
+  it('running out of cardio leaves a fighter winded', () => {
     const m = started();
     m.f[0].cardio = 0;
-    const evs = run(m, 100);
+    const evs = run(m, 5);
     expect(evs.some((e) => e.t === 'winded')).toBe(true);
-    expect(m.f[0].sk).toBe(true);
-    const later = run(m, SK_FRAMES + 5);
-    expect(later.some((e) => e.t === 'tagOut')).toBe(true);
-    expect(m.f[0].sk).toBe(false);
-    expect(m.f[0].cardio).toBeGreaterThanOrEqual(60);
-  });
-
-  it('three hits on a sidekick cause a scandal', () => {
-    const m = started(); close(m);
-    m.f[1].cardio = 10;
-    step(m, 0, BTN.T, DEFS);
-    expect(m.f[1].sk).toBe(true);
-    const evs: Ev[] = [];
-    for (let i = 0; i < 70; i++) { step(m, i % 6 < 3 ? BTN.P : 0, 0, DEFS); evs.push(...m.events); }
-    expect(evs.some((e) => e.t === 'scandal')).toBe(true);
-    expect(m.f[1].hp).toBe(90);
-    expect(m.f[1].skDead).toBe(true);
-  });
-
-  it('a full hype meter fires a super for 30 damage', () => {
-    const m = started();
-    m.f[0].hype = 100;
-    step(m, BTN.S, 0, DEFS);
-    const evs = run(m, 260);
-    expect(evs.some((e) => e.t === 'superHit')).toBe(true);
-    expect(m.f[1].hp).toBe(70);
   });
 });
