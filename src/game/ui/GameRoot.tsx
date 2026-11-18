@@ -49,7 +49,7 @@ export function GameRoot() {
       g = new Game({ canvas: canvasRef.current, assets, player, cpu });
       setGame(g);
       setPortraits((p) => (p.tusk ? p : makePortraits({
-        tusk: assets.tusk, teal: assets.teal, bozo: assets.bozo, ultman: assets.ultman, covfefe: assets.covfefe, veep: assets.veep, melania: assets.melania,
+        tusk: assets.tusk, teal: assets.teal, bozo: assets.bozo, ultman: assets.ultman, carp: assets.carp, covfefe: assets.covfefe, veep: assets.veep, melania: assets.melania, pete: assets.pete,
       })));
     }).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the models.'));
     return () => { dead = true; g?.dispose(); setGame(null); };

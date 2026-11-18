@@ -12,8 +12,8 @@ import type { Ev, Match, Projectile, SimDef } from '../sim/types';
 import type { Assets } from './assets';
 import { FighterView, hipsRest } from './character';
 import {
-  adPanel, announcementScreen, bill, errorCard, gate, label, meteor, modelProp, moviePoster, page, parcel, postCard, rocket,
-  talkShowSet, tickerScreen, typingDots,
+  adPanel, announcementScreen, bill, chatPhone, drone, errorCard, gate, label, meteor, modelProp, moviePoster, page, parcel, postCard,
+  reticle, rocket, shortChart, sprayDrop, strikeMissile, talkShowSet, tickerScreen, typingDots,
 } from './props';
 import { catSprite, tariffStamp } from './sidekick';
 import { Stage, type Mood } from './stage';
@@ -24,6 +24,8 @@ const DROPS: Record<string, { make: () => THREE.Object3D; text: string; color: s
   tariff: { make: tariffStamp, text: 'TARIFF EVERYTHING', color: '#ff6b6b', labelY: 2.3 },
   end: { make: meteor, text: 'THE END OF THE WORLD', color: '#ff8a3a', labelY: 2.2 },
   poster: { make: moviePoster, text: 'NOW STREAMING', color: '#f2d27a', labelY: 3.0 },
+  occasion: { make: strikeMissile, text: 'ON OCCASION', color: '#ff6b5e', labelY: 3.4 },
+  chat: { make: chatPhone, text: 'YOU WERE ADDED', color: '#8fb8ff', labelY: 3.3 },
 };
 
 const GradeShader = {
@@ -226,7 +228,7 @@ export class Renderer {
           this.gates.push({ g, life: 0, land: sigAt(this.sides[e.by].def, e.sig).startup / FPS, x: f.dropX, by: e.by });
         }
         if (id === 'heart') { const p = v.bonePos('chest'); p.z += 0.3; this.spark(p, 0.8, '#ff8f8f', 0.2); }
-        if (id === 'ads' || id === 'guarantee' || id === 'dayone') this.startSigFx(e.by, id, m);
+        if (id === 'ads' || id === 'guarantee' || id === 'dayone' || id === 'occasion' || id === 'poorer' || id === 'earnings') this.startSigFx(e.by, id, m);
         this.kick(0.05, 0, 0.3);
         break;
       }
@@ -354,6 +356,17 @@ export class Renderer {
       });
     } else if (id === 'dayone') {
       const l = label('DAY 1', '#ffd34d', 0.9); g.add(l); parts.push(l);
+    } else if (id === 'occasion') {
+      // The target is painted on the floor under the opponent while the strike comes down.
+      const r = reticle('TARGET ACQUIRED'); g.add(r); parts.push(r);
+    } else if (id === 'poorer') {
+      // The short sellers' position, on a trading screen behind the opponent; it crashes with each hit.
+      const c = shortChart(); g.add(c); parts.push(c);
+    } else if (id === 'earnings') {
+      // Each hit of the flurry is a line from the earnings call.
+      ["WE'RE DOING IT!", 'RULE OF 114', '+121% GROWTH'].forEach((t, i) => {
+        const l = label(t, i === 1 ? '#9fc0ff' : '#7dffb5', 0.42); l.userData.i = i; l.visible = false; g.add(l); parts.push(l);
+      });
     }
     void m;
     this.fx.add(g);
@@ -397,6 +410,27 @@ export class Renderer {
         const k = clamp01(af / (sg.startup + sg.active + 6));
         l.position.set(h.x, h.y + 0.6 + k * 0.5, h.z + 0.2);
         l.material.opacity = 1 - fx.out * 2;
+      } else if (fx.id === 'occasion') {
+        const r = fx.parts[0];
+        r.position.set(f.dropX, 0, 0);
+        (r.userData.tick as (k: number, t: number) => void)(af / Math.max(1, sg.startup), this.t);
+        r.visible = fx.out < 0.15;
+      } else if (fx.id === 'poorer') {
+        const c = fx.parts[0], away = o.x >= f.x ? 1 : -1;
+        const rise = clamp01(af / sg.startup);
+        c.position.set(o.x + away * 1.2, -2.6 * (1 - rise) * (1 - rise) - fx.out * 6, -1.1);
+        c.rotation.y = -away * 0.35;
+        (c.userData.tick as (k: number) => void)(clamp01((af - sg.startup) / sg.active));
+      } else if (fx.id === 'earnings') {
+        const h = this.part(1 - by, 'head', m);
+        for (const p of fx.parts) {
+          const i = p.userData.i as number, age = af - sg.startup - i * per;
+          const l = p as THREE.Sprite;
+          l.visible = age >= 0 && age < 26;
+          const k = clamp01(age / 26);
+          l.position.set(h.x + (i - 1) * 0.55, h.y + 0.55 + k * 0.7, h.z + 0.3);
+          l.material.opacity = Math.min(1, (1 - k) * 2) * (1 - fx.out * 2);
+        }
       }
     }
   }
@@ -543,6 +577,8 @@ export class Renderer {
     u.uAberr.value = this.aberr;
     u.uTime.value = this.t % 100;
     const wantSat = cine?.sat ?? (this.grey && m.phase === 'roundEnd' ? 0.05 : 1);
+    const tint = cine?.tint ?? WHITE;
+    (u.uTint.value as THREE.Color).lerp(tint, Math.min(1, dt * 4));
     u.uSat.value += (wantSat - u.uSat.value) * Math.min(1, dt * 3);
     u.uVig.value += ((cine || flashBy >= 0 || this.policy ? 0.55 : 0.34) - u.uVig.value) * Math.min(1, dt * 6);
     this.blur += (wantBlur - this.blur) * Math.min(1, dt * 14);
@@ -660,6 +696,7 @@ export class Renderer {
 // ---------- Supers
 
 const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+const WHITE = new THREE.Color(1, 1, 1);
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 type Beat = { name: string; shot: Shot };
 
@@ -675,6 +712,8 @@ class CineState {
   sat = 1;
   bloom = 0;
   blur = 0;
+  /** Colour grade over the whole frame while the Super plays (null = none). */
+  tint: THREE.Color | null = null;
   private props: THREE.Object3D[] = [];
   private beat = '';
   private objs: Record<string, THREE.Object3D> = {};
@@ -692,7 +731,7 @@ class CineState {
     this.blur = 0;
     av.roleSpeed = 1; vv.roleSpeed = 1;
     const id = av.info.id;
-    const script = { tusk: this.tusk, teal: this.teal, bozo: this.bozo, ultman: this.ultman }[id];
+    const script = { tusk: this.tusk, teal: this.teal, bozo: this.bozo, ultman: this.ultman, carp: this.carp }[id];
     const b = script.call(this, r, atk.x, vic.x, dir, this.t, av, vv);
     const cut = b.name !== this.beat;
     this.beat = b.name;
@@ -1044,8 +1083,136 @@ class CineState {
     return { name: 'payoff', shot: { pos: V(mid, 2.3, 9.5), look: V(mid, 1.4, -0.5), fov: 32 } };
   }
 
+  /**
+   * LOWER PURPOSE. His "higher purpose / lower purpose" line over a close-up while a surveillance drone rises behind
+   * him; it hovers over his head for "getting a drone", shows its tank for "fentanyl-laced", flies over the opponent and
+   * paints them ANALYST, then sprays them through "spraying on analysts who tried to screw us" (the health drains), and
+   * they go down. "So that's my lower purpose": tight on him with the drone over his shoulder.
+   */
+  private carp(r: Renderer, ax: number, vx: number, dir: number, t: number, av: FighterView, vv: FighterView): Beat {
+    const st = r.stageRef();
+    const mid = (ax + vx) / 2;
+    if (t < 0.6) return this.contact(ax, vx, dir, t, av, vv);
+    // The drone: rises behind him from 3.4 s, hovers over him, then flies to the opponent and holds over them.
+    if (t > 3.4 && !this.objs.drone) { const d = drone(); d.scale.setScalar(0.9); this.add(r, 'drone', d); }
+    const dr = this.objs.drone;
+    const home = V(ax - dir * 0.45, 3.0, -0.5), over = V(vx, 2.75, 0.1);
+    if (dr) {
+      (dr.userData.tick as (t: number) => void)(r.now());
+      const bob = Math.sin(r.now() * 3) * 0.06;
+      if (t < 5.1) {
+        const k = clamp01((t - 3.4) / 1.7), e = 1 - Math.pow(1 - k, 3);
+        dr.position.set(ax - dir * (1.4 - e * 0.95), -0.4 + e * 3.4 + bob, -1.4 + e * 0.9);
+        dr.rotation.set(0, 0, 0);
+      } else if (t < 9.0) {
+        dr.position.copy(home).setY(home.y + bob); dr.rotation.set(0, 0, 0);
+      } else {
+        const k = clamp01((t - 9.0) / 1.2), e = k * k * (3 - 2 * k);
+        dr.position.lerpVectors(home, over, e); dr.position.y += Math.sin(Math.PI * e) * 0.5 + bob;
+        if (t > 13.4) dr.position.y += (t - 13.4) * 0.6;
+        dr.rotation.set(0, 0, -dir * Math.sin(Math.PI * e) * 0.35);
+      }
+    }
+    // The reticle on the opponent, from the lock-on until they go down.
+    if (t > 9.2 && t < 13.4) {
+      if (!this.objs.lock) { this.add(r, 'lock', reticle('ANALYST')); r.fxKick(0.15, 0.05, 0.4); }
+      this.objs.lock.visible = true;
+      this.objs.lock.position.set(vx, 0, 0);
+      (this.objs.lock.userData.tick as (k: number, t: number) => void)((t - 9.2) / 0.6, r.now());
+    } else if (this.objs.lock) this.objs.lock.visible = false;
+    // The spray: a stream of droplets from the nozzle to the opponent, with a splash where it hits.
+    const spraying = t > 10.7 && t < 13.3;
+    if (spraying && dr) {
+      if (!this.objs.spray) {
+        const g = new THREE.Group();
+        for (let i = 0; i < 70; i++) { const d = sprayDrop(); d.userData.d = i / 70; d.userData.j = Math.sin(i * 12.9898) * 43758.5453 % 1; g.add(d); }
+        this.add(r, 'spray', g);
+      }
+      const from = (dr.userData.nozzle as THREE.Object3D).getWorldPosition(new THREE.Vector3());
+      const to = vv.bonePos('head').add(V(0, -0.15, 0.1));
+      this.objs.spray.visible = true;
+      this.objs.spray.children.forEach((o, i) => {
+        const p = ((t - 10.7) * 2.6 + o.userData.d) % 1;
+        const j = o.userData.j as number;
+        o.position.lerpVectors(from, to, p);
+        o.position.x += Math.sin(i * 7.1 + t * 9) * 0.07 * p; o.position.z += Math.cos(i * 3.3 + t * 7) * 0.08 * p;
+        o.position.y -= Math.sin(Math.PI * p) * 0.12 + j * 0.05;
+        o.scale.setScalar(0.07 + p * 0.09);
+      });
+      if (this.once(`splash${Math.floor(t * 7)}`)) { r.fxBurst(to, 5, '#ffd83a', 4); r.fxKick(0.06); vv.hitFlash(0.4); }
+    } else if (this.objs.spray) this.objs.spray.visible = false;
+
+    if (t < 2.4) {
+      // "You need a higher purpose": a low hero close-up, drifting in.
+      av.role = 'talk'; vv.role = 'fight';
+      if (this.once('dark')) st.setMood('dark');
+      const k = (t - 0.6) / 1.8, head = av.bonePos('head');
+      return { name: 'title', shot: { pos: V(ax + dir * (2.2 - k * 0.6), 0.85 + k * 0.1, 2.8 - k * 0.2), look: V(ax, head.y - 0.1, 0), fov: 34 } };
+    }
+    if (t < 3.4) {
+      // "…and I also think you often need a lower purpose." Over his shoulder at the opponent.
+      av.role = 'talk'; vv.role = 'fight';
+      const k = t - 2.4;
+      return { name: 'shoulder', shot: { pos: V(ax - dir * (1.6 - k * 0.2), 1.9, 3.2), look: V(mid + dir * 0.4, 1.4, 0), fov: 38 } };
+    }
+    if (t < 5.1) {
+      // The drone comes up out of the dark behind him; seen from the floor in front of him.
+      av.role = 'talk'; vv.role = 'fight';
+      if (this.once('hum')) { r.fxKick(0.2, 0.05, 0.5); this.bloom = 0.2; }
+      const k = (t - 3.4) / 1.7;
+      return { name: 'prop', shot: { pos: V(ax + dir * 2.4, 0.55, 4.2 - k * 0.4), look: V(ax - dir * 0.3, 1.5 + k * 1.0, -0.6), fov: 42 } };
+    }
+    if (t < 7.6) {
+      // "Well, I love the idea of getting a drone": low and close, the drone hanging over his head.
+      av.role = 'talk'; vv.role = 'fight';
+      const k = (t - 5.1) / 2.5, head = av.bonePos('head');
+      return { name: 'hover', shot: { pos: V(ax + dir * (1.9 - k * 0.3), 0.7, 3.3), look: V(ax, head.y + 0.55 + k * 0.2, -0.3), fov: 40 } };
+    }
+    if (t < 9.0) {
+      // "…fentanyl-laced": insert on the tank's label.
+      av.role = 'talk'; vv.role = 'fight';
+      const k = (t - 7.6) / 1.4;
+      const p = dr ? dr.position.clone() : home;
+      return { name: 'insert', shot: { pos: V(p.x + dir * 0.25, p.y - 0.3, p.z + 1.6 - k * 0.3), look: V(p.x, p.y - 0.25, p.z), fov: 30 } };
+    }
+    if (t < 10.7) {
+      // It flies over the opponent and locks on.
+      av.role = 'pump'; vv.role = t > 9.5 ? 'reel' : 'fight'; vv.roleSpeed = 0.5;
+      if (this.once('red')) st.setMood('red');
+      if (t < 9.9) return { name: 'fly', shot: { pos: V(mid, 1.6, 7.2), look: V(mid + dir * 0.6, 2.1, 0), fov: 34 } };
+      return { name: 'lookup', shot: { pos: V(vx + dir * 1.3, 0.35, 3.3), look: V(vx - dir * 0.1, 2.3, 0), fov: 52 } };
+    }
+    if (t < 13.3) {
+      // "…spraying on analysts who tried to screw us." Slow motion, the frame gone yellow.
+      av.role = 'pump'; vv.role = 'reel'; vv.roleSpeed = 0.3;
+      this.tint = YELLOW; this.blur = 0.35;
+      if (this.once('sprayStart')) { r.fxKick(0.3, 0.15, 0.6); st.cheer(1.4); }
+      if (t < 11.9) return { name: 'spray', shot: { pos: V(vx - dir * 3.0, 1.1, 5.0), look: V(vx, 1.8, 0), fov: 40 } };
+      const head = vv.bonePos('head'), k = (t - 11.9) / 1.4;
+      return { name: 'face', shot: { pos: V(head.x - dir * 0.7, head.y + 0.15, 2.2 - k * 0.3), look: V(head.x, head.y + 0.05, 0), fov: 32 } };
+    }
+    this.tint = null;
+    if (this.once('boom')) {
+      st.setMood('normal');
+      const p = V(vx, 1.2, 0.3);
+      r.fxSpark(p, 4, '#ffffff', 0.3); r.fxBurst(p, 28, '#ffd83a', 12); r.fxRing(vx, '#ffd83a'); r.fxKick(0.9, 0.5, 1.0, 0.02);
+      vv.hitFlash(1); st.cheer(2);
+    }
+    const fall = (t - 13.3) / 1.1;
+    if (t < 14.2) { av.role = 'pump'; return { name: 'impact', shot: this.blow(vx, dir, fall, vv, 0.9) }; }
+    if (fall < 1) this.blow(vx, dir, fall, vv, 0.9); else vv.role = 'down';
+    this.blur = 0;
+    // "So that's my lower purpose." Tight on him, the drone drifting up over his shoulder.
+    av.role = 'shrug';
+    this.bloom = 0;
+    const head = av.bonePos('head'), k = (t - 14.2) / 1.8;
+    return { name: 'payoff', shot: { pos: V(head.x + dir * (1.1 + k * 0.6), head.y + 0.1, 2.6 + k * 1.2), look: V(head.x - dir * 0.2, head.y + 0.1, 0), fov: 34 } };
+  }
+
   dispose(fx: THREE.Object3D) { for (const p of this.props) fx.remove(p); }
 }
+
+const YELLOW = new THREE.Color(1.08, 1.0, 0.55);
 
 // ---------- Signatures and Policy Moves
 

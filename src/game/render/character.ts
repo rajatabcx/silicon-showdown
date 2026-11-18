@@ -43,6 +43,12 @@ const SIG_ANIM: Record<string, Win> = {
   end: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.55, tail: 0.38 },
   ads: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.3, tail: 0.3 },
   poster: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.5, tail: 0.4 },
+  // Carp: an arm thrown up to call in the strike; two hooks while the chart crashes; a flurry of jabs on the call.
+  occasion: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.55, tail: 0.38 },
+  poorer: { clip: 'Left_Hook_from_Guard', impact: 0.333, lead: 0.25, tail: 0.3 },
+  earnings: { clip: 'Left_Jab_from_Guard', impact: 0.5, lead: 0.22, tail: 0.3 },
+  // Hexseth: thumbs the phone, then points it down at the opponent.
+  chat: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.5, tail: 0.4 },
 };
 
 const HIPS = 'mixamorigHips';

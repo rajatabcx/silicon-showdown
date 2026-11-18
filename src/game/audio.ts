@@ -23,6 +23,8 @@ const VOICE_FILES: VoiceId[] = [
   'bozo_paid_short', 'bozo_always_day_one', 'bozo_cant_guarantee', 'bozo_laugh', 'bozo_best_day', 'bozo_optimistic',
   'ultman_quite_wrong', 'ultman_end_short', 'ultman_last_resort', 'ultman_agi_here', 'ultman_this_era',
   'melania_here_we_go', 'melania_here_it_is',
+  'carp_lower_purpose', 'carp_urine', 'carp_urine_tag', 'carp_kill_short', 'carp_poorer', 'carp_doing_it', 'carp_crushing',
+  'carp_batshit', 'carp_misunderstand', 'hexseth_texting', 'hexseth_were_back',
 ];
 
 /** Recorded one-shot effects in /public/audio/sfx. */

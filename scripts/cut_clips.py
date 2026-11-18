@@ -62,6 +62,25 @@ CLIPS = [
     ("bozo_cant_guarantee","bezos_hearing",    26, 32, "but i can't",        "been violated"),
     ("bozo_policy",       "bezos_hearing",     16, 32, "i can't answer",     "been violated"),
     ("bozo_dont_remember","bezos_hearing",    116, 123, "i cannot",          "remember it"),
+    # Alex Carp (Alex Karp) and his sidekick Pete Hexseth (Pete Hegseth).
+    ("carp_lower_purpose","karp_urine",         0, 5,   "you need",          "lower purpose"),
+    ("carp_urine",        "karp_urine",         7.5, 17, "well i love",      "screw us"),
+    ("carp_urine_tag",    "karp_urine",        17.5, 21, "so that's",        "lower purpose"),
+    ("carp_doing_it",     "karp_kill",          5.5, 9.5, "we're doing",     "doing it"),
+    ("carp_crushing",     "karp_kill",         40, 45.5, "every",            "crushing it"),
+    ("carp_kill",         "karp_kill",         63, 75.5, "palantir is",      "kill them"),
+    ("carp_kill_short",   "karp_kill",         70, 75.5, "scare enemies",    "kill them"),
+    ("carp_misunderstand","karp_burry",        51, 55.5, "well there",       "misunderstand myself"),
+    ("carp_poorer",       "karp_burry",       225.5, 237, "every time",      "them poorer"),
+    ("carp_be_my_guest",  "karp_burry",       420.5, 427, "if you want",     "my guest"),
+    ("carp_dancing",      "karp_burry",       478.5, 485.5, "i'm going to",  "proven wrong"),
+    ("carp_batshit",      "karp_burry",       612, 619, "the idea that",     "crazy"),
+    ("hexseth_texting",   "hegseth_texting",   86.5, 92, "nobody",           "about that"),
+    ("hexseth_texting_short","hegseth_texting", 86.5, 91, "nobody",          "war plans"),
+    ("hexseth_lethality", "hegseth_dow",       72.5, 81.5, "maximum",        "politically correct"),
+    ("hexseth_back",      "hegseth_dow",       84.5, 100, "so this war",     "we're back"),
+    ("hexseth_were_back", "hegseth_dow",       98.5, 101, "we're back",      "we're back"),
+    ("hexseth_resign",    "hegseth_woke",      46, 57,   "if the words",     "and resign"),
 ]
 
 norm = lambda s: re.sub(r"[^a-z' ]", "", s.lower()).split()

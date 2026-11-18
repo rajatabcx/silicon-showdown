@@ -97,3 +97,43 @@ Notes:
 **Recordings to fetch:** Trump inauguration rally 20 Jan 2025 · CPAC 20 Feb 2025 · DealBook Summit 29 Nov 2023 · Cybertruck unveiling 21 Nov 2019 · Joe Rogan #2281 (28 Feb 2025) · Interesting Times with Peter Thiel (Jun 2025) · Stanford CS183B lecture 5 (2014) · Thiel at Cambridge Union (Jul 2024) · Thiel at Aspen Ideas (Jun 2024).
 
 Sources checked today: [NPR on the gesture and the line](https://www.ctpublic.org/2025-01-23/elon-musk-tried-to-turn-the-salute-controversy-into-a-joke) · [chainsaw line and later regret](https://www.mediaite.com/media/news/elon-musk-admits-infamous-chainsaw-stunt-was-a-mistake-it-lacked-empathy) · [Thiel hesitation transcript](https://thenation.com/article/society/peter-thiel-billionaires-abandoning-humanity) · [engineers boosting his tweets](https://platformer.news/yes-elon-musk-created-a-special-system/) · [game account boosting](https://gigazine.net/gsc_news/en/20250122-elon-musk-boost-accounts)
+
+---
+
+## Alex Carp (Alex Karp) and sidekick Pete Hexseth (Pete Hegseth): clips cut 19 Nov 2026
+
+Recordings in `recordings/` (YouTube IDs in brackets):
+- `karp_urine`: 40 s excerpt of an interview where he's asked "What's a lower purpose?" [fZ_65R7yG6k]. Press coverage names Andrew Ross Sorkin as the interviewer; the full original still needs identifying (**Lead**).
+- `karp_kill`: closing remarks of Palantir's Q4 2024 earnings call, 3 Feb 2025 [G5gC_fParbY].
+- `karp_burry`: CNBC, morning after the Q3 2025 results, Nov 2025 [mqa1yEd891o]. The "bat-shit" is unbleeped in this upload.
+- `hegseth_texting`: C-SPAN, Hawaii, 24 Mar 2025, the day the Atlantic Signal-chat story broke [Ym7_3ESCpSg].
+- `hegseth_dow`: ABC News, Oval Office order renaming the Pentagon the "Department of War", 5 Sep 2025 [JWgcndjkUGs].
+- `hegseth_woke`: WFAA, Quantico speech to senior officers, 30 Sep 2025 [mMh2vpKMBtk]. Only the "resign" line is used; the "dudes in dresses" line in the same speech is left out (punches down).
+
+| Clip | Length | Heard in the clip | Planned use |
+|---|---|---|---|
+| `carp_lower_purpose` | 4.3 s | "You need a higher purpose and I also think you often need a lower purpose." | Super opener |
+| `carp_urine` | 8.2 s | "Well, I love the idea of getting a drone and having light fentanyl-laced urine spraying on analysts who tried to screw us." | **Super: Lower Purpose** (body) |
+| `carp_urine_tag` | 1.7 s | "So that's my lower purpose." | Super payoff |
+| `carp_kill` | 11.7 s | "Palantir is here to disrupt … and when it's necessary to scare enemies and on occasion kill them." | Reference / long version |
+| `carp_kill_short` | 2.7 s | "Scare enemies and on occasion kill them." | **Signature: On Occasion** |
+| `carp_poorer` | 7.2 s | "…every time they short us, we just are like tripling down on getting the better numbers, in part, honestly, to make them poorer." | **Signature: Make Them Poorer** |
+| `carp_be_my_guest` | 4.2 s | "If you want to short that, be my guest." | Short version of the above |
+| `carp_doing_it` | 1.6 s | "We're doing it!" | **Signature: Earnings Call** (start) |
+| `carp_crushing` | 2.8 s | "Every Palantirian, we are crushing it." | **Signature: Earnings Call** (hit) |
+| `carp_batshit` | 5.3 s | "The idea that chips and ontology is what you want to short is bat-shit crazy." | Taunt |
+| `carp_dancing` | 3.7 s | "And I'm going to be dancing around when it's proven wrong." | Win line |
+| `carp_misunderstand` | 3.7 s | "Well, there are lots of easy ways to misunderstand me. I misunderstand myself." | Line when he gets hit hard / is Fact-Checked |
+| `hexseth_texting` | 5.1 s | "Nobody was texting war plans, and that's all I have to say about that." | **Policy Move: Group Chat** |
+| `hexseth_texting_short` | 3.8 s | "Nobody was texting war plans." | Tag-in voice |
+| `hexseth_lethality` | 7.8 s | "Maximum lethality, not tepid legality. Violent effect, not politically correct." | Alternative Policy Move / banter |
+| `hexseth_back` | 15.1 s | "So this War Department, Mr. President, just like America, is back. … brought to you by the War Department. We're back." | Trim later; tag-out line ("We're back.") |
+| `hexseth_resign` | 8.5 s | "If the words I'm speaking today are making your heart sink, then you should do the honorable thing and resign." | Taunt at a low-health opponent |
+
+### Proposed moves (draft, not built)
+- **Super: LOWER PURPOSE** (owner's pick). Karp bounces on his toes and delivers `carp_lower_purpose`. A Palantir-grey drone rises, locks on (targeting reticle with an "ANALYST" tag), and sprays the opponent; `carp_urine` plays over it. Payoff `carp_urine_tag`. Stamp: "PRICE TARGET: DOWNGRADED." The spray stays a cartoon yellow stream; the fentanyl part lives only in his own words and a "LIGHTLY LACED" warning label on the drone tank.
+- **Signature 1: On Occasion.** A targeting grid flashes over the opponent, then a short-range strike. `carp_kill_short`. Melee, knockdown.
+- **Signature 2: Make Them Poorer.** A counter stance: if the opponent attacks during it (they "short" him), he triples down and hits back for extra. `carp_poorer`, or `carp_be_my_guest` as the short version. Fits his Ego meter: getting attacked fuels him.
+- **Signature 3: Earnings Call.** A hyper jumping flurry, his on-stage bouncing turned into a three-hit combo. `carp_doing_it` then `carp_crushing`.
+- **Taunt:** `carp_batshit`. **Win:** `carp_dancing`.
+- **Hexseth Policy Move: Group Chat.** He thumbs his phone; a chat card pops up ("Signal: WAR PLANS 🇺🇸, *you* were added"). The opponent has been added by mistake and stops to read it: a stun of about 2 s while the bubbles pile up over their head. `hexseth_texting` plays as he pockets the phone.

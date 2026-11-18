@@ -57,7 +57,21 @@ Colours to hold: suit `#232a33`, tie `#2b4f8a`, skin `#efc3a4`, hair `#3b2a1e`.
 ## Alex Carp
 **Read in one glance:** a philosopher who has had too much coffee and owns a drone.
 
-> A lean, wiry man in his fifties. Long narrow face, sharp cheekbones, wide intense eyes behind thin rimless glasses, eyebrows raised. A tall wild cloud of grey curly hair standing straight up and out, twice the height of his face. Thin lips pressed shut as if holding back a speech. Narrow shoulders, long limbs, standing on the balls of his feet. Fitted dark-grey zip-neck athletic top, slim black trousers, white trainers.
+> Satirical caricature of Palantir CEO Alex Karp, instantly recognisable. A lean, wiry man around sixty with a long, narrow, angular face, sharp cheekbones, slightly hollow cheeks and a pointed chin. Clean-shaven. Long, prominent, slightly hooked nose. Wide, intense, very alert dark-brown eyes, the eyebrows shot up high and angled in, as if he has just heard something outrageous. Thin lips pressed tightly shut as if holding back a long speech, mouth pulled a little to one side. A huge, wild cloud of frizzy salt-and-pepper curls, mostly grey, standing up and out in every direction, about as tall as his face and wider than his shoulders; the ears stay visible under it. Thin neck, narrow shoulders, long thin limbs, wiry and athletic. Wound tight: up on the balls of his feet, shoulders slightly raised, as if about to spring. Fitted royal-blue zip-neck athletic top with the zip pulled to the chin, slim black athletic trousers, white running shoes.
+
+Colours to hold: top `#2456c8`, trousers `#16181c`, skin `#e8c0a0`, hair `#b9b5ae` with `#4a4540` streaks.
+
+Optional second outfit for his Super: the same top under a long, loose patterned silk scarf. Keep it off the base model; a scarf flapping round the neck breaks rigging.
+
+### Alex Carp's sidekick: Pete Hexseth (Pete Hegseth parody)
+Owner's call, 19 Nov 2026. Real link: as War Secretary he oversees Palantir's biggest wins (the Army enterprise deal worth up to $10B, 2025, and Maven as core Pentagon kit), and he renamed the Pentagon the "Department of War". Gag source: the March 2025 Signal chat where war plans went to a group a journalist had been added to by mistake. Jokes stay on public conduct (the chat, the rename, the contracts). No tattoos, nothing about his family or private life.
+**Read in one glance:** a TV anchor who has been handed the nuclear codes and is thrilled about it.
+
+> Satirical caricature of US War Secretary Pete Hegseth, instantly recognisable. A tall, very fit man in his mid-forties with a rigid, puffed-up military stance: chest out, shoulders pulled back, chin raised high. Broad, square, chiselled face with an oversized square jaw and a cleft chin. Clean-shaven. Thick, glossy medium-brown hair with a few grey strands at the temples, swept back and to the side in a stiff, sprayed TV-anchor wave with lots of volume on top. Narrowed, intense blue eyes, straight heavy eyebrows pulled down in a hard, serious squint. A tight, confident closed-mouth smirk, one corner up. Thick neck, wide shoulders, big chest, narrow waist, muscular arms filling the sleeves. Sharp, tight-fitting navy-blue suit buttoned over the chest, white shirt, bright red tie with thin white stripes, a small plain American-flag lapel pin, polished black shoes.
+
+Colours to hold: suit `#1d2a4a`, tie `#c41e3a`, skin `#e9b893`, hair `#5a3e2b`.
+
+His phone for the group-chat Super is a separate prop, modelled on its own.
 
 ## Mork Zuckerbot
 **Read in one glance:** a very fit robot doing an impression of a relaxed guy.

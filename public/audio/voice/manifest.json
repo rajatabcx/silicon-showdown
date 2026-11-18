@@ -276,5 +276,113 @@
     "seconds": 4.82,
     "heard": "i it is always day one",
     "source": "bezos_day1"
+  },
+  "carp_lower_purpose": {
+    "file": "/audio/voice/carp_lower_purpose.mp3",
+    "seconds": 4.3,
+    "heard": "you need a higher purpose and i also think you often need a lower purpose",
+    "source": "karp_urine"
+  },
+  "carp_urine": {
+    "file": "/audio/voice/carp_urine.mp3",
+    "seconds": 8.16,
+    "heard": "well i love the idea of getting a drone and having light fentanyl laced urine spraying on analysts who tried to screw us",
+    "source": "karp_urine"
+  },
+  "carp_urine_tag": {
+    "file": "/audio/voice/carp_urine_tag.mp3",
+    "seconds": 1.7,
+    "heard": "so that's my lower purpose",
+    "source": "karp_urine"
+  },
+  "carp_doing_it": {
+    "file": "/audio/voice/carp_doing_it.mp3",
+    "seconds": 1.62,
+    "heard": "we're doing it",
+    "source": "karp_kill"
+  },
+  "carp_crushing": {
+    "file": "/audio/voice/carp_crushing.mp3",
+    "seconds": 2.76,
+    "heard": "every palantirian we are crushing it",
+    "source": "karp_kill"
+  },
+  "carp_kill": {
+    "file": "/audio/voice/carp_kill.mp3",
+    "seconds": 11.7,
+    "heard": "palantir is here to disrupt and make the institutions we partner with the very best in the world and when it's necessary to scare enemies and on occasion kill them",
+    "source": "karp_kill"
+  },
+  "carp_kill_short": {
+    "file": "/audio/voice/carp_kill_short.mp3",
+    "seconds": 2.7,
+    "heard": "scare enemies and on occasion kill them",
+    "source": "karp_kill"
+  },
+  "carp_misunderstand": {
+    "file": "/audio/voice/carp_misunderstand.mp3",
+    "seconds": 3.66,
+    "heard": "well there are lots of easy ways to misunderstand me i misunderstand myself",
+    "source": "karp_burry"
+  },
+  "carp_poorer": {
+    "file": "/audio/voice/carp_poorer.mp3",
+    "seconds": 7.16,
+    "heard": "because every time they short us we just are like tripling down on getting the better numbers in part honestly to make them poorer",
+    "source": "karp_burry"
+  },
+  "carp_be_my_guest": {
+    "file": "/audio/voice/carp_be_my_guest.mp3",
+    "seconds": 4.2,
+    "heard": "if you want to short that be my guest",
+    "source": "karp_burry"
+  },
+  "carp_dancing": {
+    "file": "/audio/voice/carp_dancing.mp3",
+    "seconds": 3.66,
+    "heard": "and i'm going to be dancing around when it's proven wrong",
+    "source": "karp_burry"
+  },
+  "carp_batshit": {
+    "file": "/audio/voice/carp_batshit.mp3",
+    "seconds": 5.34,
+    "heard": "the idea that chips and ontology is what you want to short is bat shit crazy",
+    "source": "karp_burry"
+  },
+  "hexseth_texting": {
+    "file": "/audio/voice/hexseth_texting.mp3",
+    "seconds": 5.12,
+    "heard": "nobody was texting war plans and that's all i have to say about that",
+    "source": "hegseth_texting"
+  },
+  "hexseth_texting_short": {
+    "file": "/audio/voice/hexseth_texting_short.mp3",
+    "seconds": 3.8,
+    "heard": "nobody was texting war plans",
+    "source": "hegseth_texting"
+  },
+  "hexseth_lethality": {
+    "file": "/audio/voice/hexseth_lethality.mp3",
+    "seconds": 7.78,
+    "heard": "maximum lethality not tepid legality violent effect not politically correct",
+    "source": "hegseth_dow"
+  },
+  "hexseth_back": {
+    "file": "/audio/voice/hexseth_back.mp3",
+    "seconds": 15.06,
+    "heard": "so this war department mr president just like america is back thank you for your leadership and your clarity we're going to set the tone for this country america first peace through strength brought to you by the war department we're back",
+    "source": "hegseth_dow"
+  },
+  "hexseth_resign": {
+    "file": "/audio/voice/hexseth_resign.mp3",
+    "seconds": 8.54,
+    "heard": "but if the words i'm speaking today are making your heart sink then you should do the honorable thing and resign",
+    "source": "hegseth_woke"
+  },
+  "hexseth_were_back": {
+    "file": "/audio/voice/hexseth_were_back.mp3",
+    "seconds": 0.62,
+    "heard": "we're back",
+    "source": "hegseth_dow"
   }
 }

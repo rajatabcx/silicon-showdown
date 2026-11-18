@@ -11,7 +11,9 @@ export type VoiceId =
   | 'teal_armageddon' | 'teal_monopoly'
   | 'covfefe_maga' | 'veep_cat_ladies'
   | 'bozo_paid_short' | 'bozo_always_day_one' | 'bozo_cant_guarantee' | 'bozo_laugh' | 'bozo_best_day' | 'bozo_optimistic'
-  | 'ultman_quite_wrong' | 'ultman_end_short' | 'ultman_last_resort' | 'ultman_agi_here' | 'ultman_this_era' | 'melania_here_we_go' | 'melania_here_it_is';
+  | 'ultman_quite_wrong' | 'ultman_end_short' | 'ultman_last_resort' | 'ultman_agi_here' | 'ultman_this_era' | 'melania_here_we_go' | 'melania_here_it_is'
+  | 'carp_lower_purpose' | 'carp_urine' | 'carp_urine_tag' | 'carp_kill_short' | 'carp_poorer' | 'carp_doing_it' | 'carp_crushing'
+  | 'carp_batshit' | 'carp_misunderstand' | 'hexseth_texting' | 'hexseth_were_back';
 
 /** Seconds of each clip, from public/audio/voice/manifest.json. */
 export const VOICE_SECONDS: Record<VoiceId, number> = {
@@ -22,6 +24,8 @@ export const VOICE_SECONDS: Record<VoiceId, number> = {
   covfefe_maga: 4.8, veep_cat_ladies: 3.26,
   bozo_paid_short: 1.7, bozo_always_day_one: 4.82, bozo_cant_guarantee: 4.6, bozo_laugh: 4.01, bozo_best_day: 1.64, bozo_optimistic: 3.58,
   ultman_quite_wrong: 3.14, ultman_end_short: 4.58, ultman_last_resort: 3.2, ultman_agi_here: 11.92, ultman_this_era: 2.94, melania_here_we_go: 2.22, melania_here_it_is: 3.8,
+  carp_lower_purpose: 4.3, carp_urine: 8.16, carp_urine_tag: 1.7, carp_kill_short: 2.7, carp_poorer: 7.16, carp_doing_it: 1.62,
+  carp_crushing: 2.76, carp_batshit: 5.34, carp_misunderstand: 3.66, hexseth_texting: 5.12, hexseth_were_back: 0.62,
 };
 
 /** On-screen source stamps. Venue and date only; no names of real people. */
@@ -44,6 +48,11 @@ export const SOURCES = {
   harvard: 'UNIVERSITY FIRESIDE CHAT · MAY 2024',
   stargate: 'WHITE HOUSE ANNOUNCEMENT · JAN 2025',
   trailer: 'DOCUMENTARY TRAILER · 2025',
+  interview: 'TV INTERVIEW',
+  earnings: 'EARNINGS CALL · FEB 2025',
+  cnbc: 'CABLE BUSINESS NEWS · NOV 2025',
+  hawaii: 'PRESS GAGGLE · MAR 2025',
+  oval: 'OVAL OFFICE · SEP 2025',
 } as const;
 
 /** A line as said in the game: one or more clips back to back, the subtitle, and its source. */
@@ -58,7 +67,7 @@ export type SigInfo = {
   /** Plays when the move connects. */
   bark?: VoiceId;
   /** The 3D prop the move uses. */
-  prop?: 'sink' | 'chainsaw' | 'gate' | 'pages' | 'box' | 'error' | 'end' | 'ads' | null;
+  prop?: 'sink' | 'chainsaw' | 'gate' | 'pages' | 'box' | 'error' | 'end' | 'ads' | 'strike' | 'chart' | 'earnings' | null;
   sim: Omit<SigDef, 'quote'> & { quote?: number };
 };
 
@@ -79,7 +88,7 @@ export type SuperInfo = {
 export type SidekickInfo = {
   name: string; title: string;
   /** Rigged model (same skeleton as the billionaires) and its scale. */
-  model: 'covfefe' | 'veep' | 'melania'; height: number;
+  model: 'covfefe' | 'veep' | 'melania' | 'pete'; height: number;
   walk: number;
   tagLine: string;
   /** A real clip the sidekick says as it tags in (optional). */
@@ -91,11 +100,11 @@ export type SidekickInfo = {
    */
   banter: { out: string[]; in: string[]; back: string[]; scandal: string[] };
   /** The one Policy Move per tag: a real clip, then the move. Nobody can interrupt it (see match.ts inPolicy). */
-  policy: { name: string; clips: VoiceId[]; text: string; source: string; prop: 'tariff' | 'cats' | 'poster'; sim: Omit<SigDef, 'quote'> };
+  policy: { name: string; clips: VoiceId[]; text: string; source: string; prop: 'tariff' | 'cats' | 'poster' | 'chat'; sim: Omit<SigDef, 'quote'> };
 };
 
 export type FighterInfo = {
-  id: 'tusk' | 'teal' | 'bozo' | 'ultman';
+  id: 'tusk' | 'teal' | 'bozo' | 'ultman' | 'carp';
   name: string; title: string; color: string; accent: string;
   model: string; height: number;
   sigs: [SigInfo, SigInfo, SigInfo];
@@ -419,7 +428,92 @@ export const ULTMAN: FighterInfo = {
   },
 };
 
-export const ROSTER = [TUSK, TEAL, BOZO, ULTMAN] as const;
+export const CARP: FighterInfo = {
+  id: 'carp', name: 'Alex Carp', title: 'Chief Targeting Officer', color: '#2f6fe0', accent: '#9fc0ff',
+  model: '/models/characters/alex.glb', height: 1.0,
+  ego: 'triggered', egoNote: 'Triggered: every hit he takes is someone shorting him, and that is "crazy motivating". Engagement jumps when he gets hit.',
+  stats: { walk: 2.3, jump: 7.6, fitness: 1.05 },
+  win: "I'm going to be dancing around when it's proven wrong.",
+  sigs: [
+    {
+      name: 'On Occasion',
+      line: { clips: ['carp_kill_short'], text: '…scare enemies and on occasion kill them.', source: SOURCES.earnings },
+      prop: 'strike',
+      sim: { id: 'occasion', kind: 'drop', startup: 22, active: 2, recovery: 26, damage: 12, range: 4.5, knockdown: true },
+    },
+    {
+      name: 'Make Them Poorer',
+      line: { clips: ['carp_poorer'], text: '…every time they short us, we just are like tripling down on getting the better numbers, in part, honestly, to make them poorer.', source: SOURCES.cnbc },
+      prop: 'chart',
+      sim: { id: 'poorer', kind: 'melee', startup: 10, active: 24, recovery: 22, damage: 5, hits: 2, range: 2.1, knockdown: true },
+    },
+    {
+      name: 'Earnings Call',
+      line: { clips: ['carp_doing_it', 'carp_crushing'], text: "We're doing it! … Every Palantirian, we are crushing it.", source: SOURCES.earnings },
+      prop: 'earnings',
+      sim: { id: 'earnings', kind: 'melee', startup: 8, active: 30, recovery: 22, damage: 4, hits: 3, range: 2.1, knockdown: true },
+    },
+  ],
+  super: {
+    name: 'LOWER PURPOSE', tag: 'SUPER',
+    audio: [{ clip: 'carp_lower_purpose', at: 0.6 }, { clip: 'carp_urine', at: 5.1 }, { clip: 'carp_urine_tag', at: 13.7 }],
+    subs: [
+      { at: 0.6, to: 2.3, text: 'You need a higher purpose,' },
+      { at: 2.4, to: 4.9, text: 'and I also think you often need a lower purpose.' },
+      { at: 5.1, to: 6.7, text: 'Well, I love the idea' },
+      { at: 6.7, to: 7.9, text: 'of getting a drone' },
+      { at: 7.9, to: 10.6, text: 'and having light fentanyl-laced urine' },
+      { at: 10.6, to: 11.9, text: 'spraying on analysts' },
+      { at: 11.9, to: 13.4, text: 'who tried to screw us.' },
+      { at: 13.7, to: 15.4, text: "So that's my lower purpose." },
+    ],
+    source: SOURCES.interview,
+    seconds: 16.0, drain: [10.7, 13.3],
+    beats: [
+      { at: 0, kind: 'contact' },
+      { at: 0.6, kind: 'title' },
+      { at: 3.4, kind: 'prop' },
+      { at: 7.6, kind: 'insert' },
+      { at: 9.2, kind: 'lock' },
+      { at: 9.5, kind: 'bubble', side: 'vic', text: "I'm just an analyst!" },
+      { at: 10.7, kind: 'spray' },
+      { at: 13.3, kind: 'impact' },
+      { at: 14.4, kind: 'payoff' },
+      { at: 14.7, kind: 'stamp', text: 'PRICE TARGET: DOWNGRADED.' },
+    ],
+  },
+  barks: { taunt: 'carp_batshit', block: 'carp_misunderstand' },
+  sidekick: {
+    name: 'Pete Hexseth', title: 'Secretary of War',
+    model: 'pete', height: 1.05,
+    walk: 2.0,
+    tagLine: 'CONTRACTOR NEEDS A BREATHER',
+    tagVoice: 'hexseth_were_back',
+    banter: {
+      out: [
+        'Ten billion dollars of software. Go earn it.',
+        'Tag. My best customer has arrived.',
+        'You are now the Department of Tagging.',
+        'Lethality is your department now. I need a nap.',
+      ],
+      in: [
+        'Department of War, reporting for duty.',
+        'I renamed the building. I can rename you.',
+        'Maximum lethality. Minimum reading.',
+        'Hold on, adding someone to the chat.',
+      ],
+      back: ['The War Department is back. Briefly.', 'Back to the TV studio.'],
+      scandal: ['Leaks are fake news.', 'Nobody was texting anything.'],
+    },
+    policy: {
+      name: 'Group Chat', prop: 'chat', source: SOURCES.hawaii, clips: ['hexseth_texting'],
+      text: "Nobody was texting war plans, and that's all I have to say about that.",
+      sim: { id: 'chat', kind: 'drop', startup: 22, active: 2, recovery: 28, damage: 10, range: 4.5, knockdown: true },
+    },
+  },
+};
+
+export const ROSTER = [TUSK, TEAL, BOZO, ULTMAN, CARP] as const;
 
 export function simDef(f: FighterInfo): SimDef {
   // A signature goes after a short wind-up; the rest of its line plays over the move. A Policy Move (once per tag)

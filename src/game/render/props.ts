@@ -380,6 +380,176 @@ export function announcementScreen() {
   return g;
 }
 
+/**
+ * Carp's Super: a grey surveillance quadcopter with a yellow tank slung underneath ("LIGHTLY LACED") and a nozzle.
+ * userData.tick(t) spins the rotors and pulses the eye. `nozzle` is the spray origin.
+ */
+export function drone() {
+  const g = new THREE.Group();
+  const grey = new THREE.MeshToonMaterial({ color: '#5b6270' });
+  const dark = new THREE.MeshToonMaterial({ color: '#23272f' });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.22, 0.6), grey); g.add(body);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.24, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), dark); dome.position.y = 0.1; g.add(dome);
+  const rotors: THREE.Object3D[] = [];
+  for (const [x, z] of [[-0.62, -0.42], [0.62, -0.42], [-0.62, 0.42], [0.62, 0.42]]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.06, 0.08), dark);
+    arm.position.set(x / 2, 0.04, z / 2); arm.rotation.y = Math.atan2(-z, x); g.add(arm);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 10), dark); hub.position.set(x, 0.1, z); g.add(hub);
+    const blade = new THREE.Group(); blade.position.set(x, 0.17, z);
+    for (const r of [0, Math.PI / 2]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.015, 0.07), dark); b.rotation.y = r; blade.add(b); }
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(0.33, 24), new THREE.MeshBasicMaterial({ color: '#c9d2e0', transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
+    disc.rotation.x = -Math.PI / 2; blade.add(disc);
+    g.add(blade); rotors.push(blade);
+  }
+  // The tank, with its warning label on both faces.
+  const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.7, 20), new THREE.MeshToonMaterial({ color: '#f2c933' }));
+  tank.rotation.z = Math.PI / 2; tank.position.y = -0.27; g.add(tank);
+  const nozzle = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.22, 12), dark); nozzle.position.set(0, -0.5, 0.05); nozzle.rotation.x = Math.PI; g.add(nozzle);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 12, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff3b30').multiplyScalar(2) }));
+  eye.position.set(0, 0.0, 0.31); g.add(eye);
+  outlined(g, 0.018);
+  const sticker = (z: number, ry: number) => {
+    const m = canvasPlane(0.62, 0.26, 512, (c, W, H) => {
+      c.fillStyle = '#ffe14d'; c.fillRect(0, 0, W, H);
+      c.fillStyle = '#16181c'; c.fillRect(0, 0, W, H * 0.12); c.fillRect(0, H * 0.88, W, H * 0.12);
+      c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `900 ${Math.round(H * 0.36)}px ${DISPLAY_F()}`;
+      c.fillText('LIGHTLY LACED', W / 2, H * 0.42, W * 0.92);
+      c.font = `800 ${Math.round(H * 0.16)}px ${SANS_F()}`; c.fillText('FOR ANALYSTS ONLY', W / 2, H * 0.72, W * 0.9);
+    });
+    m.position.set(0, -0.27, z); m.rotation.y = ry; g.add(m);
+  };
+  sticker(0.205, 0); sticker(-0.205, Math.PI);
+  g.userData.nozzle = nozzle;
+  g.userData.tick = (t: number) => {
+    rotors.forEach((r, i) => { r.rotation.y = t * 40 * (i % 2 ? 1 : -1); });
+    (eye.material as THREE.MeshBasicMaterial).color.setRGB(2 + Math.sin(t * 12) * 0.8, 0.25, 0.2);
+  };
+  return g;
+}
+
+/** A floor reticle with a tag ("ANALYST", "TARGET ACQUIRED"). Its base sits at y = 0. userData.tick(k) closes it in. */
+export function reticle(text: string, color = '#ff3b30') {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(1.6), transparent: true, depthWrite: false, side: THREE.DoubleSide });
+  const outer = new THREE.Mesh(new THREE.RingGeometry(0.85, 0.95, 48), mat); outer.rotation.x = -Math.PI / 2; outer.position.y = 0.04; g.add(outer);
+  const inner = new THREE.Mesh(new THREE.RingGeometry(0.32, 0.38, 36), mat); inner.rotation.x = -Math.PI / 2; inner.position.y = 0.04; g.add(inner);
+  for (let i = 0; i < 4; i++) {
+    const tick = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.07), mat);
+    tick.rotation.x = -Math.PI / 2; tick.rotation.z = (i * Math.PI) / 2;
+    tick.position.set(Math.cos((i * Math.PI) / 2) * 0.62, 0.045, -Math.sin((i * Math.PI) / 2) * 0.62); g.add(tick);
+  }
+  const tag = label(text, color, 0.34); tag.position.y = 2.75; g.add(tag);
+  g.userData.tick = (k: number, t = 0) => {
+    const s = 1.9 - Math.min(1, k) * 0.9;
+    outer.scale.setScalar(s); inner.rotation.z = t * 3; outer.rotation.z = -t * 1.2;
+    mat.opacity = 0.55 + Math.sin(t * 18) * 0.25;
+    tag.material.opacity = Math.min(1, k * 2);
+  };
+  g.userData.tick(0);
+  return g;
+}
+
+/** On Occasion: a cartoon precision munition, nose down. Its tip sits at y = 0, like the gate's base. */
+export function strikeMissile() {
+  const g = new THREE.Group();
+  const white = new THREE.MeshToonMaterial({ color: '#e4e7ec' });
+  const dark = new THREE.MeshToonMaterial({ color: '#2a2f38' });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.5, 20), white); body.position.y = 1.15; g.add(body);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.4, 20), dark); nose.rotation.x = Math.PI; nose.position.y = 0.2; g.add(nose);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.225, 0.12, 20), new THREE.MeshToonMaterial({ color: '#d0342c' })); band.position.y = 0.6; g.add(band);
+  for (let i = 0; i < 4; i++) {
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.36, 0.03), dark);
+    fin.position.set(Math.cos((i * Math.PI) / 2) * 0.3, 1.8, Math.sin((i * Math.PI) / 2) * 0.3); fin.rotation.y = -(i * Math.PI) / 2; g.add(fin);
+  }
+  outlined(g, 0.02);
+  const fire = new THREE.Mesh(new THREE.ConeGeometry(0.2, 1.4, 14, 1, true),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color('#ffb347').multiplyScalar(2), transparent: true, opacity: 0.4, depthWrite: false }));
+  fire.position.y = 2.6; fire.name = 'fire'; g.add(fire);
+  return g;
+}
+
+/**
+ * Make Them Poorer: a trading-floor chart on a stand. userData.tick(k) redraws the short sellers' position crashing
+ * (k 0..1), and the loss counting up.
+ */
+export function shortChart() {
+  const g = new THREE.Group();
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.4, 0.1), new THREE.MeshStandardMaterial({ color: '#0b0d12', metalness: 0.5, roughness: 0.4 }));
+  frame.position.y = 1.5; g.add(frame);
+  const leg = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.8, 0.1), new THREE.MeshToonMaterial({ color: '#23272f' })); leg.position.y = 0.4; g.add(leg);
+  outlined(g, 0.02);
+  const scr = canvasPlane(2.1, 1.3, 768, () => {}, 1.25);
+  scr.position.set(0, 1.5, 0.06); g.add(scr);
+  g.userData.tick = (k: number) => scr.userData.redraw((c: CanvasRenderingContext2D, W: number, H: number) => {
+    c.fillStyle = '#07120f'; c.fillRect(0, 0, W, H);
+    c.strokeStyle = 'rgba(120,255,190,0.12)'; c.lineWidth = 2;
+    for (let i = 1; i < 6; i++) { c.beginPath(); c.moveTo(0, (H * i) / 6); c.lineTo(W, (H * i) / 6); c.stroke(); }
+    c.fillStyle = '#9fffd0'; c.font = `800 ${Math.round(H * 0.08)}px ${SANS_F()}`; c.textAlign = 'left'; c.textBaseline = 'middle';
+    c.fillText('SHORT SELLERS · POSITION', 24, H * 0.09);
+    const n = 40, kk = Math.min(1, k);
+    c.lineWidth = 9; c.lineJoin = 'round'; c.strokeStyle = kk > 0.2 ? '#ff4a3d' : '#3dff9a';
+    c.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const x = 30 + ((W - 60) * i) / n;
+      const wob = Math.sin(i * 1.7) * 0.035;
+      const fall = i / n > 0.45 ? Math.min(1, ((i / n - 0.45) / 0.55) * kk * 1.3) : 0;
+      const y = H * (0.3 + wob + fall * 0.6);
+      if (i) c.lineTo(x, y); else c.moveTo(x, y);
+    }
+    c.stroke();
+    c.fillStyle = '#ff4a3d'; c.font = `900 ${Math.round(H * 0.2)}px ${DISPLAY_F()}`; c.textAlign = 'right';
+    c.fillText(`-$${Math.round(kk * 912)}M`, W - 24, H * 0.24);
+    c.fillStyle = '#ffffff'; c.font = `900 ${Math.round(H * 0.11)}px ${DISPLAY_F()}`; c.textAlign = 'center';
+    if (kk > 0.6) c.fillText('MARGIN CALL', W / 2, H * 0.92);
+  });
+  g.userData.tick(0);
+  return g;
+}
+
+/**
+ * Group Chat: a giant phone showing a secure group chat about the war plans, with the opponent just added to it.
+ * Generic messenger look, no real app branding. Its base sits at y = 0.
+ */
+export function chatPhone() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.5, 2.8, 0.16), new THREE.MeshStandardMaterial({ color: '#15171c', metalness: 0.6, roughness: 0.35 }));
+  body.position.y = 1.45; g.add(body);
+  outlined(g, 0.02);
+  const scr = canvasPlane(1.36, 2.62, 512, (c, W, H) => {
+    c.fillStyle = '#f4f5f8'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#2c6bed'; c.fillRect(0, 0, W, H * 0.12);
+    c.fillStyle = '#fff'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = `800 ${Math.round(H * 0.034)}px ${SANS_F()}`; c.fillText('🔒 WAR PLANS 🇺🇸', W / 2, H * 0.05, W - 30);
+    c.font = `600 ${Math.round(H * 0.022)}px ${SANS_F()}`; c.fillText('18 members', W / 2, H * 0.09);
+    const bub = (y: number, mine: boolean, text: string, col = mine ? '#2c6bed' : '#e2e5ec') => {
+      c.font = `600 ${Math.round(H * 0.03)}px ${SANS_F()}`;
+      const w = Math.min(W * 0.78, c.measureText(text).width + 40);
+      const x = mine ? W - w - 20 : 20;
+      c.fillStyle = col; roundRect(c, x, y, w, H * 0.06, 22); c.fill();
+      c.fillStyle = mine ? '#fff' : '#16181c'; c.textAlign = 'left'; c.fillText(text, x + 20, y + H * 0.031, w - 36);
+    };
+    bub(H * 0.16, false, 'Weather is FAVORABLE');
+    bub(H * 0.24, true, 'Strike at 1215 🇺🇸');
+    bub(H * 0.32, false, 'Typed up the plan below');
+    bub(H * 0.4, true, '👊🇺🇸🔥');
+    c.fillStyle = '#ff3b30'; c.textAlign = 'center'; c.font = `900 ${Math.round(H * 0.05)}px ${DISPLAY_F()}`;
+    c.fillText('YOU WERE ADDED', W / 2, H * 0.57, W - 30);
+    c.fillStyle = '#6b7280'; c.font = `600 ${Math.round(H * 0.024)}px ${SANS_F()}`; c.fillText('by Pete Hexseth', W / 2, H * 0.62);
+    bub(H * 0.68, true, 'Nobody was texting war plans');
+    c.fillStyle = '#e2e5ec'; roundRect(c, 20, H * 0.9, W - 40, H * 0.06, 26); c.fill();
+    c.fillStyle = '#9aa0ab'; c.textAlign = 'left'; c.font = `600 ${Math.round(H * 0.026)}px ${SANS_F()}`; c.fillText('Message', 50, H * 0.93);
+  }, 1.05);
+  scr.position.set(0, 1.45, 0.085); g.add(scr);
+  return g;
+}
+
+/** A glowing yellow droplet for the drone's spray. */
+export function sprayDrop() {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ color: new THREE.Color('#ffd83a').multiplyScalar(1.6), transparent: true, depthWrite: false }));
+  s.scale.setScalar(0.12);
+  return s;
+}
+
 /** Clones of the Blender props, cel-shaded and outlined. */
 export function modelProp(assets: Assets, which: 'sink' | 'chainsaw' | 'ball') {
   const o = assets.props[which].clone(true);

@@ -428,6 +428,8 @@ function feedback(m: Match, defs: Defs) {
     if (e.t !== 'hit') continue;
     const v = (1 - e.by) as 0 | 1;
     if (defs[v].ego === 'customer' && m.f[v].tag <= 0) addEng(m, v, 2);
+    // Carp: every hit is a short seller, and short sellers are crazy motivating.
+    if (defs[v].ego === 'triggered' && m.f[v].tag <= 0) addEng(m, v, 3);
   }
 }
 
