@@ -44,7 +44,7 @@ export type FState =
   | 'knockdown' | 'getup' | 'winded' | 'dodge' | 'quote' | 'sig'
   | 'superStart' | 'ko' | 'win';
 
-export type Ego = 'needy' | 'contrarian' | 'customer' | 'hype' | 'triggered';
+export type Ego = 'needy' | 'contrarian' | 'customer' | 'hype' | 'triggered' | 'marketcap' | 'harvest';
 
 /** The stats the simulation needs about a fighter. Looks and lines live in data/. */
 export type SimDef = {

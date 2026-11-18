@@ -25,6 +25,10 @@ const VOICE_FILES: VoiceId[] = [
   'melania_here_we_go', 'melania_here_it_is',
   'carp_lower_purpose', 'carp_urine', 'carp_urine_tag', 'carp_kill_short', 'carp_poorer', 'carp_doing_it', 'carp_crushing',
   'carp_batshit', 'carp_misunderstand', 'hexseth_texting', 'hexseth_were_back',
+  'jensen_more_buy', 'jensen_common_sense', 'jensen_ceo_math', 'jensen_pain', 'jensen_pain_short', 'jensen_howard',
+  'lootnick_say_no', 'lootnick_fourth_best', 'lootnick_addicted',
+  'mork_run_ads', 'mork_masculine', 'mork_beat', 'mork_ribs', 'mork_ribs_short', 'mork_neutered',
+  'mork_roadmap', 'mork_legs_full', 'mork_legs_hard', 'wite_animal', 'wite_nine_to_six', 'wite_why_here',
 ];
 
 /** Recorded one-shot effects in /public/audio/sfx. */
@@ -241,10 +245,48 @@ function crowdSwell(dir: number) {
   }
 }
 
-/** Placeholder music bed: a low pulse and a slow minor pad. Replaced by recorded tracks later. */
-export function startBed() {
-  if (!ctx || !bedBus || bed) return;
-  const c = ctx, out = bedBus;
+// ---------- music
+// Three cues, all synthesized until recorded tracks replace them:
+//   title  - a stately opening theme for the menus (strings, a slow rising melody, soft timpani)
+//   fight  - the low pulse under the fight
+//   paper  - after the final knockout, under the newspaper: a dignified broadcast anthem (brass, timpani, strings)
+// Only one plays at a time; switching fades the old one out.
+
+export type Music = 'title' | 'fight' | 'paper';
+let bedKind: Music | null = null;
+
+const hz = (n: number) => 440 * 2 ** ((n - 69) / 12);
+
+/** Start a cue (no-op if it is already playing). Needs the audio unlocked by a click first. */
+export function playMusic(kind: Music) {
+  if (!ctx || !bedBus) return;
+  if (bed && bedKind === kind) return;
+  bed?.stop();
+  const c = ctx, out = c.createGain();
+  out.gain.setValueAtTime(0.0001, c.currentTime);
+  out.gain.exponentialRampToValueAtTime(1, c.currentTime + (kind === 'fight' ? 0.3 : 1.2));
+  out.connect(bedBus);
+  const inner = kind === 'fight' ? fightBed(c, out) : song(c, out, kind === 'title' ? TITLE : PAPER);
+  bedKind = kind;
+  const me = {
+    stop() {
+      inner.stop();
+      const t = c.currentTime;
+      out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(Math.max(0.0001, out.gain.value), t);
+      out.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      window.setTimeout(() => out.disconnect(), 1200);
+      if (bed === me) { bed = null; bedKind = null; }
+    },
+  };
+  bed = me;
+}
+
+export function stopMusic() { bed?.stop(); }
+/** The fight's music (kept under its old name for the game loop). */
+export function startBed() { playMusic('fight'); }
+export function stopBed() { if (bedKind === 'fight') bed?.stop(); }
+
+function fightBed(c: AudioContext, out: AudioNode) {
   const chords = [[55, 65.4, 82.4], [49, 58.3, 73.4], [43.7, 52, 65.4], [49, 61.7, 73.4]];
   const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.connect(out);
   const pad = c.createGain(); pad.gain.value = 0.05; pad.connect(lp);
@@ -271,7 +313,139 @@ export function startBed() {
     step++;
   };
   const iv = window.setInterval(tick, (beat / 2) * 1000);
-  bed = { stop() { alive = false; window.clearInterval(iv); oscs.forEach((o) => { try { o.stop(); } catch { /* */ } }); lp.disconnect(); bed = null; } };
+  return { stop() { alive = false; window.clearInterval(iv); const t = c.currentTime + 1; oscs.forEach((o) => { try { o.stop(t); } catch { /* */ } }); } };
 }
 
-export function stopBed() { bed?.stop(); }
+/** A looping piece: one chord per bar (bass + triad, MIDI numbers) and a melody of [note, beats] (0 = rest). */
+type Song = {
+  bpm: number;
+  chords: number[][];
+  melody: [number, number][][];
+  lead: 'strings' | 'brass';
+  /** Brass chord hits on these beats of each bar (with their length in beats). */
+  stabs: [number, number][];
+  /** Timpani on these beats: [beat, volume, 'root' | 'fifth']. */
+  timp: [number, number, 'root' | 'fifth'][];
+  /** A timpani roll into the top of the loop, and one to open the piece. */
+  roll: boolean;
+  intro?: boolean;
+};
+
+// Opening theme: D major, unhurried. Warm and grand, not loud.
+const TITLE: Song = {
+  bpm: 68, lead: 'strings', roll: true,
+  chords: [[50, 62, 66, 69], [47, 59, 62, 66], [43, 59, 62, 67], [45, 61, 64, 69], [50, 62, 66, 69], [43, 59, 62, 67], [40, 59, 64, 67], [45, 61, 64, 69]],
+  melody: [
+    [[74, 2], [76, 1], [78, 1]], [[78, 2], [76, 1], [74, 1]], [[71, 2], [74, 1], [79, 1]], [[76, 4]],
+    [[74, 2], [78, 1], [81, 1]], [[79, 3], [78, 1]], [[76, 2], [79, 1], [78, 1]], [[76, 2], [73, 2]],
+  ],
+  stabs: [],
+  timp: [[0, 0.22, 'root']],
+};
+
+// Newspaper anthem: D minor turning to B-flat and F. Brass on the downbeats, timpani underneath: the state broadcast.
+const PAPER: Song = {
+  bpm: 74, lead: 'brass', roll: true, intro: true,
+  chords: [[38, 62, 65, 69], [46, 62, 65, 70], [41, 60, 65, 69], [48, 60, 64, 67], [38, 62, 65, 69], [46, 62, 65, 70], [43, 62, 67, 70], [45, 61, 64, 69]],
+  melody: [
+    [[69, 3], [70, 0.5], [69, 0.5]], [[74, 2], [72, 1], [70, 1]], [[69, 2], [65, 1], [69, 1]], [[67, 4]],
+    [[69, 2], [74, 1], [77, 1]], [[77, 2], [74, 1], [70, 1]], [[74, 2], [70, 1], [67, 1]], [[69, 3], [0, 1]],
+  ],
+  stabs: [[0, 1.5], [2, 1]],
+  timp: [[0, 0.5, 'root'], [2, 0.28, 'fifth']],
+};
+
+function song(c: AudioContext, out: AudioNode, sg: Song) {
+  const beat = 60 / sg.bpm, bar = beat * 4;
+  const rev = c.createGain(); rev.gain.value = 0.35; rev.connect(out); if (verb) out.connect(verb);
+  const srcs = new Set<AudioScheduledSourceNode>();
+  const keep = (o: AudioScheduledSourceNode) => { srcs.add(o); o.onended = () => srcs.delete(o); };
+
+  // Strings: two detuned saws per note through a soft low-pass, slow swell.
+  const strings = (n: number, t: number, dur: number, vol: number, cut = 1600) => {
+    const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; f.Q.value = 0.4;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.7, dur * 0.4));
+    g.gain.setValueAtTime(vol, t + dur * 0.8); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.6);
+    f.connect(g).connect(out);
+    for (const d of [-8, 8]) { const o = c.createOscillator(); o.type = 'sawtooth'; o.frequency.value = hz(n); o.detune.value = d; o.connect(f); o.start(t); o.stop(t + dur + 0.7); keep(o); }
+  };
+  // Brass: saws through a filter that opens on the attack (the "blat"), then settles.
+  const brass = (n: number, t: number, dur: number, vol: number) => {
+    const f = c.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 1.2;
+    f.frequency.setValueAtTime(350, t); f.frequency.exponentialRampToValueAtTime(2600, t + 0.08); f.frequency.exponentialRampToValueAtTime(1300, t + 0.4);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.05);
+    g.gain.setValueAtTime(vol * 0.8, t + dur * 0.85); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.25);
+    f.connect(g).connect(out);
+    for (const [type, d] of [['sawtooth', -5], ['sawtooth', 5], ['square', 0]] as const) {
+      const o = c.createOscillator(); o.type = type; o.frequency.value = hz(n); o.detune.value = d; o.connect(f); o.start(t); o.stop(t + dur + 0.3); keep(o);
+    }
+  };
+  // Lead line: violins (with vibrato) on the title, a trumpet-like brass on the anthem.
+  const lead = (n: number, t: number, dur: number) => {
+    if (sg.lead === 'brass') { brass(n, t, dur * 0.95, 0.07); brass(n - 12, t, dur * 0.95, 0.035); return; }
+    const g = c.createGain(), f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2400;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.06, t + 0.18);
+    g.gain.setValueAtTime(0.055, t + dur * 0.85); g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.35);
+    f.connect(g).connect(out); g.connect(rev);
+    const lfo = c.createOscillator(), depth = c.createGain(); lfo.frequency.value = 5.2; depth.gain.value = 9;
+    lfo.connect(depth); lfo.start(t + 0.25); lfo.stop(t + dur + 0.4); keep(lfo);
+    for (const [type, d] of [['sawtooth', -6], ['sawtooth', 6], ['triangle', 0]] as const) {
+      const o = c.createOscillator(); o.type = type; o.frequency.value = hz(n); o.detune.value = d; depth.connect(o.detune);
+      o.connect(f); o.start(t); o.stop(t + dur + 0.4); keep(o);
+    }
+  };
+  // Timpani: a tuned sine with a slight pitch drop, plus a felt-mallet thump.
+  const timp = (n: number, t: number, vol: number) => {
+    const o = c.createOscillator(), g = c.createGain();
+    o.frequency.setValueAtTime(hz(n) * 1.04, t); o.frequency.exponentialRampToValueAtTime(hz(n), t + 0.12);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    o.connect(g).connect(out); o.start(t); o.stop(t + 1.7); keep(o);
+    if (noise) {
+      const s = c.createBufferSource(), f = c.createBiquadFilter(), ng = c.createGain();
+      s.buffer = noise; f.type = 'lowpass'; f.frequency.value = 500;
+      ng.gain.setValueAtTime(0.0001, t); ng.gain.exponentialRampToValueAtTime(vol * 0.5, t + 0.004); ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      s.connect(f).connect(ng).connect(out); s.start(t, Math.random()); s.stop(t + 0.2); keep(s);
+    }
+  };
+  const roll = (n: number, t: number, dur: number, peak: number) => {
+    const hits = Math.floor(dur * 14);
+    for (let i = 0; i < hits; i++) timp(n, t + i / 14, 0.04 + (peak - 0.04) * (i / hits) ** 1.5);
+  };
+
+  const timpNote = (ch: number[], which: 'root' | 'fifth') => {
+    const r = ch[0] % 12 + 36; // keep the drums low (C2..B2)
+    return which === 'root' ? (r > 43 ? r - 12 : r) : (r + 7 > 45 ? r - 5 : r + 7);
+  };
+
+  // Schedule a bar at a time, a little ahead of the clock.
+  let t0 = c.currentTime + 0.15, i = 0, alive = true;
+  if (sg.intro) { roll(38, t0, beat * 3, 0.5); t0 += beat * 3; }
+  const playBar = (k: number, t: number) => {
+    const ch = sg.chords[k % sg.chords.length];
+    strings(ch[0] - 12, t, bar, 0.05, 500);  // basses
+    strings(ch[0], t, bar, 0.035, 700);      // cellos
+    for (const n of ch.slice(1)) strings(n, t, bar, 0.022);
+    for (const [b, len] of sg.stabs) for (const n of ch.slice(1)) brass(n - 12, t + b * beat, len * beat, 0.03);
+    for (const [b, v, w] of sg.timp) timp(timpNote(ch, w), t + b * beat, v);
+    let at = t;
+    for (const [n, beats] of sg.melody[k % sg.melody.length]) { if (n) lead(n, at, beats * beat); at += beats * beat; }
+    if (sg.roll && k % sg.chords.length === sg.chords.length - 1) roll(timpNote(sg.chords[0], 'root'), t + beat * 3, beat, 0.4);
+  };
+  const tick = () => {
+    if (!alive) return;
+    while (t0 < c.currentTime + bar * 0.75) { playBar(i++, t0); t0 += bar; }
+  };
+  tick();
+  const iv = window.setInterval(tick, 250);
+  return {
+    stop() {
+      alive = false; window.clearInterval(iv);
+      // Let what is sounding fade with the cue; drop anything scheduled for later.
+      const t = c.currentTime;
+      for (const s of srcs) { try { s.stop(t + 1); } catch { /* */ } }
+      window.setTimeout(() => { rev.disconnect(); try { out.disconnect(verb!); } catch { /* */ } }, 1300);
+    },
+  };
+}

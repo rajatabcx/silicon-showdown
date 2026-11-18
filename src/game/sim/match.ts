@@ -430,6 +430,11 @@ function feedback(m: Match, defs: Defs) {
     if (defs[v].ego === 'customer' && m.f[v].tag <= 0) addEng(m, v, 2);
     // Carp: every hit is a short seller, and short sellers are crazy motivating.
     if (defs[v].ego === 'triggered' && m.f[v].tag <= 0) addEng(m, v, 3);
+    // Jensen: his hits pump the stock; a heavy hit on him is bad news and it tanks.
+    if (defs[e.by].ego === 'marketcap' && m.f[e.by].tag <= 0) addEng(m, e.by, 2);
+    if (defs[v].ego === 'marketcap' && m.f[v].tag <= 0 && e.heavy) addEng(m, v, -6);
+    // Mork: every hit he lands harvests the opponent's Engagement.
+    if (defs[e.by].ego === 'harvest' && m.f[e.by].tag <= 0) { addEng(m, v, -2.5); addEng(m, e.by, 1); }
   }
 }
 
@@ -573,14 +578,19 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   }
 }
 
+/** Someone on the floor (or getting up) has no body to push: you walk past them instead of dragging them along. */
+const grounded = (f: Fighter) => f.state === 'ko' || f.state === 'knockdown' || f.state === 'getup';
+/** The most a fighter is pushed per frame. Walking into someone is well under this; standing up inside them eases apart. */
+const PUSH_MAX = 0.05;
+
 function separate(m: Match) {
   const [a, b] = m.f;
-  if (a.y < 0.6 && b.y < 0.6 && a.state !== 'ko' && b.state !== 'ko') {
+  if (a.y < 0.6 && b.y < 0.6 && !grounded(a) && !grounded(b)) {
     const dx = b.x - a.x;
     const overlap = BODY_WIDTH - Math.abs(dx);
     if (overlap > 0) {
-      const s = dx >= 0 ? 1 : -1;
-      a.x -= (s * overlap) / 2; b.x += (s * overlap) / 2;
+      const s = dx >= 0 ? 1 : -1, push = Math.min(overlap / 2, PUSH_MAX);
+      a.x -= s * push; b.x += s * push;
     }
   }
   for (const f of m.f) f.x = clampX(f.x);

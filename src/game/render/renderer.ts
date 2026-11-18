@@ -12,8 +12,9 @@ import type { Ev, Match, Projectile, SimDef } from '../sim/types';
 import type { Assets } from './assets';
 import { FighterView, hipsRest } from './character';
 import {
-  adPanel, announcementScreen, bill, chatPhone, drone, errorCard, gate, label, meteor, modelProp, moviePoster, page, parcel, postCard,
-  reticle, rocket, shortChart, sprayDrop, strikeMissile, talkShowSet, tickerScreen, typingDots,
+  adCard, adPanel, announcementScreen, bill, chatPhone, crashArrow, crashScreen, drone, errorCard, exportStamp, gate, gpuCard, label,
+  legsSign, meteor, modelProp, moviePoster, octagonCage, page, parcel, postCard, reticle, rocket, sauceBottle, shortChart, sprayDrop,
+  strikeMissile, talkShowSet, tickerScreen, typingDots, vrVoid,
 } from './props';
 import { catSprite, tariffStamp } from './sidekick';
 import { Stage, type Mood } from './stage';
@@ -26,6 +27,16 @@ const DROPS: Record<string, { make: () => THREE.Object3D; text: string; color: s
   poster: { make: moviePoster, text: 'NOW STREAMING', color: '#f2d27a', labelY: 3.0 },
   occasion: { make: strikeMissile, text: 'ON OCCASION', color: '#ff6b5e', labelY: 3.4 },
   chat: { make: chatPhone, text: 'YOU WERE ADDED', color: '#8fb8ff', labelY: 3.3 },
+  export: { make: exportStamp, text: 'FOURTH BEST', color: '#8be04a', labelY: 2.3 },
+  octagon: { make: octagonCage, text: 'BOARD MEETING · 9 TO 6', color: '#ff6b6b', labelY: 3.3 },
+};
+
+/** Signatures whose hits each throw up a word over the opponent's head: the words, and their colours. */
+const WORDS: Record<string, [string[], string[]]> = {
+  earnings: [["WE'RE DOING IT!", 'RULE OF 114', '+121% GROWTH'], ['#7dffb5', '#9fc0ff', '#7dffb5']],
+  ceomath: [['−9,000%', '+$5 TRILLION'], ['#ff6b6b', '#8be04a']],
+  pain: [['PAIN', 'SUFFERING', 'GREATNESS'], ['#ff6b6b', '#ff9b6a', '#c8f56a']],
+  energy: [['MASCULINE ENERGY', '+AGGRESSION'], ['#9cc6ff', '#ffd34d']],
 };
 
 const GradeShader = {
@@ -228,7 +239,7 @@ export class Renderer {
           this.gates.push({ g, life: 0, land: sigAt(this.sides[e.by].def, e.sig).startup / FPS, x: f.dropX, by: e.by });
         }
         if (id === 'heart') { const p = v.bonePos('chest'); p.z += 0.3; this.spark(p, 0.8, '#ff8f8f', 0.2); }
-        if (id === 'ads' || id === 'guarantee' || id === 'dayone' || id === 'occasion' || id === 'poorer' || id === 'earnings') this.startSigFx(e.by, id, m);
+        if (['ads', 'guarantee', 'dayone', 'occasion', 'poorer', 'ribs'].includes(id) || WORDS[id]) this.startSigFx(e.by, id, m);
         this.kick(0.05, 0, 0.3);
         break;
       }
@@ -319,6 +330,8 @@ export class Renderer {
         else if (id === 'cats') o = catSprite();
         else if (id === 'paid') o = parcel();
         else if (id === 'wrong') o = errorCard();
+        else if (id === 'gpus') { o = gpuCard(0.8); o.add(label('BUY MORE', '#c8f56a', 0.22).translateY(0.35)); }
+        else if (id === 'runads') o = adCard();
         else o = page();
         o.userData.id = id;
         this.fx.add(o); this.projViews.set(p, o);
@@ -327,7 +340,8 @@ export class Renderer {
       if (o.userData.id === 'sink') { o.rotation.z -= dt * 9 * Math.sign(p.vx); }
       else if (o.userData.id === 'cats') { (o as THREE.Sprite).material.rotation += dt * 8 * -Math.sign(p.vx); }
       else if (o.userData.id === 'paid') { o.rotation.z -= dt * 6 * Math.sign(p.vx); o.rotation.y += dt * 2; }
-      else if (o.userData.id === 'wrong') { o.rotation.y = Math.sin(this.t * 9) * 0.5; o.rotation.z -= dt * 10 * Math.sign(p.vx); }
+      else if (o.userData.id === 'wrong' || o.userData.id === 'runads') { o.rotation.y = Math.sin(this.t * 9) * 0.5; o.rotation.z -= dt * 10 * Math.sign(p.vx); }
+      else if (o.userData.id === 'gpus') { o.rotation.z = Math.sin(this.t * 12) * 0.15; (o.userData.tick as (t: number) => void)(this.t); }
       else { o.rotation.y += dt * 14; o.rotation.z = Math.sin(this.t * 20) * 0.3; }
     }
   }
@@ -362,11 +376,17 @@ export class Renderer {
     } else if (id === 'poorer') {
       // The short sellers' position, on a trading screen behind the opponent; it crashes with each hit.
       const c = shortChart(); g.add(c); parts.push(c);
-    } else if (id === 'earnings') {
-      // Each hit of the flurry is a line from the earnings call.
-      ["WE'RE DOING IT!", 'RULE OF 114', '+121% GROWTH'].forEach((t, i) => {
-        const l = label(t, i === 1 ? '#9fc0ff' : '#7dffb5', 0.42); l.userData.i = i; l.visible = false; g.add(l); parts.push(l);
+    } else if (WORDS[id]) {
+      // Each hit of the flurry throws up a word: the earnings call, Jensen's wrong numbers, the blessing, the energy.
+      const [ws, cs] = WORDS[id];
+      ws.forEach((t, i) => {
+        // Long words come out smaller so they stay over the opponent.
+        const l = label(t, cs[i], 0.42 * Math.min(1, 11 / t.length)); l.userData.i = i; l.visible = false; g.add(l); parts.push(l);
       });
+    } else if (id === 'ribs') {
+      // The sauce bottle in his hand for the sweep, and the verdict over the opponent.
+      const b = sauceBottle(); g.add(b); parts.push(b);
+      const l = label('ON THE RIBS', '#ff9b6a', 0.5); l.visible = false; g.add(l); parts.push(l);
     }
     void m;
     this.fx.add(g);
@@ -421,16 +441,25 @@ export class Renderer {
         c.position.set(o.x + away * 1.2, -2.6 * (1 - rise) * (1 - rise) - fx.out * 6, -1.1);
         c.rotation.y = -away * 0.35;
         (c.userData.tick as (k: number) => void)(clamp01((af - sg.startup) / sg.active));
-      } else if (fx.id === 'earnings') {
+      } else if (WORDS[fx.id]) {
         const h = this.part(1 - by, 'head', m);
         for (const p of fx.parts) {
           const i = p.userData.i as number, age = af - sg.startup - i * per;
           const l = p as THREE.Sprite;
           l.visible = age >= 0 && age < 26;
           const k = clamp01(age / 26);
-          l.position.set(h.x + (i - 1) * 0.55, h.y + 0.55 + k * 0.7, h.z + 0.3);
+          l.position.set(h.x + (i - (fx.parts.length - 1) / 2) * 0.55, h.y + 0.55 + k * 0.7, h.z + 0.3);
           l.material.opacity = Math.min(1, (1 - k) * 2) * (1 - fx.out * 2);
         }
+      } else if (fx.id === 'ribs') {
+        const [b, l] = fx.parts as [THREE.Object3D, THREE.Sprite];
+        b.position.copy(this.part(by, 'rhand', m)); b.rotation.z = -f.facing * (0.6 + clamp01(af / sg.startup) * 1.4);
+        b.visible = fx.out < 0.2;
+        const age = af - sg.startup, h = this.part(1 - by, 'head', m);
+        l.visible = age >= 0 && age < 34;
+        const k = clamp01(age / 34);
+        l.position.set(h.x, h.y + 0.5 + k * 0.6, h.z + 0.3);
+        l.material.opacity = Math.min(1, (1 - k) * 2) * (1 - fx.out * 2);
       }
     }
   }
@@ -493,6 +522,7 @@ export class Renderer {
       if (k >= 1 && !g.g.userData.landed) {
         g.g.userData.landed = true;
         const fire = g.g.getObjectByName('fire'); if (fire) fire.visible = false;
+        (g.g.userData.flip as (() => void) | undefined)?.();
         this.ring(g.x, '#ffd34d'); this.kick(0.35, 0.05, 0.4);
         this.burst(new THREE.Vector3(g.x, 0.2, 0.3), 10, '#ffe2a0', 6);
       }
@@ -731,7 +761,7 @@ class CineState {
     this.blur = 0;
     av.roleSpeed = 1; vv.roleSpeed = 1;
     const id = av.info.id;
-    const script = { tusk: this.tusk, teal: this.teal, bozo: this.bozo, ultman: this.ultman, carp: this.carp }[id];
+    const script = { tusk: this.tusk, teal: this.teal, bozo: this.bozo, ultman: this.ultman, carp: this.carp, jensen: this.jensen, mork: this.mork }[id];
     const b = script.call(this, r, atk.x, vic.x, dir, this.t, av, vv);
     const cut = b.name !== this.beat;
     this.beat = b.name;
@@ -1209,10 +1239,201 @@ class CineState {
     return { name: 'payoff', shot: { pos: V(head.x + dir * (1.1 + k * 0.6), head.y + 0.1, 2.6 + k * 1.2), look: V(head.x - dir * 0.2, head.y + 0.1, 0), fov: 34 } };
   }
 
-  dispose(fx: THREE.Object3D) { for (const p of this.props) fx.remove(p); }
+  /**
+   * TRILLION-DOLLAR AFFAIR. "This is like common sense": a market screen drops in behind them and climbs while GPUs
+   * rain on the opponent ("the more GPUs you buy, the more money you save"). Then the news breaks on the ticker, the
+   * chart turns and crashes, and its last leg, a giant red arrow, comes down on the opponent. "I wish upon you plenty of
+   * pain and suffering": tight on him, the jacket, the shrug.
+   */
+  private jensen(r: Renderer, ax: number, vx: number, dir: number, t: number, av: FighterView, vv: FighterView): Beat {
+    const st = r.stageRef();
+    const mid = (ax + vx) / 2;
+    if (t < 0.6) return this.contact(ax, vx, dir, t, av, vv);
+    const scr = this.objs.screen;
+    if (scr) {
+      const k = t < 10.2 ? clamp01((t - 2.6) / 5.4) * 0.5 : 0.5 + clamp01((t - 10.2) / 1.6) * 0.5;
+      (scr.userData.tick as (k: number, t: number) => void)(k, Math.max(0, t - 8.2));
+    }
+    // The GPU rain, through the pitch.
+    if (t > 3.0 && t < 8.6) {
+      const gpus = this.rain(r, 'gpus', 34, () => gpuCard(0.9));
+      gpus.children.forEach((o, i) => {
+        const cyc = ((t - 3.0) * 0.5 + o.userData.d) % 1;
+        o.visible = t < 7.6 || cyc > 0.5;
+        o.position.set(vx + o.userData.rx * 1.5 + Math.sin(t * 2 + i) * 0.15, 6.5 * (1 - cyc), o.userData.rz * 0.8);
+        o.rotation.set(Math.sin(t * 3 + i) * 1.1, t * 1.4 + i, Math.cos(t * 2.2 + i) * 0.9);
+        (o.userData.tick as (t: number) => void)(r.now());
+      });
+    } else if (this.objs.gpus) this.objs.gpus.visible = false;
+    // The arrow: falls from 10.2 s and lands on the opponent at 11.8 s.
+    if (t > 10.2 && !this.objs.arrow) { const a = crashArrow(); this.add(r, 'arrow', a); }
+    const arrow = this.objs.arrow;
+    if (arrow) {
+      const k = clamp01((t - 10.2) / 1.6);
+      arrow.position.set(vx, 9 * (1 - k) * (1 - k), 0.1);
+      if (t > 12.6) arrow.position.y = -((t - 12.6) ** 2) * 6;
+    }
+
+    if (t < 2.6) {
+      av.role = 'talk'; vv.role = 'fight';
+      if (this.once('dark')) st.setMood('dark');
+      const k = (t - 0.6) / 2.0, head = av.bonePos('head');
+      return { name: 'title', shot: { pos: V(ax + dir * (2.1 - k * 0.5), 0.9 + k * 0.1, 2.8 - k * 0.2), look: V(ax, head.y - 0.1, 0), fov: 34 } };
+    }
+    if (t < 3.6) {
+      if (this.once('screen')) {
+        st.setMood('normal');
+        const s = crashScreen(); s.position.set(mid, 9, -2.8); this.add(r, 'screen', s);
+      }
+      const k = Math.min(1, (t - 2.6) / 0.5);
+      this.objs.screen.position.y = 3.4 + (9 - 3.4) * (1 - k) * (1 - k);
+      if (k >= 1 && this.once('screenLand')) { r.fxKick(0.3, 0.05, 0.4); st.cheer(1); }
+      av.role = 'talk'; vv.role = 'fight';
+      return { name: 'prop', shot: { pos: V(mid, 2.4, 10), look: V(mid, 2.3, -1), fov: 32 } };
+    }
+    if (t < 8.2) {
+      // The pitch: over his shoulder at the climbing chart, then the opponent under the GPUs.
+      av.role = 'talk'; vv.role = 'reel'; vv.roleSpeed = 0.35;
+      const k = (t - 3.6) / 4.6;
+      if (t < 5.6) return { name: 'insert', shot: { pos: V(ax - dir * (1.2 - k * 0.3), 1.9, 3.2), look: V(mid + dir * 0.4, 2.7, -2.8), fov: 40 } };
+      return { name: 'buried', shot: { pos: V(vx + Math.sin(k * 2) * 1.2, 1.3, 4.4 - k * 0.6), look: V(vx, 1.4, 0), fov: 38 } };
+    }
+    if (t < 10.2) {
+      // The news breaks. Tight on the ticker, then the opponent looking up at it.
+      if (this.once('news')) { scr.userData.news = true; st.setMood('red'); r.fxKick(0.25, 0.2, 0.5); }
+      av.role = 'shrug'; vv.role = 'reel'; vv.roleSpeed = 0.3;
+      if (t < 9.3) return { name: 'news', shot: { pos: V(mid, 3.0, 4.6), look: V(mid, 3.1, -2.8), fov: 40 } };
+      return { name: 'lookup', shot: { pos: V(vx + dir * 1.3, 0.35, 3.3), look: V(vx - dir * 0.1, 2.4, 0), fov: 52 } };
+    }
+    if (t < 12.0) {
+      // The crash: slow motion, the arrow coming down, the frame drained of colour.
+      av.role = 'shrug'; vv.role = 'reel'; vv.roleSpeed = 0.25;
+      this.sat = 0.45; this.blur = 0.4;
+      if (t > 11.8 && this.once('land')) { r.fxKick(0.5, 0.2, 0.6); r.fxRing(vx, '#ff4a3d'); }
+      if (t < 11.0) return { name: 'crash', shot: { pos: V(mid, 2.0, 7.8), look: V(mid, 2.4, -0.5), fov: 36 } };
+      return { name: 'under', shot: { pos: V(vx - dir * 2.0, 0.4, 3.6), look: V(vx, 2.0, 0), fov: 50 } };
+    }
+    this.sat = 1;
+    if (this.once('boom')) {
+      st.setMood('normal');
+      const p = V(vx, 1.2, 0.3);
+      r.fxSpark(p, 4, '#ffffff', 0.3); r.fxBurst(p, 28, '#ff4a3d', 12); r.fxRing(vx, '#ff4a3d'); r.fxKick(0.9, 0.5, 1.0, 0.02);
+      vv.hitFlash(1); st.cheer(2);
+    }
+    const fall = (t - 12.0) / 1.0;
+    if (t < 13.0) { av.role = 'pump'; return { name: 'impact', shot: this.blow(vx, dir, fall, vv, 0.9) }; }
+    if (fall < 1) this.blow(vx, dir, fall, vv, 0.9); else vv.role = 'down';
+    this.blur = 0;
+    // "I wish upon you plenty of pain and suffering." Tight on him, the ticker still running behind.
+    av.role = 'shrug';
+    const head = av.bonePos('head'), k = (t - 13.0) / 2.6;
+    return { name: 'payoff', shot: { pos: V(head.x + dir * (1.1 + k * 0.6), head.y + 0.1, 2.6 + k * 1.2), look: V(head.x - dir * 0.2, head.y + 0.1, 0), fov: 34 } };
+  }
+
+  /** Puts the victim's legs back, and the room (Metaverse Exile hides both). */
+  private restore: (() => void) | null = null;
+  private unroom: (() => void) | null = null;
+
+  /**
+   * METAVERSE EXILE. "One more feature coming soon…": the room drops away into a low-poly VR void, a neon grid and a
+   * wire dome. The opponent is an avatar now, floating with no legs. "…the most requested feature on our roadmap. Legs."
+   * A sign floats in: LEGS · COMING SOON. "Legs! I know you've been waiting for this.": he throws them out of the void,
+   * spinning, and they land back in the hearing room. "But seriously, legs are hard": tight on him, deadpan.
+   */
+  private mork(r: Renderer, ax: number, vx: number, dir: number, t: number, av: FighterView, vv: FighterView): Beat {
+    const st = r.stageRef();
+    const mid = (ax + vx) / 2;
+    if (t < 0.6) return this.contact(ax, vx, dir, t, av, vv);
+    const inVoid = t > 2.8 && t < 11.6;
+    if (inVoid && !this.objs.void) { this.add(r, 'void', vrVoid()); r.fxKick(0.3, 0.6, 0.8, 0.015); }
+    if (this.objs.void) {
+      this.objs.void.visible = inVoid;
+      st.setRoom(!inVoid);
+      if (!this.unroom) this.unroom = () => st.setRoom(true);
+      (this.objs.void.userData.tick as (t: number) => void)(r.now());
+    }
+    this.tint = inVoid ? CYAN : null;
+    // No legs in the metaverse: the leg bones are folded away to nothing while they're in it.
+    const legless = t > 4.4 && t < 11.6;
+    if (legless) {
+      if (!this.restore) {
+        const bones = ['mixamorigLeftUpLeg', 'mixamorigRightUpLeg'].map((n) => vv.root.getObjectByName(n)).filter((b): b is THREE.Object3D => !!b);
+        const was = bones.map((b) => b.scale.clone());
+        this.restore = () => bones.forEach((b, i) => b.scale.copy(was[i]));
+      }
+      ['mixamorigLeftUpLeg', 'mixamorigRightUpLeg'].forEach((n) => vv.root.getObjectByName(n)?.scale.setScalar(0.001));
+      if (t < 9.4) vv.root.position.y += 0.35 + Math.sin(r.now() * 2.2) * 0.08;
+    } else if (this.restore) { this.restore(); this.restore = null; }
+    // The sign drifts in beside the opponent.
+    if (t > 6.6 && t < 9.4) {
+      if (!this.objs.sign) { const s = legsSign(); this.add(r, 'sign', s); r.fxKick(0.15, 0.1, 0.4); }
+      const k = clamp01((t - 6.6) / 0.8), e = 1 - Math.pow(1 - k, 3);
+      this.objs.sign.visible = true;
+      this.objs.sign.position.set(vx + dir * 0.4, 3.0 + (1 - e) * 3 + Math.sin(r.now() * 1.5) * 0.05, -0.6);
+    } else if (this.objs.sign) this.objs.sign.visible = false;
+
+    if (t < 2.8) {
+      av.role = 'talk'; vv.role = 'fight';
+      if (this.once('dark')) st.setMood('dark');
+      const k = (t - 0.6) / 2.2, head = av.bonePos('head');
+      return { name: 'title', shot: { pos: V(ax + dir * (2.1 - k * 0.5), 0.95, 2.8 - k * 0.2), look: V(ax, head.y - 0.1, 0), fov: 34 } };
+    }
+    if (t < 4.4) {
+      // The void opens: wide and high, the grid running off to the horizon.
+      av.role = 'talk'; vv.role = 'fight';
+      const k = (t - 2.8) / 1.6;
+      return { name: 'void', shot: { pos: V(mid + Math.sin(k) * 1.5, 3.4 - k * 0.6, 9.5 - k * 1.2), look: V(mid, 1.2, 0), fov: 38 } };
+    }
+    if (t < 6.6) {
+      // The opponent, an avatar now, floating with no legs.
+      av.role = 'talk'; vv.role = 'reel'; vv.roleSpeed = 0.3;
+      const k = (t - 4.4) / 2.2;
+      return { name: 'legless', shot: { pos: V(vx - dir * (2.6 - k * 0.5), 0.6, 3.8), look: V(vx, 1.3, 0), fov: 44 } };
+    }
+    if (t < 8.4) {
+      // "Legs." Over his shoulder at the sign.
+      av.role = 'talk'; vv.role = 'reel'; vv.roleSpeed = 0.3;
+      const k = (t - 6.6) / 1.8;
+      return { name: 'sign', shot: { pos: V(ax - dir * (1.5 - k * 0.2), 2.0, 3.4), look: V(vx, 2.5, -0.4), fov: 40 } };
+    }
+    if (t < 9.4) {
+      // "Legs!" Tight on him.
+      av.role = 'pump'; vv.role = 'reel';
+      const head = av.bonePos('head');
+      return { name: 'legs', shot: { pos: V(head.x + dir * 0.8, head.y + 0.1, 2.1), look: V(head.x, head.y, 0), fov: 30 } };
+    }
+    if (t < 11.6) {
+      // "I know you've been waiting for this." Thrown out of the void: up and spinning, in slow motion.
+      av.role = 'pump'; vv.role = 'reel'; vv.roleSpeed = 0.25;
+      this.blur = 0.45;
+      if (this.once('eject')) { r.fxKick(0.4, 0.2, 0.7); st.cheer(1.2); }
+      const k = clamp01((t - 9.4) / 2.2);
+      vv.root.position.y += 0.35 + Math.sin(Math.PI * k) * 2.2;
+      vv.root.rotation.z = dir * k * Math.PI * 2;
+      return { name: 'eject', shot: { pos: V(vx - dir * 2.6, 2.0, 7.6), look: V(vx, 1.3 + Math.sin(Math.PI * k) * 2.0, 0), fov: 46 } };
+    }
+    vv.root.rotation.z = 0;
+    if (this.once('boom')) {
+      st.setMood('normal');
+      const p = V(vx, 1.2, 0.3);
+      r.fxSpark(p, 4, '#ffffff', 0.3); r.fxBurst(p, 28, '#9cc6ff', 12); r.fxRing(vx, '#9cc6ff'); r.fxKick(0.9, 0.6, 1.0, 0.02);
+      vv.hitFlash(1); st.cheer(2);
+    }
+    const fall = (t - 11.6) / 1.0;
+    if (t < 12.6) { av.role = 'pump'; return { name: 'impact', shot: this.blow(vx, dir, fall, vv, 0.9) }; }
+    if (fall < 1) this.blow(vx, dir, fall, vv, 0.9); else vv.role = 'down';
+    this.blur = 0;
+    // "But seriously, legs are hard." Deadpan, tight on him.
+    av.role = 'talk';
+    const head = av.bonePos('head'), k = (t - 12.6) / 6;
+    return { name: 'payoff', shot: { pos: V(head.x + dir * (0.9 + k * 0.5), head.y + 0.08, 2.3 + k * 0.8), look: V(head.x - dir * 0.15, head.y + 0.06, 0), fov: 32 } };
+  }
+
+  dispose(fx: THREE.Object3D) { for (const p of this.props) fx.remove(p); this.restore?.(); this.restore = null; this.unroom?.(); this.unroom = null; }
 }
 
 const YELLOW = new THREE.Color(1.08, 1.0, 0.55);
+const CYAN = new THREE.Color(0.8, 0.95, 1.15);
 
 // ---------- Signatures and Policy Moves
 

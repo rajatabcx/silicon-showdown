@@ -558,3 +558,228 @@ export function modelProp(assets: Assets, which: 'sink' | 'chainsaw' | 'ball') {
   o.traverse((x) => { const m = x as THREE.Mesh; if (m.isMesh) (m.material as THREE.MeshStandardMaterial).color.multiplyScalar(0.88); });
   return o;
 }
+
+// ---------- Jacket Jensen and Howard Lootnick
+
+/** A graphics card (The More You Buy, and the Super's GPU rain): a dark shroud, a green stripe, two fans. Generic. */
+export function gpuCard(size = 1) {
+  const g = new THREE.Group();
+  const shroud = new THREE.Mesh(new THREE.BoxGeometry(0.8 * size, 0.3 * size, 0.14 * size), new THREE.MeshStandardMaterial({ color: '#23262b', metalness: 0.6, roughness: 0.35 }));
+  g.add(shroud);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.805 * size, 0.04 * size, 0.145 * size), new THREE.MeshBasicMaterial({ color: new THREE.Color('#76b900').multiplyScalar(1.6) }));
+  stripe.position.y = 0.11 * size; g.add(stripe);
+  const pcb = new THREE.Mesh(new THREE.BoxGeometry(0.78 * size, 0.06 * size, 0.02 * size), new THREE.MeshToonMaterial({ color: '#2f6b3a' }));
+  pcb.position.set(0, -0.17 * size, -0.05 * size); g.add(pcb);
+  outlined(g, 0.012);
+  const fans: THREE.Object3D[] = [];
+  for (const x of [-0.2, 0.2]) {
+    const fan = canvasPlane(0.24 * size, 0.24 * size, 128, (c, W, H) => {
+      c.fillStyle = '#0e0f11'; c.beginPath(); c.arc(W / 2, H / 2, W / 2, 0, 7); c.fill();
+      c.fillStyle = '#5a5f66';
+      for (let i = 0; i < 7; i++) { c.save(); c.translate(W / 2, H / 2); c.rotate((i / 7) * Math.PI * 2); c.beginPath(); c.ellipse(W * 0.22, 0, W * 0.2, W * 0.07, 0.5, 0, 7); c.fill(); c.restore(); }
+      c.fillStyle = '#76b900'; c.beginPath(); c.arc(W / 2, H / 2, W * 0.1, 0, 7); c.fill();
+    });
+    fan.position.set(x * size, -0.01 * size, 0.072 * size); g.add(fan); fans.push(fan);
+  }
+  g.userData.tick = (t: number) => fans.forEach((f) => { f.rotation.z = -t * 30; });
+  return g;
+}
+
+/**
+ * The Super's backdrop: a market screen. tick(k, t): the chart climbs on the GPU pitch (k 0..0.5), then crashes
+ * (k 0.5..1) while the loss counts up; a BREAKING ticker scrolls along the bottom once `news` is set.
+ */
+export function crashScreen() {
+  const g = new THREE.Group();
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.6, 0.14), new THREE.MeshStandardMaterial({ color: '#0b0d12', metalness: 0.5, roughness: 0.4 }));
+  g.add(frame);
+  const scr = canvasPlane(5.0, 2.4, 1024, () => {}, 1.35);
+  scr.position.z = 0.08; g.add(scr);
+  const news = 'BREAKING · JACKET JENSEN OUT AFTER AFFAIR REPORTS · ONE PARTNER A SUSPECTED SPY (ALLEGED) · SENATE WANTS ANSWERS · ';
+  const pts: number[] = []; for (let i = 0; i <= 60; i++) pts.push(Math.sin(i * 0.9) * 0.025 + Math.sin(i * 2.1) * 0.015);
+  g.userData.news = false;
+  g.userData.tick = (k: number, t = 0) => scr.userData.redraw((c: CanvasRenderingContext2D, W: number, H: number) => {
+    c.fillStyle = '#05080a'; c.fillRect(0, 0, W, H);
+    c.strokeStyle = 'rgba(160,255,120,0.1)'; c.lineWidth = 2;
+    for (let x = 0; x < W; x += 64) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
+    for (let y = 0; y < H; y += 64) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
+    const crash = Math.max(0, (k - 0.5) * 2), up = Math.min(1, k * 2);
+    const n = Math.round(20 + up * 30 + crash * 10);
+    c.lineWidth = 9; c.lineJoin = 'round'; c.strokeStyle = crash > 0.05 ? '#ff4a3d' : '#8be04a';
+    c.beginPath();
+    for (let i = 0; i <= n; i++) {
+      const x = 40 + (i / 60) * (W - 300);
+      let y = 0.72 - pts[i] - Math.min(i, 50) / 50 * 0.42 * up;
+      if (i > 50) y += ((i - 50) / 10) * 0.6 * crash;
+      if (i === 0) c.moveTo(x, H * y); else c.lineTo(x, H * y);
+    }
+    c.stroke();
+    c.textAlign = 'right'; c.textBaseline = 'middle';
+    c.fillStyle = crash > 0.05 ? '#ff4a3d' : '#8be04a'; c.font = `900 120px ${DISPLAY_F()}`;
+    const v = crash > 0.05 ? `−$${Math.round(crash * 1000)}B` : `+${Math.round(up * 240)}%`;
+    c.fillText(v, W - 40, H * 0.2);
+    c.fillStyle = '#d8ffd0'; c.font = `700 38px ${SANS_F()}`;
+    c.fillText(crash > 0.05 ? 'MARKET CAP' : 'THE MORE YOU BUY', W - 44, H * 0.34);
+    c.textAlign = 'left'; c.fillStyle = '#bfe8a8'; c.font = `800 34px ${SANS_F()}`; c.fillText('JKT · CHIPS', 40, H * 0.08);
+    if (g.userData.news) {
+      c.fillStyle = '#c8102e'; c.fillRect(0, H * 0.84, W, H * 0.16);
+      c.fillStyle = '#ffffff'; c.font = `900 56px ${DISPLAY_F()}`; c.textBaseline = 'middle';
+      const tw = c.measureText(news).width, off = (t * 420) % tw;
+      c.fillText(news + news, W * 0.2 - off, H * 0.92);
+      c.fillStyle = '#ffd34d'; c.fillRect(0, H * 0.84, W * 0.18, H * 0.16);
+      c.fillStyle = '#111'; c.textAlign = 'center'; c.font = `900 50px ${DISPLAY_F()}`; c.fillText('LIVE', W * 0.09, H * 0.92);
+    }
+  });
+  g.userData.tick(0);
+  return g;
+}
+
+/** A giant red down arrow, the chart's last leg, that comes down on the opponent. Its tip sits at y = 0. */
+export function crashArrow() {
+  const g = new THREE.Group();
+  const red = new THREE.MeshToonMaterial({ color: '#e0302a', emissive: new THREE.Color('#ff2a1a'), emissiveIntensity: 0.25 });
+  // One extruded shape: a shaft and a wide head, the tip at the origin.
+  const sh = new THREE.Shape();
+  sh.moveTo(0, 0); sh.lineTo(1.0, 1.15); sh.lineTo(0.38, 1.15); sh.lineTo(0.38, 3.6); sh.lineTo(-0.38, 3.6); sh.lineTo(-0.38, 1.15); sh.lineTo(-1.0, 1.15); sh.closePath();
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: 0.4, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 1 });
+  geo.translate(0, 0, -0.2);
+  g.add(new THREE.Mesh(geo, red));
+  outlined(g, 0.03);
+  const l = label('−$1T', '#ffffff', 0.6); l.position.set(0, 2.4, 0.35); g.add(l);
+  return g;
+}
+
+/** Fourth Best: a giant rubber stamp. Its face says DENIED and flips to APPROVED (4TH BEST) as it lands. */
+export function exportStamp() {
+  const g = new THREE.Group();
+  const red = new THREE.MeshStandardMaterial({ color: '#b3121f', roughness: 0.5 });
+  const wood = new THREE.MeshStandardMaterial({ color: '#3a3f47', roughness: 0.6, metalness: 0.3 });
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.3, 1.0), red); pad.position.y = 0.15; g.add(pad);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 1.0, 16), wood); neck.position.y = 0.8; g.add(neck);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.38, 20, 14), wood); knob.position.y = 1.45; g.add(knob);
+  outlined(g, 0.02);
+  const face = canvasPlane(1.8, 0.28, 512, () => {});
+  face.position.set(0, 0.15, 0.505); g.add(face);
+  const draw = (ok: boolean) => face.userData.redraw((c: CanvasRenderingContext2D, W: number, H: number) => {
+    c.fillStyle = ok ? '#1f7a3a' : '#b3121f'; c.fillRect(0, 0, W, H);
+    c.strokeStyle = '#ffe6d6'; c.lineWidth = 8; c.strokeRect(10, 10, W - 20, H - 20);
+    c.fillStyle = '#ffe6d6'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `900 ${Math.round(H * 0.6)}px ${DISPLAY_F()}`;
+    c.fillText(ok ? 'APPROVED · 4TH BEST' : 'EXPORT DENIED', W / 2, H * 0.54, W - 40);
+  });
+  draw(false);
+  g.userData.flip = () => draw(true);
+  return g;
+}
+
+// ---------- Mork Zuckerbot and Dana Wite
+
+/** A pop-up ad card flicked across the floor (Senator, We Run Ads). */
+export function adCard() {
+  const m = canvasPlane(0.7, 0.5, 256, (c, W, H) => {
+    c.fillStyle = '#ffffff'; roundRect(c, 0, 0, W, H, 16); c.fill();
+    c.fillStyle = '#2d7ff9'; roundRect(c, 0, 0, W, H * 0.24, 16); c.fill(); c.fillRect(0, H * 0.12, W, H * 0.12);
+    c.fillStyle = '#fff'; c.font = `800 ${Math.round(H * 0.13)}px ${SANS_F()}`; c.textBaseline = 'middle'; c.textAlign = 'left';
+    c.fillText('Sponsored', 14, H * 0.12);
+    c.textAlign = 'right'; c.fillText('✕', W - 14, H * 0.12);
+    c.fillStyle = '#16181c'; c.textAlign = 'center'; c.font = `900 ${Math.round(H * 0.3)}px ${DISPLAY_F()}`; c.fillText('WE RUN', W / 2, H * 0.5);
+    c.fillStyle = '#d0342c'; c.fillText('ADS', W / 2, H * 0.78);
+  }, 1.05);
+  (m.material as THREE.Material).side = THREE.DoubleSide;
+  return m;
+}
+
+/** A barbecue sauce bottle (On the Ribs). Generic label. */
+export function sauceBottle() {
+  const g = new THREE.Group();
+  const glass = new THREE.MeshToonMaterial({ color: '#5a1a0e' });
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, 0.32, 16), glass); body.position.y = 0.16; g.add(body);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.09, 0.12, 14), glass); neck.position.y = 0.38; g.add(neck);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.05, 14), new THREE.MeshToonMaterial({ color: '#c8102e' })); cap.position.y = 0.46; g.add(cap);
+  outlined(g, 0.01);
+  const tag = canvasPlane(0.2, 0.14, 128, (c, W, H) => {
+    c.fillStyle = '#f4e3c0'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#5a1a0e'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `900 ${Math.round(H * 0.42)}px ${DISPLAY_F()}`; c.fillText('BBQ', W / 2, H / 2);
+  });
+  tag.position.set(0, 0.17, 0.112); g.add(tag);
+  return g;
+}
+
+/**
+ * Board Meeting: an eight-sided fight cage with a boardroom table in the middle and a wall clock reading 9 to 6.
+ * Its base sits at y = 0.
+ */
+export function octagonCage() {
+  const g = new THREE.Group();
+  const post = new THREE.MeshToonMaterial({ color: '#16181c' });
+  const pad = new THREE.MeshToonMaterial({ color: '#c8102e' });
+  const fence = canvasPlane(1.0, 1.6, 256, (c, W, H) => {
+    c.strokeStyle = 'rgba(30,32,36,0.9)'; c.lineWidth = 4;
+    for (let i = -H; i < W + H; i += 22) { c.beginPath(); c.moveTo(i, 0); c.lineTo(i + H, H); c.stroke(); c.beginPath(); c.moveTo(i + H, 0); c.lineTo(i, H); c.stroke(); }
+  });
+  (fence.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
+  const R = 1.45;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.8, 8), post); p.position.set(Math.cos(a) * R, 0.9, Math.sin(a) * R); g.add(p);
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.2, 8), pad); top.position.set(Math.cos(a) * R, 1.8, Math.sin(a) * R); g.add(top);
+    const b = (i / 8) * Math.PI * 2;
+    const f = fence.clone(); const r2 = R * Math.cos(Math.PI / 8);
+    f.position.set(Math.cos(b) * r2, 0.95, Math.sin(b) * r2); f.rotation.y = -b + Math.PI / 2; f.scale.x = (2 * R * Math.sin(Math.PI / 8)) / 1.0; g.add(f);
+  }
+  const table = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.08, 0.6), new THREE.MeshToonMaterial({ color: '#5a3a22' })); table.position.y = 0.75; g.add(table);
+  for (const [x, z] of [[-0.6, -0.22], [0.6, -0.22], [-0.6, 0.22], [0.6, 0.22]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.72, 0.06), post); leg.position.set(x, 0.36, z); g.add(leg);
+  }
+  outlined(g, 0.015);
+  const clock = canvasPlane(0.9, 0.9, 256, (c, W, H) => {
+    c.fillStyle = '#f4f1e8'; c.beginPath(); c.arc(W / 2, H / 2, W * 0.47, 0, 7); c.fill();
+    c.strokeStyle = '#16181c'; c.lineWidth = 12; c.stroke();
+    c.fillStyle = '#16181c'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `900 ${Math.round(H * 0.16)}px ${DISPLAY_F()}`;
+    c.fillText('9 → 6', W / 2, H * 0.72);
+    c.lineWidth = 10; c.beginPath(); c.moveTo(W / 2, H / 2); c.lineTo(W / 2, H * 0.2); c.stroke();
+    c.lineWidth = 14; c.beginPath(); c.moveTo(W / 2, H / 2); c.lineTo(W * 0.3, H / 2); c.stroke();
+  });
+  clock.position.set(0, 2.5, 0); g.add(clock);
+  return g;
+}
+
+/**
+ * Mork's Super: the VR void. A neon grid floor, a wireframe dome, and floating low-poly shards. tick(t) slowly turns
+ * it. The "LEGS: COMING SOON" sign is a separate prop.
+ */
+export function vrVoid() {
+  const g = new THREE.Group();
+  const grid = new THREE.GridHelper(40, 40, new THREE.Color('#7fb6ff').multiplyScalar(1.5), new THREE.Color('#2d5fa8'));
+  grid.position.y = 0.02; g.add(grid);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ color: '#070b1a', transparent: true, opacity: 0.88, depthWrite: false }));
+  floor.rotation.x = -Math.PI / 2; floor.position.y = 0.01; g.add(floor);
+  const dome = new THREE.Mesh(new THREE.IcosahedronGeometry(12, 1), new THREE.MeshBasicMaterial({ color: new THREE.Color('#4a8cff').multiplyScalar(1.3), wireframe: true, transparent: true, opacity: 0.35 }));
+  g.add(dome);
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(13, 24, 16), new THREE.MeshBasicMaterial({ color: '#04060f', side: THREE.BackSide }));
+  g.add(sky);
+  const shards: THREE.Mesh[] = [];
+  for (let i = 0; i < 14; i++) {
+    const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.25 + (i % 4) * 0.12, 0), new THREE.MeshStandardMaterial({ color: i % 2 ? '#9cc6ff' : '#2d7ff9', flatShading: true, roughness: 0.5 }));
+    // Kept behind the fighters and off to the sides, clear of the camera.
+    const x = ((i * 5.3) % 16) - 8, z = -3 - (i % 4) * 1.6;
+    s.position.set(x, 1.0 + (i % 3) * 1.3, z); g.add(s); shards.push(s);
+  }
+  g.userData.tick = (t: number) => {
+    dome.rotation.y = t * 0.05;
+    shards.forEach((s, i) => { s.rotation.set(t * 0.6 + i, t * 0.9 + i, 0); s.position.y += Math.sin(t * 1.3 + i) * 0.002; });
+  };
+  return g;
+}
+
+/** A floating sign in the void: "LEGS · COMING SOON". */
+export function legsSign() {
+  const m = canvasPlane(2.6, 1.0, 768, (c, W, H) => {
+    c.fillStyle = 'rgba(10,18,40,0.92)'; roundRect(c, 0, 0, W, H, 40); c.fill();
+    c.strokeStyle = '#9cc6ff'; c.lineWidth = 10; roundRect(c, 8, 8, W - 16, H - 16, 34); c.stroke();
+    c.fillStyle = '#ffffff'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `900 ${Math.round(H * 0.42)}px ${DISPLAY_F()}`;
+    c.fillText('LEGS', W / 2, H * 0.4);
+    c.fillStyle = '#9cc6ff'; c.font = `800 ${Math.round(H * 0.18)}px ${SANS_F()}`; c.fillText('COMING SOON · MOST REQUESTED FEATURE', W / 2, H * 0.76, W - 60);
+  }, 1.3);
+  (m.material as THREE.Material).side = THREE.DoubleSide;
+  return m;
+}

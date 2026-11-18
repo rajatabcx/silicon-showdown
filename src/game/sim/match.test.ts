@@ -113,8 +113,19 @@ describe('fight simulation', () => {
     }
   });
 
+  it('walking into a fighter on the floor passes them instead of dragging them', () => {
+    const m = started(); close(m);
+    const f1 = m.f[1];
+    f1.state = 'knockdown'; f1.frame = 0; f1.vx = 0; f1.vy = 0; f1.y = 0;
+    const x1 = f1.x;
+    run(m, 30, BTN.R, 0);
+    expect(f1.x).toBe(x1);
+    expect(m.f[0].x).toBeGreaterThan(x1 - 0.2);
+  });
+
   it("a signature can't be interrupted: the opponent is frozen until it lands", () => {
     const m = started(); close(m);
+    run(m, 10); // let the overlap from close() ease apart first
     step(m, BTN.S, 0, DEFS);
     const x1 = m.f[1].x;
     const evs = run(m, DEFS[0].sigs[0].quote + DEFS[0].sigs[0].startup + DEFS[0].sigs[0].active, 0, BTN.P);

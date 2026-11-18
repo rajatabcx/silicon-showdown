@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { sfx, unlockAudio } from '../audio';
+import { playMusic, sfx, unlockAudio } from '../audio';
 import { ROSTER, TUSK, type FighterInfo } from '../data/roster';
 import { fill, HEADLINES, PAPERS, pick } from '../data/satire';
 import { Game } from '../Game';
@@ -49,7 +49,7 @@ export function GameRoot() {
       g = new Game({ canvas: canvasRef.current, assets, player, cpu });
       setGame(g);
       setPortraits((p) => (p.tusk ? p : makePortraits({
-        tusk: assets.tusk, teal: assets.teal, bozo: assets.bozo, ultman: assets.ultman, carp: assets.carp, covfefe: assets.covfefe, veep: assets.veep, melania: assets.melania, pete: assets.pete,
+        tusk: assets.tusk, teal: assets.teal, bozo: assets.bozo, ultman: assets.ultman, carp: assets.carp, jensen: assets.jensen, mork: assets.mork, covfefe: assets.covfefe, veep: assets.veep, melania: assets.melania, pete: assets.pete, lootnick: assets.lootnick, wite: assets.wite,
       })));
     }).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the models.'));
     return () => { dead = true; g?.dispose(); setGame(null); };
@@ -102,7 +102,7 @@ export function GameRoot() {
               clip of something the real person said on the record, shown with its source. Everything else (the fight, the jokes,
               the headlines) is invented and is not news or a claim about anyone.
             </p>
-            <button className="btn" onClick={() => { unlockAudio(); go('title'); }}>I understand · Continue</button>
+            <button className="btn" onClick={() => { unlockAudio(); playMusic('title'); go('title'); }}>I understand · Continue</button>
             <div className="flex items-center gap-3 text-xs text-white/40">
               <Link href="/legal" className="underline hover:text-white/70">Full disclaimer</Link>
               <span>·</span>

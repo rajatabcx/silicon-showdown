@@ -1,4 +1,4 @@
-import { roundCall, sfx, startBed, stopBed, voice, type VoiceHandle } from './audio';
+import { playMusic, roundCall, sfx, startBed, stopBed, voice, type VoiceHandle } from './audio';
 import { InputLatch } from './input';
 import { sigInfo, simDef, VOICE_SECONDS, type FighterInfo, type VoiceId } from './data/roster';
 import type { Assets } from './render/assets';
@@ -80,7 +80,7 @@ export class Game {
     this.running = false;
     this.renderer.attract = true;
     this.hushAll();
-    stopBed();
+    playMusic('title');
     this.match = newMatch(); this.match.phase = 'fight';
     this.renderer.onEvent({ t: 'roundStart', round: 1 }, this.match);
   }
@@ -237,7 +237,7 @@ export class Game {
       case 'roundStart': this.hushAll(); sfx('gavel'); roundCall(e.round, INTRO_FRAMES / FPS); break;
       case 'timeUp': this.hushAll(); break;
       case 'fight': sfx('gavel'); break;
-      case 'matchEnd': stopBed(); break;
+      case 'matchEnd': playMusic('paper'); break;
     }
     for (const fn of this.listeners) fn(e, m);
   }

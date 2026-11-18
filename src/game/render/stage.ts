@@ -293,6 +293,11 @@ export class Stage {
   }
 
   /** Crowd jumps, cameras pop. */
+  /** Shows or hides the room itself (walls, floor, benches, crowd) but keeps its lights on: Mork's VR void. */
+  setRoom(v: boolean) {
+    for (const o of this.group.children) if (!(o as THREE.Light).isLight) o.visible = v;
+  }
+
   cheer(k = 1) {
     this.cheerT = Math.max(this.cheerT, 1.2 * k);
     const n = Math.round(2 + k * 3);

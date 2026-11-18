@@ -137,3 +137,44 @@ Recordings in `recordings/` (YouTube IDs in brackets):
 - **Signature 3: Earnings Call.** A hyper jumping flurry, his on-stage bouncing turned into a three-hit combo. `carp_doing_it` then `carp_crushing`.
 - **Taunt:** `carp_batshit`. **Win:** `carp_dancing`.
 - **Hexseth Policy Move: Group Chat.** He thumbs his phone; a chat card pops up ("Signal: WAR PLANS 🇺🇸, *you* were added"). The opponent has been added by mistake and stops to read it: a stun of about 2 s while the bubbles pile up over their head. `hexseth_texting` plays as he pockets the phone.
+
+---
+
+## Jacket Jensen (Jensen Huang) and sidekick Howard Lootnick (Howard Lutnick); Mork Zuckerbot (Mark Zuckerberg) and sidekick Dana Wite (Dana White): clips cut 19 Nov 2026
+
+Sidekicks locked by the owner, 19 Nov 2026. Real links: Lutnick's Commerce Department controls Nvidia's chip exports to China, and Huang called him "the person I talk to most in the administration". Dana White joined Meta's board in Jan 2025.
+
+**News this rests on (Nov 2026):** Huang resigned as Nvidia CEO around 12 Nov 2026, after reports of an affair with a woman at Megaspeed (an Nvidia customer) whom US intelligence suspects of spying for China, and then a second affair. The stock fell about 36%, close to $1T. In a written statement he admitted "serious mistakes in my personal life". The spy part is an **allegation**, so the game frames it as a news ticker, never as fact. It doesn't name or show the women. Huang testifies on 3 Dec and Lutnick on 10 Dec. Sources: Bloomberg [9xP22C0pHZE], CBS [MFD3ilY51zs], Sky [GKyrZyy5sPc], NBC [jgB5UxN4pkU].
+
+Recordings in `recordings/` (YouTube IDs in brackets):
+- `huang_more_buy`: GTC 2018 keynote supercut [XDpDesU_0zo]. `huang_computex`: Computex 2024 [ZuslzLNS5ec]. `huang_pain`: Stanford GSB, Mar 2024 (clip upload) [J2ZcBR_6mV4].
+- `lutnick_testify`: a news compilation of original clips (confirmation hearing Jan 2025; CNBC Jul 2025; Trump and Sen. Kennedy, Nov 2026) [yLXKlCyrxD4]. Swap in the originals later if the quality isn't good enough. `jensen_howard` comes from this compilation, and its event and date are still a **Lead**.
+- `zuck_legs`: Meta Connect 2022 legs segment (CNET highlights) [njvp-E8gzqA].
+- `white_board`, `white_board2`: Dana White on joining Meta's board, Forbes clips [mrI06qAax_k, FELib7VsDwE].
+
+| Clip | Heard | Planned use |
+|---|---|---|
+| `jensen_common_sense` | "This is like common sense. The more GPUs you buy, the more money you save." | **Super: Trillion-Dollar Affair** opener |
+| `jensen_pain_short` | "I wish upon you plenty of pain and suffering." | Super payoff |
+| `jensen_more_buy` | "The more you buy, the more you save." | Signature: The More You Buy |
+| `jensen_ceo_math` | "It is not accurate, but it is correct. Okay, that's called CEO math." | Signature: CEO Math |
+| `jensen_pain` | "…I wish upon you greatness, which by my way of saying it, I wish upon you plenty of pain and suffering." | Signature: Pain and Suffering |
+| `jensen_howard` | "The reason why Howard is the person I talk to most in the administration…" | Tag call |
+| `lootnick_fourth_best` | "We don't sell them our best stuff, not our second best stuff, not even our third best. I think fourth best is where we've come out that we're cool." | **Policy Move: Fourth Best** |
+| `lootnick_say_no` | "When we say no, the answer's got to be no." | Tag-in |
+| `lootnick_addicted`, `lootnick_whack_a_mole` | export-control lines | spares |
+| `covfefe_spy` | Trump: "…if the woman was a spy, yes. If the woman was not a spy, perhaps it would be different." | spare (Super cameo) |
+| `kennedy_spy` | Sen. Kennedy: "…you ought to make sure it's not with a Chinese spy." | spare (Super ticker voice) |
+| `mork_roadmap` → `mork_legs_full` → `mork_legs_hard` | "…the most requested feature on our roadmap: legs." / "Legs! I know you've been waiting for this." / "But seriously, legs are hard…" | **Super: Metaverse Exile** |
+| `wite_nine_to_six` | "These board meetings start at nine o'clock in the morning. They go till six." | **Policy Move: Board Meeting** |
+| `wite_animal` | "So Zuckerberg is an animal." | Tag-in |
+| `wite_why_here`, `wite_shut_up` | board-meeting lines (the second is uncensored) | spares |
+| `mork_run_ads` | "Senator, we run ads." | **Signature: Senator, We Run Ads** (added 19 Nov 2026) |
+| `mork_run_ads_long` | Sen. Hatch: "Well, if so, how do you sustain a business model in which users don't pay for your service?" / "Senator, we run ads." / "I see. That's great." | Intro / long version |
+| `mork_masculine` | "There's something… the kind of masculine energy, I think, is good." | **Signature: Masculine Energy** (`zuck_masculine`, Jan 2025 podcast) |
+| `mork_beat` | "…we're just like beat each other a bit. I don't know, it's good." | Masculine Energy bark, taunt |
+| `mork_aggression`, `mork_neutered` | "…a culture that celebrates the aggression a bit more…" / "…the corporate world is pretty culturally neutered." | spares |
+| `mork_ribs` | "Maybe throw some Sweet Baby Ray's on the ribs and take it from there." | **Signature: On the Ribs** (`zuck_meats`, smoked-meats livestream) |
+| `mork_ribs_short` | "That is going on the ribs." | Block bark |
+
+Recording `zuck_ads`: NBC News upload of the Senate Commerce and Judiciary hearing, 10 Apr 2018 [n2H8wx1aBiQ].

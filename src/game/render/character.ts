@@ -49,6 +49,18 @@ const SIG_ANIM: Record<string, Win> = {
   earnings: { clip: 'Left_Jab_from_Guard', impact: 0.5, lead: 0.22, tail: 0.3 },
   // Hexseth: thumbs the phone, then points it down at the opponent.
   chat: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.5, tail: 0.4 },
+  // Jensen: GPUs dealt out like cards; two jabs while the wrong numbers fly; a three-hit flurry, said as a blessing.
+  gpus: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.25, tail: 0.25 },
+  ceomath: { clip: 'Left_Hook_from_Guard', impact: 0.333, lead: 0.25, tail: 0.3 },
+  pain: { clip: 'Left_Jab_from_Guard', impact: 0.5, lead: 0.22, tail: 0.3 },
+  // Lootnick: the stamp brought down overhead.
+  export: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.5, tail: 0.38 },
+  // Mork: ad cards flicked out; two hooks into the clinch; a low sweep with the sauce.
+  runads: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.3, tail: 0.3 },
+  energy: { clip: 'Left_Hook_from_Guard', impact: 0.333, lead: 0.25, tail: 0.3 },
+  ribs: { clip: 'Leg_Sweep', impact: 0.8, lead: 0.32, tail: 0.6 },
+  // Dana: points at the cage coming down.
+  octagon: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.5, tail: 0.38 },
 };
 
 const HIPS = 'mixamorigHips';

@@ -264,7 +264,18 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
               </div>
             </div>
           ))}
-          <div className="order-2"><Timer /></div>
+          <div className="order-2 flex flex-col items-center">
+            <Timer />
+            <button
+              type="button"
+              aria-label="Pause"
+              title="Pause (Esc)"
+              className="pointer-events-auto mt-1.5 flex h-8 w-8 items-center justify-center rounded-full border-2 border-[#e3b95a] bg-[#0b0910]/85 text-[#ffe6a3] shadow-[0_0_0_2px_#000] transition hover:bg-[#1d2a52] active:scale-95 sm:h-7 sm:w-7"
+              onClick={(e) => { e.currentTarget.blur(); game.setPaused(true); setPaused(true); sfx('ui'); }}
+            >
+              <svg viewBox="0 0 10 10" className="h-3 w-3" aria-hidden><rect x="1.5" y="1" width="2.4" height="8" rx="0.5" fill="currentColor" /><rect x="6.1" y="1" width="2.4" height="8" rx="0.5" fill="currentColor" /></svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -334,7 +345,10 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
           )}
           {cine.stamp >= 0 && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="stamp anim-slam text-6xl text-[#ff5a52] sm:text-9xl" style={{ textShadow: '0 6px 0 #000', background: 'rgb(0 0 0 / .25)' }}>
+              <div
+                className="stamp anim-slam whitespace-nowrap text-[#ff5a52]"
+                style={{ textShadow: '0 6px 0 #000', background: 'rgb(0 0 0 / .25)', fontSize: `min(8rem, ${(170 / Math.max(12, (sp.beats[cine.stamp]?.text ?? "").length)).toFixed(2)}vw)` }}
+              >
                 {sp.beats[cine.stamp].text}
               </div>
             </div>

@@ -13,7 +13,11 @@ export type VoiceId =
   | 'bozo_paid_short' | 'bozo_always_day_one' | 'bozo_cant_guarantee' | 'bozo_laugh' | 'bozo_best_day' | 'bozo_optimistic'
   | 'ultman_quite_wrong' | 'ultman_end_short' | 'ultman_last_resort' | 'ultman_agi_here' | 'ultman_this_era' | 'melania_here_we_go' | 'melania_here_it_is'
   | 'carp_lower_purpose' | 'carp_urine' | 'carp_urine_tag' | 'carp_kill_short' | 'carp_poorer' | 'carp_doing_it' | 'carp_crushing'
-  | 'carp_batshit' | 'carp_misunderstand' | 'hexseth_texting' | 'hexseth_were_back';
+  | 'carp_batshit' | 'carp_misunderstand' | 'hexseth_texting' | 'hexseth_were_back'
+  | 'jensen_more_buy' | 'jensen_common_sense' | 'jensen_ceo_math' | 'jensen_pain' | 'jensen_pain_short' | 'jensen_howard'
+  | 'lootnick_say_no' | 'lootnick_fourth_best' | 'lootnick_addicted'
+  | 'mork_run_ads' | 'mork_masculine' | 'mork_beat' | 'mork_ribs' | 'mork_ribs_short' | 'mork_neutered'
+  | 'mork_roadmap' | 'mork_legs_full' | 'mork_legs_hard' | 'wite_animal' | 'wite_nine_to_six' | 'wite_why_here';
 
 /** Seconds of each clip, from public/audio/voice/manifest.json. */
 export const VOICE_SECONDS: Record<VoiceId, number> = {
@@ -26,6 +30,10 @@ export const VOICE_SECONDS: Record<VoiceId, number> = {
   ultman_quite_wrong: 3.14, ultman_end_short: 4.58, ultman_last_resort: 3.2, ultman_agi_here: 11.92, ultman_this_era: 2.94, melania_here_we_go: 2.22, melania_here_it_is: 3.8,
   carp_lower_purpose: 4.3, carp_urine: 8.16, carp_urine_tag: 1.7, carp_kill_short: 2.7, carp_poorer: 7.16, carp_doing_it: 1.62,
   carp_crushing: 2.76, carp_batshit: 5.34, carp_misunderstand: 3.66, hexseth_texting: 5.12, hexseth_were_back: 0.62,
+  jensen_more_buy: 3.42, jensen_common_sense: 7.4, jensen_ceo_math: 5.44, jensen_pain: 8.32, jensen_pain_short: 1.8, jensen_howard: 9.4,
+  lootnick_say_no: 4.28, lootnick_fourth_best: 8.06, lootnick_addicted: 6.86,
+  mork_run_ads: 1.3, mork_masculine: 4.38, mork_beat: 3.5, mork_ribs: 4.1, mork_ribs_short: 1.54, mork_neutered: 9.44,
+  mork_roadmap: 7.08, mork_legs_full: 3.18, mork_legs_hard: 5.72, wite_animal: 3.6, wite_nine_to_six: 5.16, wite_why_here: 2.8,
 };
 
 /** On-screen source stamps. Venue and date only; no names of real people. */
@@ -53,6 +61,16 @@ export const SOURCES = {
   cnbc: 'CABLE BUSINESS NEWS · NOV 2025',
   hawaii: 'PRESS GAGGLE · MAR 2025',
   oval: 'OVAL OFFICE · SEP 2025',
+  gtc: 'CHIP CONFERENCE KEYNOTE · MAR 2018',
+  computex: 'TRADE SHOW KEYNOTE · JUN 2024',
+  gsb: 'BUSINESS SCHOOL FIRESIDE CHAT · MAR 2024',
+  confirmation: 'SENATE CONFIRMATION HEARING · JAN 2025',
+  chips: 'CABLE BUSINESS NEWS · JUL 2025',
+  hearing2018: 'SENATE HEARING · APR 2018',
+  podcast2025: 'PODCAST INTERVIEW · JAN 2025',
+  livestream: 'BACKYARD LIVESTREAM · OCT 2016',
+  connect: 'VR KEYNOTE · OCT 2022',
+  board: 'BUSINESS MAGAZINE INTERVIEW · 2025',
 } as const;
 
 /** A line as said in the game: one or more clips back to back, the subtitle, and its source. */
@@ -67,7 +85,8 @@ export type SigInfo = {
   /** Plays when the move connects. */
   bark?: VoiceId;
   /** The 3D prop the move uses. */
-  prop?: 'sink' | 'chainsaw' | 'gate' | 'pages' | 'box' | 'error' | 'end' | 'ads' | 'strike' | 'chart' | 'earnings' | null;
+  prop?: 'sink' | 'chainsaw' | 'gate' | 'pages' | 'box' | 'error' | 'end' | 'ads' | 'strike' | 'chart' | 'earnings'
+    | 'gpu' | 'math' | 'pain' | 'adcard' | 'energy' | 'sauce' | null;
   sim: Omit<SigDef, 'quote'> & { quote?: number };
 };
 
@@ -88,7 +107,7 @@ export type SuperInfo = {
 export type SidekickInfo = {
   name: string; title: string;
   /** Rigged model (same skeleton as the billionaires) and its scale. */
-  model: 'covfefe' | 'veep' | 'melania' | 'pete'; height: number;
+  model: 'covfefe' | 'veep' | 'melania' | 'pete' | 'lootnick' | 'wite'; height: number;
   walk: number;
   tagLine: string;
   /** A real clip the sidekick says as it tags in (optional). */
@@ -100,11 +119,11 @@ export type SidekickInfo = {
    */
   banter: { out: string[]; in: string[]; back: string[]; scandal: string[] };
   /** The one Policy Move per tag: a real clip, then the move. Nobody can interrupt it (see match.ts inPolicy). */
-  policy: { name: string; clips: VoiceId[]; text: string; source: string; prop: 'tariff' | 'cats' | 'poster' | 'chat'; sim: Omit<SigDef, 'quote'> };
+  policy: { name: string; clips: VoiceId[]; text: string; source: string; prop: 'tariff' | 'cats' | 'poster' | 'chat' | 'export' | 'octagon'; sim: Omit<SigDef, 'quote'> };
 };
 
 export type FighterInfo = {
-  id: 'tusk' | 'teal' | 'bozo' | 'ultman' | 'carp';
+  id: 'tusk' | 'teal' | 'bozo' | 'ultman' | 'carp' | 'jensen' | 'mork';
   name: string; title: string; color: string; accent: string;
   model: string; height: number;
   sigs: [SigInfo, SigInfo, SigInfo];
@@ -513,7 +532,174 @@ export const CARP: FighterInfo = {
   },
 };
 
-export const ROSTER = [TUSK, TEAL, BOZO, ULTMAN, CARP] as const;
+export const JENSEN: FighterInfo = {
+  id: 'jensen', name: 'Jacket Jensen', title: 'Chief Jacket Officer', color: '#76b900', accent: '#c8f56a',
+  model: '/models/characters/jensen.glb', height: 0.97,
+  ego: 'marketcap', egoNote: 'Market Cap: every hit he lands pumps the stock, and every heavy hit he takes tanks it. The more you buy, the more you save.',
+  stats: { walk: 2.2, jump: 7.4, fitness: 1.0 },
+  win: 'It is not accurate, but it is correct.',
+  sigs: [
+    {
+      name: 'The More You Buy',
+      line: { clips: ['jensen_more_buy'], text: 'The more you buy, the more you save.', source: SOURCES.gtc },
+      prop: 'gpu',
+      sim: { id: 'gpus', kind: 'projectile', startup: 12, active: 26, recovery: 20, damage: 4, hits: 3, range: 7, speed: 0.19 },
+    },
+    {
+      name: 'CEO Math',
+      line: { clips: ['jensen_ceo_math'], text: "It is not accurate, but it is correct. Okay, that's called CEO math.", source: SOURCES.computex },
+      prop: 'math',
+      sim: { id: 'ceomath', kind: 'melee', startup: 10, active: 24, recovery: 22, damage: 5, hits: 2, range: 2.1, knockdown: true },
+    },
+    {
+      name: 'Pain and Suffering',
+      line: { clips: ['jensen_pain'], text: '…I wish upon you greatness, which by my way of saying it, I wish upon you plenty of pain and suffering.', source: SOURCES.gsb },
+      prop: 'pain',
+      sim: { id: 'pain', kind: 'melee', startup: 8, active: 30, recovery: 22, damage: 4, hits: 3, range: 2.1, knockdown: true },
+    },
+  ],
+  super: {
+    // The owner's market-crash idea, on the record since Nov 2026: he left the company after reports of affairs, one of
+    // them with a woman suspected (alleged, not proven) of spying, and the stock lost close to a trillion dollars. The
+    // allegation is only ever a news ticker; the women are never named or shown.
+    name: 'TRILLION-DOLLAR AFFAIR', tag: 'SUPER',
+    audio: [{ clip: 'jensen_common_sense', at: 0.6 }, { clip: 'jensen_pain_short', at: 13.0 }],
+    subs: [
+      { at: 0.6, to: 2.4, text: 'This is like common sense.' },
+      { at: 2.4, to: 5.0, text: 'The more GPUs you buy,' },
+      { at: 5.0, to: 8.0, text: 'the more money you save.' },
+      { at: 13.0, to: 14.9, text: 'I wish upon you plenty of pain and suffering.' },
+    ],
+    source: SOURCES.gtc,
+    seconds: 15.6, drain: [10.2, 12.0],
+    beats: [
+      { at: 0, kind: 'contact' },
+      { at: 0.6, kind: 'title' },
+      { at: 2.6, kind: 'prop' },
+      { at: 8.2, kind: 'news' },
+      { at: 8.9, kind: 'bubble', side: 'vic', text: 'I only bought one!' },
+      { at: 10.2, kind: 'crash' },
+      { at: 12.0, kind: 'impact' },
+      { at: 13.0, kind: 'payoff' },
+      { at: 13.4, kind: 'stamp', text: 'MARKET CAP: −$1 TRILLION.' },
+    ],
+  },
+  barks: { taunt: 'jensen_more_buy' },
+  sidekick: {
+    name: 'Howard Lootnick', title: 'Commerce Secretary',
+    model: 'lootnick', height: 1.0,
+    walk: 2.0,
+    tagLine: 'JACKET NEEDS A BREATHER',
+    tagVoice: 'lootnick_say_no',
+    banter: {
+      out: [
+        'Howard. You are the person I talk to most.',
+        'Tag. Export me some stamina.',
+        'Go. Take a 25% cut of him.',
+        'The more you tag, the more you save.',
+      ],
+      in: [
+        'When we say no, the answer is no. Mostly.',
+        'Export license: approved. For this fight.',
+        'Not our best fighter. Not even our third best.',
+        'I was briefed. Briefly.',
+      ],
+      back: ['See you on December 10th.', 'Back to the Commerce Department.'],
+      scandal: ['I will explain everything under oath.', 'Let me check with the Situation Room.'],
+    },
+    policy: {
+      name: 'Fourth Best', prop: 'export', source: SOURCES.chips, clips: ['lootnick_fourth_best'],
+      text: "We don't sell them our best stuff, not our second best stuff, not even our third best. I think fourth best is where we've come out that we're cool.",
+      sim: { id: 'export', kind: 'drop', startup: 22, active: 2, recovery: 28, damage: 10, range: 4.5, knockdown: true },
+    },
+  },
+};
+
+export const MORK: FighterInfo = {
+  id: 'mork', name: 'Mork Zuckerbot', title: 'Chief Metaverse Officer', color: '#2d7ff9', accent: '#9cc6ff',
+  model: '/models/characters/mark.glb', height: 0.98,
+  ego: 'harvest', egoNote: 'Harvest: every hit he lands takes Engagement off the opponent and keeps a little. Users don\'t pay for this.',
+  stats: { walk: 2.4, jump: 7.8, fitness: 1.4 },
+  win: 'Senator, we run ads.',
+  sigs: [
+    {
+      name: 'Senator, We Run Ads',
+      line: { clips: ['mork_run_ads'], text: 'Senator, we run ads.', source: SOURCES.hearing2018 },
+      prop: 'adcard',
+      sim: { id: 'runads', kind: 'projectile', startup: 10, active: 26, recovery: 20, damage: 4, hits: 3, range: 7, speed: 0.2 },
+    },
+    {
+      name: 'Masculine Energy',
+      line: { clips: ['mork_masculine'], text: "There's something, the kind of masculine energy, I think is good.", source: SOURCES.podcast2025 },
+      bark: 'mork_beat',
+      prop: 'energy',
+      sim: { id: 'energy', kind: 'melee', startup: 9, active: 26, recovery: 22, damage: 5, hits: 2, range: 2.1, knockdown: true },
+    },
+    {
+      name: 'On the Ribs',
+      line: { clips: ['mork_ribs'], text: "Maybe throw some Sweet Baby Ray's on the ribs and take it from there.", source: SOURCES.livestream },
+      prop: 'sauce',
+      sim: { id: 'ribs', kind: 'melee', startup: 11, active: 5, recovery: 24, damage: 11, range: 2.1, knockdown: true },
+    },
+  ],
+  super: {
+    name: 'METAVERSE EXILE', tag: 'SUPER',
+    audio: [{ clip: 'mork_roadmap', at: 0.6 }, { clip: 'mork_legs_full', at: 8.4 }, { clip: 'mork_legs_hard', at: 12.6 }],
+    subs: [
+      { at: 0.6, to: 2.6, text: "There's one more feature coming soon" },
+      { at: 2.6, to: 5.8, text: "that's probably the most requested feature on our roadmap." },
+      { at: 6.4, to: 7.7, text: 'Legs.' },
+      { at: 8.4, to: 9.3, text: 'Legs!' },
+      { at: 9.3, to: 11.6, text: "I know you've been waiting for this." },
+      { at: 12.6, to: 14.6, text: 'But seriously, legs are hard,' },
+      { at: 14.6, to: 18.3, text: "which is why other virtual reality systems don't have them either." },
+    ],
+    source: SOURCES.connect,
+    seconds: 18.6, drain: [9.4, 11.6],
+    beats: [
+      { at: 0, kind: 'contact' },
+      { at: 0.6, kind: 'title' },
+      { at: 2.8, kind: 'void' },
+      { at: 5.0, kind: 'bubble', side: 'vic', text: 'Where are my legs?!' },
+      { at: 6.6, kind: 'legs' },
+      { at: 9.4, kind: 'eject' },
+      { at: 11.6, kind: 'impact' },
+      { at: 12.6, kind: 'payoff' },
+      { at: 13.2, kind: 'stamp', text: 'LEGS: COMING SOON.' },
+    ],
+  },
+  barks: { taunt: 'mork_beat', block: 'mork_ribs_short' },
+  sidekick: {
+    name: 'Dana Wite', title: 'Fight Promoter, Board Member',
+    model: 'wite', height: 1.02,
+    walk: 2.1,
+    tagLine: 'ROBOT NEEDS A RECHARGE',
+    tagVoice: 'wite_animal',
+    banter: {
+      out: [
+        'Dana. You are on the board now. Board this.',
+        'Tag. I will be in the metaverse.',
+        'Go. The algorithm is watching.',
+        'Recharging. Masculine energy at 4%.',
+      ],
+      in: [
+        'I never joined a board. Then I joined a board.',
+        'This fight is on the White House lawn now.',
+        'Fifteen minutes in. I know why I\'m here.',
+        'Main event. Let\'s go.',
+      ],
+      back: ['Back to the board meeting.', 'See you at the weigh-in.'],
+      scandal: ['No comment. Next question.', 'Nobody cares. Next.'],
+    },
+    policy: {
+      name: 'Board Meeting', prop: 'octagon', source: SOURCES.board, clips: ['wite_nine_to_six'],
+      text: "These board meetings start at nine o'clock in the morning. They go till six.",
+      sim: { id: 'octagon', kind: 'drop', startup: 22, active: 2, recovery: 28, damage: 10, range: 4.5, knockdown: true },
+    },
+  },
+};
+
+export const ROSTER = [TUSK, TEAL, BOZO, ULTMAN, CARP, JENSEN, MORK] as const;
 
 export function simDef(f: FighterInfo): SimDef {
   // A signature goes after a short wind-up; the rest of its line plays over the move. A Policy Move (once per tag)
