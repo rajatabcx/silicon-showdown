@@ -1,10 +1,10 @@
 import {
-  BACKFIRE_DAMAGE, BODY_WIDTH, CARDIO_REGEN, REACH_PAD, COUNTER_DAMAGE, DODGE_FRAMES, DODGE_INVULN, DODGE_SLIDE, ENG_DECAY,
-  ENG_FACT_CHECK, ENG_HIT, ENG_QUIET_FRAMES, ENG_SIG_LAND, ENG_SIG_SAID, FACT_CHECK_WINDOW, GRAVITY, INTRO_FRAMES,
-  JUMP_SCALE, MELTDOWN_FRAMES, MOVES, ROUND_END_FRAMES, ROUND_FRAMES, STAGE_HALF, START_X, STUN_FRAMES,
+  BODY_WIDTH, CARDIO_REGEN, REACH_PAD, DODGE_FRAMES, DODGE_INVULN, DODGE_SLIDE, ENG_DECAY,
+  ENG_HIT, ENG_QUIET_FRAMES, ENG_SIG_LAND, ENG_SIG_SAID, GRAVITY, INTRO_FRAMES,
+  JUMP_SCALE, MOVES, ROUND_END_FRAMES, ROUND_FRAMES, STAGE_HALF, START_X,
   SUPER_BUFFER, SUPER_COST, SUPER_DAMAGE, SUPER_GAP, SUPER_STARTUP, TIER_DEALT, TIER_TAKEN, tierOf,
-  WALK_SCALE, WINDED_FRAMES, SIG_CARDIO, TAG_FRAMES, TAG_MANUAL_CARDIO, SIDEKICK_HITS, SCANDAL_DAMAGE, SIDEKICK_DAMAGE,
-  TAG_REGEN,
+  WALK_SCALE, WINDED_FRAMES, SIG_CARDIO, SIG_COOLDOWN, SIG_REACH, TAG_FRAMES, TAG_MANUAL_CARDIO, SIDEKICK_HITS,
+  SCANDAL_DAMAGE, SIDEKICK_DAMAGE, TAG_REGEN,
 } from './constants';
 import { BTN, type Fighter, type Match, type MoveKey, type SigDef, type SimDef } from './types';
 
@@ -15,7 +15,7 @@ function newFighter(side: 0 | 1): Fighter {
     x: side === 0 ? -START_X : START_X, y: 0, vx: 0, vy: 0, facing: side === 0 ? 1 : -1,
     hp: 100, eng: 0, cardio: 100, state: 'idle', frame: 0, stun: 0,
     move: null, af: 0, hit: false, chain: 0, buf: 0, combo: 0, prev: 0, cur: 0,
-    sig: 0, sigHits: 0, dropX: 0, quiet: 0, melt: 0, wins: 0,
+    sig: 0, sigHits: 0, dropX: 0, sigCd: 0, quiet: 0, wins: 0,
     superUsed: false, superBuf: 0, tag: 0, skHits: 0, skOut: false, skPolicy: false,
   };
 }
@@ -48,15 +48,21 @@ const isInvincible = (f: Fighter) =>
 const backBit = (f: Fighter) => (f.facing === 1 ? BTN.L : BTN.R);
 const fwdBit = (f: Fighter) => (f.facing === 1 ? BTN.R : BTN.L);
 const holdsBack = (f: Fighter) => (f.cur & backBit(f)) !== 0;
-/** A sidekick in the middle of its Policy Move (the line or the throw). Like a Super, nobody can interrupt it. */
-const inPolicy = (f: Fighter) => f.tag > 0 && f.sig === 3 && (f.state === 'quote' || f.state === 'sig');
-const superReady = (f: Fighter) => f.tag <= 0 && f.eng >= SUPER_COST && f.melt <= 0 && !f.superUsed;
+/**
+ * Is fighter i staging a signature or a Policy Move: from the first word until the last hit has landed (thrown things
+ * included)? The opponent is frozen for all of it, so it can't be interrupted, blocked, dodged or missed.
+ */
+export const staging = (m: Match, i: 0 | 1) => {
+  const f = m.f[i];
+  return f.state === 'quote' || (f.state === 'sig' && !f.hit) || m.proj.some((p) => p.owner === i);
+};
+const superReady = (f: Fighter) => f.tag <= 0 && f.eng >= SUPER_COST && !f.superUsed;
 /**
  * A Super fires out of anything except lying on the floor: standing, walking, a punch or kick, a block, a jump, a line,
  * a dodge, getting up, being out of breath, and even while being hit (it breaks the combo).
  */
 const SUPER_FROM = new Set<Fighter['state']>([
-  'idle', 'walk', 'crouch', 'attack', 'blockstun', 'hitstun', 'stunned', 'jump', 'quote', 'sig', 'dodge', 'getup', 'winded',
+  'idle', 'walk', 'crouch', 'attack', 'blockstun', 'hitstun', 'jump', 'quote', 'sig', 'dodge', 'getup', 'winded',
 ]);
 /**
  * Remember a Super press. Called on every tick for both fighters, including ticks where that fighter is frozen
@@ -66,11 +72,9 @@ function noteSuper(f: Fighter, pressed: number) {
   if (pressed & BTN.X && superReady(f)) f.superBuf = SUPER_BUFFER;
 }
 const faceOpponent = (f: Fighter, o: Fighter) => { if (o.x !== f.x) f.facing = o.x > f.x ? 1 : -1; };
-const canGuard = (f: Fighter) => f.melt <= 0 && (isNeutral(f) || f.state === 'blockstun') && holdsBack(f);
-/** Is this fighter in the Fact-Check window of a line? */
-export const factCheckable = (f: Fighter, def: SimDef) =>
-  f.state === 'quote' && f.sig !== 3 && sigOf(def, f).kind !== 'counter' && f.frame >= sigOf(def, f).quote - FACT_CHECK_WINDOW;
-const counterArmed = (f: Fighter, def: SimDef) => f.state === 'quote' && sigOf(def, f).kind === 'counter';
+const canGuard = (f: Fighter) => (isNeutral(f) || f.state === 'blockstun') && holdsBack(f);
+/** A signature can only start against someone standing in the fight (not on the floor, not mid-Super or mid-line). */
+const canBeStaged = (o: Fighter) => !['knockdown', 'getup', 'ko', 'win', 'superStart', 'quote', 'sig'].includes(o.state);
 
 function addEng(m: Match, i: 0 | 1, n: number) {
   const f = m.f[i];
@@ -110,17 +114,18 @@ function tagOut(m: Match, i: 0 | 1, scandal: boolean) {
   m.events.push({ t: 'tagOut', by: i, scandal });
 }
 
-function factCheck(m: Match, checker: 0 | 1, defs: Defs) {
-  const c = m.f[checker], si = (1 - checker) as 0 | 1, s = m.f[si];
-  const ratioed = tierOf(s.eng) === 3;
-  m.events.push({ t: 'factCheck', by: checker, sig: s.sig, ratioed });
-  s.hp -= BACKFIRE_DAMAGE;
-  s.state = 'stunned'; s.stun = STUN_FRAMES; s.frame = 0; s.move = null; s.vx = -s.facing * 0.05;
-  if (ratioed) { s.eng = 0; s.melt = Math.round(MELTDOWN_FRAMES * (defs[si].ego === 'needy' ? 1.4 : 1)); }
-  else addEng(m, si, -30);
-  addEng(m, checker, ENG_FACT_CHECK);
-  c.quiet = 0;
-  m.hitstop = 14;
+/**
+ * Start a signature (0..2) or a Policy Move (3). The opponent is frozen from here on: whatever they were starting
+ * (a punch, a jump, a dodge) is dropped and they stand where they are until the move has landed.
+ */
+function beginSig(m: Match, i: 0 | 1, k: number) {
+  const f = m.f[i], o = m.f[1 - i];
+  f.sig = k; f.sigHits = 0; f.state = 'quote'; f.frame = 0; f.quiet = 0; f.hit = false; f.move = null;
+  faceOpponent(f, o);
+  if (o.state === 'attack' || o.state === 'jump' || o.state === 'dodge' || o.state === 'walk' || o.state === 'crouch') {
+    toIdle(o); o.y = 0; o.vy = 0; o.vx = 0;
+  }
+  m.events.push({ t: 'quote', by: i, sig: k });
 }
 
 function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
@@ -130,13 +135,13 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
   f.cur = inp;
   const pressed = inp & ~f.prev;
   f.prev = inp;
-  if (f.melt > 0) f.melt--;
+  if (f.sigCd > 0 && f.state !== 'quote' && f.state !== 'sig') f.sigCd--;
 
   // Super: once it fires, nothing can stop it. The press was checked against the meter when it was made; it then
   // waits (without running out) while the fighter is on the floor, and fires the moment they can move.
   noteSuper(f, pressed);
   if (f.superBuf > 0) {
-    const can = f.tag <= 0 && !f.superUsed && f.melt <= 0;
+    const can = f.tag <= 0 && !f.superUsed;
     if (!can) f.superBuf = 0;
     else if (SUPER_FROM.has(f.state) && o.state !== 'superStart' && m.phase === 'fight') {
       f.superBuf = 0; f.eng = 0; f.superUsed = true;
@@ -155,25 +160,19 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
       if (!sk) f.cardio = Math.min(100, f.cardio + CARDIO_REGEN * def.fitness * (f.state === 'walk' ? 0.5 : 1));
       const fwd = (inp & fwdBit(f)) !== 0, back = (inp & backBit(f)) !== 0, down = (inp & BTN.D) !== 0;
       if (!sk && pressed & BTN.T && f.cardio < TAG_MANUAL_CARDIO && !f.skOut) { tagIn(m, i, true); return; }
-      if (sk && pressed & BTN.S) {
-        if (f.skPolicy) return;
-        if (o.state === 'quote') { m.events.push({ t: 'outOfOrder', by: i }); return; }
-        f.skPolicy = true; f.sig = 3; f.sigHits = 0; f.state = 'quote'; f.frame = 0;
-        m.events.push({ t: 'quote', by: i, sig: 3 });
-        return;
+      if (pressed & BTN.S && (sk ? !f.skPolicy : f.sigCd <= 0)) {
+        // One speaker has the floor: no new line while the other side is still talking.
+        if (o.state === 'quote' || o.state === 'sig') { m.events.push({ t: 'outOfOrder', by: i }); return; }
+        // Someone on the floor can't be hit by one: wait for them to get up.
+        if (canBeStaged(o)) {
+          if (sk) f.skPolicy = true;
+          else { f.cardio -= SIG_CARDIO / def.fitness; f.sigCd = SIG_COOLDOWN; }
+          beginSig(m, i, sk ? 3 : down ? 2 : fwd ? 1 : 0);
+          return;
+        }
       }
       if (!sk && pressed & BTN.G) {
-        if (factCheckable(o, defs[1 - i])) { factCheck(m, i, defs); }
         f.state = 'dodge'; f.frame = 0; m.events.push({ t: 'dodge', by: i });
-        return;
-      }
-      if (!sk && pressed & BTN.S && f.melt <= 0) {
-        // One speaker has the floor: no new line while the other side is still talking.
-        if (o.state === 'quote') { m.events.push({ t: 'outOfOrder', by: i }); return; }
-        f.sig = down ? 2 : fwd ? 1 : 0; f.sigHits = 0;
-        f.cardio -= SIG_CARDIO / def.fitness;
-        f.state = 'quote'; f.frame = 0; f.quiet = 0;
-        m.events.push({ t: 'quote', by: i, sig: f.sig });
         return;
       }
       if (pressed & BTN.P) { f.chain = 1; startAttack(m, i, 'jab', def); return; }
@@ -222,32 +221,35 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
       const sg = sigOf(def, f);
       if (++f.frame < sg.quote) return;
       addEng(m, i, ENG_SIG_SAID);
-      if (sg.kind === 'counter') { toIdle(f); return; }
       f.state = 'sig'; f.af = 0; f.hit = false;
-      if (sg.kind === 'drop') f.dropX = f.sig === 3 ? o.x : clampX(f.x + f.facing * Math.min(sg.range, Math.abs(o.x - f.x)));
+      faceOpponent(f, o);
+      // A drop lands on the opponent; a melee move dashes in until it's in reach.
+      if (sg.kind === 'drop') f.dropX = o.x;
+      if (sg.kind === 'melee') f.dropX = Math.abs(o.x - f.x) > SIG_REACH ? o.x - f.facing * SIG_REACH : f.x;
       m.events.push({ t: 'sigGo', by: i, sig: f.sig });
       return;
     }
     case 'sig': {
       const sg = sigOf(def, f);
       f.af++;
-      if (sg.lunge && f.af <= sg.startup) f.x += (f.facing * sg.lunge) / sg.startup;
+      if (sg.kind === 'melee' && f.af <= sg.startup) f.x += (f.dropX - f.x) / (sg.startup - f.af + 1);
       if (sg.kind === 'projectile') {
         const n = sg.hits ?? 1;
         for (let k = 0; k < n; k++) {
           if (f.af !== sg.startup + k * 12) continue;
           const x0 = f.x + f.facing * 0.7, vx = f.facing * (sg.speed ?? 0.12);
-          // Policy throws are lobbed to land on the (frozen) opponent at chest height, however far away.
+          // Lobbed to land on the (frozen) opponent at chest height, however far away.
           const T = Math.max(1, Math.abs(o.x - x0) / Math.abs(vx));
-          const vy = f.sig === 3 ? (-0.3 + 0.5 * GRAVITY * 0.8 * T * T) / T || 0.001 : sg.arc ?? 0;
+          const vy = (-0.3 + 0.5 * GRAVITY * 0.8 * T * T) / T || 0.001;
           m.proj.push({
             owner: i, sig: f.sig, x: x0, y: 1.3, vx, vy,
-            dmg: sg.damage, knockdown: !!sg.knockdown,
+            dmg: sg.damage, knockdown: !!sg.knockdown && k === n - 1,
           });
           m.events.push({ t: 'throw', by: i, sig: f.sig });
+          if (k === n - 1) f.hit = true;
         }
       }
-      if (f.af >= sg.startup + sg.active + sg.recovery) toIdle(f);
+      if (f.af >= sg.startup + sg.active + sg.recovery) { f.hit = true; toIdle(f); if (f.sig !== 3) f.sigCd = SIG_COOLDOWN; }
       return;
     }
     case 'dodge': {
@@ -255,7 +257,7 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
       if (++f.frame >= DODGE_FRAMES) toIdle(f);
       return;
     }
-    case 'hitstun': case 'blockstun': case 'stunned': {
+    case 'hitstun': case 'blockstun': {
       f.stun--; f.x += f.vx; f.vx *= 0.82; f.frame++;
       if (f.stun <= 0) { toIdle(f); f.vx = 0; }
       return;
@@ -303,18 +305,18 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
 const clampX = (x: number) => Math.max(-STAGE_HALF, Math.min(STAGE_HALF, x));
 
 function dealHit(
-  m: Match, ai: 0 | 1, dir: number, base: number, key: MoveKey | 'sig' | 'counter',
+  m: Match, ai: 0 | 1, dir: number, base: number, key: MoveKey | 'sig',
   o: { hitstun: number; knockdown?: boolean; launch?: boolean; heavy?: boolean },
 ) {
   const a = m.f[ai], d = m.f[1 - ai];
   const dmg = base * Math.max(0.5, 1 - 0.1 * d.combo) * TIER_DEALT[tierOf(a.eng)] * TIER_TAKEN[tierOf(d.eng)] *
-    (a.melt > 0 ? 0.5 : 1) * (a.tag > 0 ? SIDEKICK_DAMAGE : 1);
-  if (d.state === 'quote') m.events.push({ t: 'quoteCut', by: (1 - ai) as 0 | 1, sig: d.sig });
+    (a.tag > 0 ? SIDEKICK_DAMAGE : 1);
   d.combo++;
   const knock = !!o.knockdown || d.y > 0;
   // A sidekick soaks hits instead of the billionaire's health; three and it's a scandal.
   if (d.tag > 0) d.skHits++;
   else d.hp -= dmg;
+
   if (d.state === 'winded') d.cardio = Math.max(d.cardio, 30);
   addEng(m, ai, key === 'sig' ? ENG_SIG_LAND : ENG_HIT);
   a.quiet = key === 'sig' ? 0 : a.quiet;
@@ -334,21 +336,11 @@ function dealBlock(m: Match, ai: 0 | 1, dir: number, blockstun: number, chip: nu
   m.events.push({ t: 'block', by: ai, x: d.x, y: d.y + 1.3, heavy });
 }
 
-/** Teal's hesitation stance: a melee hit during it is caught and answered. */
-function counterHit(m: Match, ci: 0 | 1) {
-  const c = m.f[ci], a = m.f[1 - ci];
-  m.events.push({ t: 'counter', by: ci });
-  a.state = 'stunned'; a.stun = 24; a.move = null; a.frame = 0;
-  c.state = 'idle'; c.frame = 0;
-  dealHit(m, ci, c.facing, COUNTER_DAMAGE, 'counter', { hitstun: 0, knockdown: true, heavy: true });
-  addEng(m, ci, ENG_SIG_LAND);
-}
-
 function inFront(a: Fighter, d: Fighter, range: number) {
   return (d.x - a.x) * a.facing >= -0.3 && Math.abs(d.x - a.x) <= range + REACH_PAD;
 }
 
-function resolveMelee(m: Match, ai: 0 | 1, defs: Defs) {
+function resolveMelee(m: Match, ai: 0 | 1) {
   const a = m.f[ai], d = m.f[1 - ai];
   if (!a.move || a.hit || (a.state !== 'attack' && a.state !== 'jump')) return;
   const mv = MOVES[a.move];
@@ -358,51 +350,46 @@ function resolveMelee(m: Match, ai: 0 | 1, defs: Defs) {
   const air = a.state === 'jump';
   if (air ? a.y - d.y > 1.7 : d.y > (mv.launch ? 2.4 : 1.3)) return;
   a.hit = true;
-  if (counterArmed(d, defs[1 - ai])) { counterHit(m, (1 - ai) as 0 | 1); return; }
   const guarded = canGuard(d) && (mv.low ? (d.cur & BTN.D) !== 0 : mv.overhead ? (d.cur & BTN.D) === 0 : true);
   if (guarded) dealBlock(m, ai, a.facing, mv.blockstun, mv.heavy ? 1 : 0, mv.heavy);
   else dealHit(m, ai, a.facing, mv.damage, a.move, mv);
 }
 
 function resolveSig(m: Match, ai: 0 | 1, defs: Defs) {
-  const a = m.f[ai], d = m.f[1 - ai];
+  const a = m.f[ai];
   if (a.state !== 'sig') return;
   const sg: SigDef = sigOf(defs[ai], a);
+  // The opponent has been frozen since the first word, so every hit lands: no range check, no guard.
   if (sg.kind === 'melee') {
     const n = sg.hits ?? 1;
     if (a.sigHits >= n || a.af <= sg.startup || a.af > sg.startup + sg.active) return;
     const due = Math.floor(((a.af - sg.startup - 1) * n) / sg.active);
     if (due < a.sigHits) return;
-    if (isInvincible(d) || !inFront(a, d, sg.range) || d.y > 1.6) return;
     a.sigHits++;
     const last = a.sigHits >= n;
-    if (counterArmed(d, defs[1 - ai])) { a.sigHits = n; counterHit(m, (1 - ai) as 0 | 1); return; }
-    if (canGuard(d)) dealBlock(m, ai, a.facing, 18, 2, true);
-    else dealHit(m, ai, a.facing, sg.damage, 'sig', { hitstun: 30, knockdown: last && sg.knockdown, heavy: true });
+    if (last) a.hit = true;
+    dealHit(m, ai, a.facing, sg.damage, 'sig', { hitstun: 30, knockdown: last && sg.knockdown, heavy: true });
   } else if (sg.kind === 'drop') {
     if (a.af !== sg.startup) return;
-    const pol = a.sig === 3;
-    if (!pol && (isInvincible(d) || Math.abs(d.x - a.dropX) > 0.9 || d.y > 1.6)) return;
-    if (!pol && canGuard(d)) dealBlock(m, ai, a.facing, 22, 3, true);
-    else dealHit(m, ai, a.facing, sg.damage, 'sig', { hitstun: 30, knockdown: sg.knockdown, heavy: true });
+    a.hit = true;
+    dealHit(m, ai, a.facing, sg.damage, 'sig', { hitstun: 30, knockdown: sg.knockdown, heavy: true });
   }
 }
 
-function resolveProjectiles(m: Match, defs: Defs) {
+/** Thrown signatures, all lobbed at a frozen opponent: each one lands (or, if it somehow can't, is removed). */
+function resolveProjectiles(m: Match, owner: 0 | 1) {
   for (let k = m.proj.length - 1; k >= 0; k--) {
     const p = m.proj[k];
-    p.x += p.vx; p.y += p.vy; p.vy -= p.vy !== 0 || p.y > 1.31 ? GRAVITY * 0.8 : 0;
+    if (p.owner !== owner) continue;
+    p.x += p.vx; p.y += p.vy; p.vy -= GRAVITY * 0.8;
     const d = m.f[1 - p.owner];
     if (Math.abs(p.x) > STAGE_HALF + 1.5 || p.y < 0) { m.proj.splice(k, 1); continue; }
-    const pol = p.sig === 3;
-    if (Math.abs(p.x - d.x) < 0.55 && p.y > d.y && p.y < d.y + 1.9 && (pol ? d.state !== 'superStart' : !isInvincible(d))) {
-      const dir = Math.sign(p.vx);
-      if (!pol && canGuard(d)) dealBlock(m, p.owner, dir, 14, 2, p.knockdown);
-      else dealHit(m, p.owner, dir, p.dmg, 'sig', { hitstun: 22, knockdown: p.knockdown, heavy: true });
+    const reached = (p.x - d.x) * Math.sign(p.vx) > -0.55;
+    if (reached && d.state !== 'superStart') {
+      dealHit(m, p.owner, Math.sign(p.vx), p.dmg, 'sig', { hitstun: 22, knockdown: p.knockdown, heavy: true });
       m.proj.splice(k, 1);
     }
   }
-  void defs;
 }
 
 function checkKo(m: Match) {
@@ -434,6 +421,16 @@ function tagTick(m: Match, defs: Defs) {
   }
 }
 
+/** Bozo is customer-obsessed: every hit he takes (not his sidekick) is feedback, and feedback is engagement. */
+function feedback(m: Match, defs: Defs) {
+  for (let k = m.events.length - 1; k >= 0; k--) {
+    const e = m.events[k];
+    if (e.t !== 'hit') continue;
+    const v = (1 - e.by) as 0 | 1;
+    if (defs[v].ego === 'customer' && m.f[v].tag <= 0) addEng(m, v, 2);
+  }
+}
+
 function egoTick(m: Match, defs: Defs) {
   for (const i of [0, 1] as const) {
     const f = m.f[i], o = m.f[1 - i];
@@ -443,9 +440,11 @@ function egoTick(m: Match, defs: Defs) {
       if (f.hp < o.hp - 5) addEng(m, i, 0.045);
       else if (f.hp > o.hp + 5) addEng(m, i, -ENG_DECAY);
       else if (f.quiet > ENG_QUIET_FRAMES) addEng(m, i, -ENG_DECAY * 0.5);
+    } else if (defs[i].ego === 'hype') {
+      // Ultman's meter never drains: there's always another announcement.
     } else if (f.quiet > ENG_QUIET_FRAMES) {
-      // Tusk is needy: stop posting and the meter drains twice as fast.
-      addEng(m, i, -ENG_DECAY * 2);
+      // Tusk is needy: stop posting and the meter drains twice as fast. Bozo drains at the normal rate.
+      addEng(m, i, -ENG_DECAY * (defs[i].ego === 'needy' ? 2 : 1));
     }
   }
 }
@@ -529,16 +528,17 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
     updateFighter(m, caller as 0 | 1, ins[caller], defs);
     return;
   }
-  // Policy Move: the same freeze for the opponent while the sidekick says the line and its throw lands.
-  const pi = ([0, 1] as const).find((i) => inPolicy(m.f[i]) || m.proj.some((p) => p.owner === i && p.sig === 3));
+  // A signature or a Policy Move: the same freeze for the opponent from the first word until the last hit lands.
+  const pi = ([0, 1] as const).find((i) => staging(m, i));
   if (pi !== undefined) {
     const other = m.f[1 - pi];
     noteSuper(other, ins[1 - pi] & ~other.prev);
     other.prev = ins[1 - pi];
     updateFighter(m, pi, ins[pi], defs);
     if (m.phase !== 'fight') return;
-    resolveProjectiles(m, defs);
+    resolveProjectiles(m, pi);
     resolveSig(m, pi, defs);
+    feedback(m, defs);
     separate(m);
     checkKo(m);
     return;
@@ -552,11 +552,13 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   if (m.phase !== 'fight') return;
   egoTick(m, defs);
 
-  resolveProjectiles(m, defs);
-  resolveMelee(m, 0, defs);
-  resolveMelee(m, 1, defs);
+  resolveProjectiles(m, 0);
+  resolveProjectiles(m, 1);
+  resolveMelee(m, 0);
+  resolveMelee(m, 1);
   resolveSig(m, 0, defs);
   resolveSig(m, 1, defs);
+  feedback(m, defs);
   separate(m);
   checkKo(m);
 

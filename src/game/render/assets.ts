@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 
 export type Assets = {
-  tusk: GLTF; teal: GLTF; covfefe: GLTF; veep: GLTF;
+  tusk: GLTF; teal: GLTF; bozo: GLTF; ultman: GLTF; covfefe: GLTF; veep: GLTF; melania: GLTF;
   props: { sink: THREE.Object3D; chainsaw: THREE.Object3D; ball: THREE.Object3D };
 };
 
@@ -12,11 +12,15 @@ let pending: Promise<Assets> | null = null;
 export function loadAssets(onProgress?: (k: number) => void): Promise<Assets> {
   if (pending) return pending;
   const loader = new GLTFLoader();
-  const files = ['/models/characters/tusk.glb', '/models/characters/teal.glb', '/models/characters/covfefe.glb', '/models/characters/veep.glb', '/models/props/sink.glb', '/models/props/chainsaw.glb', '/models/props/steel_ball.glb'];
+  const files = [
+    '/models/characters/tusk.glb', '/models/characters/teal.glb', '/models/characters/jeffbozo.glb', '/models/characters/sam.glb',
+    '/models/characters/covfefe.glb', '/models/characters/veep.glb', '/models/characters/melania.glb',
+    '/models/props/sink.glb', '/models/props/chainsaw.glb', '/models/props/steel_ball.glb',
+  ];
   let done = 0;
   const load = (url: string) => loader.loadAsync(url).then((g) => { done++; onProgress?.(done / files.length); return g; });
-  pending = Promise.all(files.map(load)).then(([tusk, teal, covfefe, veep, sink, chainsaw, ball]) => ({
-    tusk, teal, covfefe, veep, props: { sink: sink.scene, chainsaw: chainsaw.scene, ball: ball.scene },
+  pending = Promise.all(files.map(load)).then(([tusk, teal, bozo, ultman, covfefe, veep, melania, sink, chainsaw, ball]) => ({
+    tusk, teal, bozo, ultman, covfefe, veep, melania, props: { sink: sink.scene, chainsaw: chainsaw.scene, ball: ball.scene },
   }));
   pending.catch(() => { pending = null; });
   return pending;

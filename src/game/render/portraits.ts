@@ -24,9 +24,18 @@ export function makePortraits<K extends string>(models: Record<K, GLTF>, size = 
     const head = model.getObjectByName('mixamorigHead');
     const p = new THREE.Vector3();
     if (head) head.getWorldPosition(p); else new THREE.Box3().setFromObject(model).getCenter(p);
-    // Bobble-head proportions: the head bone sits at the jaw, so aim a little above it.
-    const target = p.clone().add(new THREE.Vector3(0, 0.16, 0));
-    cam.position.copy(target).add(new THREE.Vector3(0.38, 0.06, 1.75));
+    // Bobble-head proportions: the head bone sits at the jaw, so aim a little above it. Heads differ a lot in size
+    // (Bozo's is about two thirds of Tusk's), so the shot is scaled to the head: jaw to crown.
+    let top = -Infinity;
+    model.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.geometry.computeBoundingBox();
+      top = Math.max(top, mesh.geometry.boundingBox!.clone().applyMatrix4(mesh.matrixWorld).max.y);
+    });
+    const k = head && Number.isFinite(top) ? THREE.MathUtils.clamp((top - p.y) / 0.57, 0.6, 1) : 1;
+    const target = p.clone().add(new THREE.Vector3(0, 0.16 * k, 0));
+    cam.position.copy(target).add(new THREE.Vector3(0.38 * k, 0.06 * k, 1.75 * k));
     cam.lookAt(target);
     gl.render(scene, cam);
     out[id] = gl.domElement.toDataURL('image/png');

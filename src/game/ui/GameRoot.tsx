@@ -12,13 +12,13 @@ import type { Difficulty } from '../sim/ai/cpu';
 import { FightScreen } from './FightScreen';
 
 type Screen = 'gate' | 'title' | 'select' | 'fight' | 'result';
-type Portraits = Partial<Record<'tusk' | 'teal' | 'covfefe' | 'veep', string>>;
+type Portraits = Partial<Record<FighterInfo['id'] | FighterInfo['sidekick']['model'], string>>;
 type Paper = { name: string; headline: string; sub: string; won: boolean };
 
 const LEVELS: { id: Difficulty; name: string; note: string }[] = [
-  { id: 'easy', name: 'Intern', note: 'He rarely Fact-Checks you.' },
-  { id: 'normal', name: 'Founder', note: 'Fights back, checks some lines.' },
-  { id: 'hard', name: 'Hostile Takeover', note: 'Reads every line. Punishes talk.' },
+  { id: 'easy', name: 'Intern', note: 'Slow to react, rarely blocks.' },
+  { id: 'normal', name: 'Founder', note: 'Fights back and blocks some.' },
+  { id: 'hard', name: 'Hostile Takeover', note: 'Blocks a lot, never lets up.' },
 ];
 
 export function GameRoot() {
@@ -30,10 +30,15 @@ export function GameRoot() {
   const [paper, setPaper] = useState<Paper | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [portraits, setPortraits] = useState<Portraits>({});
-  // Who you play. The CPU is whoever is left (two fighters for now; an opponent pick comes later).
+  // Who you play, and who the CPU plays: drawn at random from the rest of the roster each time you pick.
   const [pickId, setPickId] = useState<FighterInfo['id']>(TUSK.id);
+  const [cpuPref, setCpuPref] = useState<FighterInfo['id']>('teal');
+  const drawCpu = (not: FighterInfo['id']) => {
+    const rest = ROSTER.filter((f) => f.id !== not);
+    setCpuPref(rest[Math.floor(Math.random() * rest.length)].id);
+  };
   const player = ROSTER.find((f) => f.id === pickId)!;
-  const cpu = ROSTER.find((f) => f.id !== pickId)!;
+  const cpu = ROSTER.find((f) => f.id === cpuPref && f.id !== pickId) ?? ROSTER.find((f) => f.id !== pickId)!;
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Load models while the satire notice is up, then build the room (with this matchup) behind the title screen.
@@ -43,7 +48,9 @@ export function GameRoot() {
       if (dead || !canvasRef.current) return;
       g = new Game({ canvas: canvasRef.current, assets, player, cpu });
       setGame(g);
-      setPortraits((p) => (p.tusk ? p : makePortraits({ tusk: assets.tusk, teal: assets.teal, covfefe: assets.covfefe, veep: assets.veep })));
+      setPortraits((p) => (p.tusk ? p : makePortraits({
+        tusk: assets.tusk, teal: assets.teal, bozo: assets.bozo, ultman: assets.ultman, covfefe: assets.covfefe, veep: assets.veep, melania: assets.melania,
+      })));
     }).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the models.'));
     return () => { dead = true; g?.dispose(); setGame(null); };
   }, [player, cpu]);
@@ -56,17 +63,17 @@ export function GameRoot() {
     setScreen('result');
   }, [player, cpu]);
   const quit = useCallback(() => { game?.stop(); setScreen('select'); }, [game]);
-  const choose = (id: FighterInfo['id']) => { if (id !== pickId) { sfx('ui'); setPickId(id); } };
+  const choose = (id: FighterInfo['id']) => { if (id !== pickId) { sfx('ui'); setPickId(id); drawCpu(id); } };
 
   // The room behind the menus: orbiting on the title, both fighters face-on while you pick.
   useEffect(() => { game?.setLobby(screen === 'select' ? 'select' : 'title'); }, [game, screen]);
 
-  // Menus work from the keyboard: Enter moves on; on the select screen A/D pick and W/S set the CPU level.
+  // Menus work from the keyboard: Enter moves on; on the select screen A/D pick (the CPU's fighter is drawn at random) and W/S set the CPU level.
   useEffect(() => {
     if ((screen !== 'title' && screen !== 'select') || showHelp) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      if (screen === 'title') { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); go('select'); } return; }
+      if (screen === 'title') { if (e.code === 'Enter' || e.code === 'Space') { e.preventDefault(); drawCpu(pickId); go('select'); } return; }
       const step = e.code === 'KeyA' || e.code === 'ArrowLeft' ? -1 : e.code === 'KeyD' || e.code === 'ArrowRight' ? 1 : 0;
       const lv = e.code === 'KeyW' || e.code === 'ArrowUp' ? -1 : e.code === 'KeyS' || e.code === 'ArrowDown' ? 1 : 0;
       if (step) { e.preventDefault(); const i = ROSTER.findIndex((f) => f.id === pickId); choose(ROSTER[(i + step + ROSTER.length) % ROSTER.length].id); }
@@ -106,7 +113,7 @@ export function GameRoot() {
       )}
 
       {screen === 'title' && (
-        <div className="absolute inset-0 z-10 flex cursor-pointer flex-col items-center bg-[linear-gradient(180deg,rgb(11_9_16/0.9),rgb(11_9_16/0.1)_42%,rgb(11_9_16/0.2)_60%,rgb(11_9_16/0.95))]" onClick={() => go('select')}>
+        <div className="absolute inset-0 z-10 flex cursor-pointer flex-col items-center bg-[linear-gradient(180deg,rgb(11_9_16/0.9),rgb(11_9_16/0.1)_42%,rgb(11_9_16/0.2)_60%,rgb(11_9_16/0.95))]" onClick={() => { drawCpu(pickId); go('select'); }}>
           <div className="anim-rise flex flex-col items-center pt-[7vh] text-center">
             <div className="mono text-[11px] tracking-[0.35em] text-[#e3b95a]">COMMITTEE ON COMMERCE, SCIENCE AND HUBRIS</div>
             <h1 className="display mt-2 text-6xl leading-[0.85] text-[#f3ecdc] drop-shadow-[0_6px_0_#000] sm:text-[8.5rem]">Silicon Showdown</h1>
@@ -149,8 +156,6 @@ export function GameRoot() {
                   <Tile key={f.id} name={f.name} src={portraits[f.id]} color={f.color} on={pickId === f.id}
                     badges={[pickId === f.id ? '1P' : '', cpu.id === f.id ? 'CPU' : '']} onClick={() => choose(f.id)} />
                 ))}
-                <Tile name="Coming soon" locked />
-                <Tile name="Coming soon" locked />
                 <Tile name="???" locked boss />
               </div>
               <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
@@ -159,10 +164,6 @@ export function GameRoot() {
                   {LEVELS.map((l) => (
                     <button key={l.id} className="btn-ghost !px-2.5 !py-1.5 !text-[11px]" role="radio" aria-checked={level === l.id} data-on={level === l.id} onClick={() => { sfx('ui'); setLevel(l.id); }}>{l.name}</button>
                   ))}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="mono text-[10px] tracking-[0.25em] text-white/50">STAGE</span>
-                  <span className="btn-ghost !cursor-default !px-2.5 !py-1.5 !text-[11px]" data-on="true">Hearing room</span>
                 </div>
               </div>
               <div className="mono text-[11px] text-white/50">{LEVELS.find((l) => l.id === level)!.note}</div>
@@ -280,19 +281,18 @@ function Help({ onClose }: { onClose(): void }) {
             {row(['W', 'S'], 'Jump, duck (duck blocks low)')}
             {row(['J'], 'Light. Tap three times for a string')}
             {row(['K'], 'Heavy. Forward+K kicks, down+K sweeps')}
-            {row(['L'], 'Signature: say the line, then do it')}
+            {row(['L'], 'Signature: says the line and does it. Always lands; then all three rest for 5 seconds')}
             {row(['L', 'D'], 'Second signature (L + forward)')}
             {row(['L', 'S'], 'Third signature (L + down)')}
-            {row(['Space'], 'Dodge. In a line’s last beat: Fact-Check')}
+            {row(['Space'], 'Dodge')}
             {row(['Enter'], 'Super: needs Viral (the gold mark), once per round. It always lands and nobody can interrupt it')}
             {row(['U'], 'Tag in your sidekick when cardio is low')}
             {row(['Esc'], 'Pause')}
           </div>
           <div className="flex flex-col gap-3 text-sm leading-relaxed text-white/80">
-            <p><b className="text-white">Say it, then do it.</b> Every signature starts with a real line. While a fighter talks they are open: hit them and the line is cut.</p>
+            <p><b className="text-white">Say it, do it.</b> Every signature is a real line. The room freezes while it plays, so it can&apos;t be blocked, dodged or interrupted, and it always lands. Then your three signatures rest for 5 seconds (the bar under cardio).</p>
             <p><b className="text-white">One speaker at a time.</b> Nobody can start a line while the other is still talking: the chair calls it out of order.</p>
-            <p><b className="text-[#5fc8ff]">Fact-Check.</b> When the other fighter is talking, the bar in their speech bubble shows a blue window at the end. Press Space inside it and the move backfires.</p>
-            <p><b className="text-[#ffb347]">Engagement.</b> Saying wild things fills it: Trending, Viral, Main Character. You hit harder and take more. Viral unlocks your Super: one per round, and time stops while it starts. Get Fact-Checked at Main Character and you are Ratioed: a Meltdown.</p>
+            <p><b className="text-[#ffb347]">Engagement.</b> Saying wild things fills it: Trending, Viral, Main Character. You hit harder and take more. Viral unlocks your Super: one per round, and time stops while it starts.</p>
             <p><b className="text-[#7fd3ff]">Cardio.</b> Every swing, jump and block costs breath. Run out and your funded politician tags in for 8 seconds while you recover. Let it take 3 hits and it&apos;s a scandal: you lose 8 health and it&apos;s benched for the round.</p>
             <p className="text-white/60">Melon Tusk goes quiet badly: his meter drains twice as fast. Peter Teal gains Engagement while losing.</p>
           </div>

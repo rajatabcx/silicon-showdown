@@ -25,6 +25,15 @@ export const WINDED_FRAMES = 90;
 export const CARDIO_REGEN = 0.05;
 /** Cardio a signature move costs (/ fitness). */
 export const SIG_CARDIO = 8;
+/**
+ * A signature's wind-up: the line starts, the opponent freezes, and the move goes after at most this many frames
+ * (the rest of the line plays over the move). Short so the fight keeps moving.
+ */
+export const SIG_WINDUP = 46;
+/** After a signature, all three are locked for this long (the Super is not). */
+export const SIG_COOLDOWN = 5 * 60;
+/** A melee signature dashes in to this distance from the opponent, so it always connects. */
+export const SIG_REACH = 1.45;
 
 // Sidekick tag system: at 0 cardio (or by choice below TAG_MANUAL_CARDIO) a funded politician tags in.
 export const TAG_FRAMES = 8 * 60;
@@ -35,23 +44,17 @@ export const SIDEKICK_DAMAGE = 0.75;
 /** The billionaire recovers this many times faster while the sidekick fights. */
 export const TAG_REGEN = 4;
 
-/** Dodge: invincible from frame 2 to 16, recovers at 26. Pressed in the last beat of a quote, it's a Fact-Check. */
+/** Dodge: invincible from frame 2 to 16, recovers at 26. */
 export const DODGE_FRAMES = 26;
 export const DODGE_INVULN: [number, number] = [2, 16];
 export const DODGE_SLIDE = 0.035;
-export const FACT_CHECK_WINDOW = 36;
-export const STUN_FRAMES = 80;
-export const MELTDOWN_FRAMES = 170;
-export const BACKFIRE_DAMAGE = 6;
-export const COUNTER_DAMAGE = 12;
 
 /** Engagement: 0..100, three tiers. Viral unlocks the Super. */
 export const TIERS = [34, 67, 100] as const;
 export const SUPER_COST = 67;
-export const ENG_SIG_LAND = 24;
-export const ENG_SIG_SAID = 8;
+export const ENG_SIG_LAND = 12;
+export const ENG_SIG_SAID = 4;
 export const ENG_HIT = 1.5;
-export const ENG_FACT_CHECK = 22;
 export const ENG_QUIET_FRAMES = 3 * FPS;
 export const ENG_DECAY = 0.05;
 /** Damage dealt and taken per tier (0..3). The higher you climb, the harder you hit and the harder you fall. */

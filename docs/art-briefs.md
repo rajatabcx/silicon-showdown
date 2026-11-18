@@ -67,12 +67,29 @@ Colours to hold: suit `#232a33`, tie `#2b4f8a`, skin `#efc3a4`, hair `#3b2a1e`.
 ## Jeff Bozo
 **Read in one glance:** a bald man who discovered the gym and wants you to know.
 
-> A compact, muscular man around sixty. Completely bald, shiny egg-shaped head. One eyebrow much higher than the other, one eye slightly narrowed, a very wide closed-mouth grin. Thick neck, chest puffed far out, arms too big for his sleeves, narrow waist, short legs. Tight navy polo shirt with the collar open, slim blue jeans, brown cowboy boots.
+> Satirical caricature of Amazon founder Jeff Bezos, instantly recognisable. A short, compact man around sixty with a very muscular upper body. Completely bald, smooth, shiny egg-shaped head with a bright highlight on top. Wide face with prominent cheekbones and deep smile lines. Large, slightly bulging pale blue-grey eyes with dark, thick eyebrows, the left eyebrow raised much higher than the right. Very wide closed-mouth grin stretched almost ear to ear, cheeks pushed up, as if about to burst out laughing. Short, thick neck. Puffed-out barrel chest, big rounded shoulders, bulging biceps straining his sleeves, narrow waist, short legs. Tight black short-sleeve polo shirt, an open dark-navy quilted puffer vest over it, slim dark jeans, brown leather loafers.
+
+### Jeff Bozo's sidekick: Madame Producer (Melania Trump parody; name not final)
+Real link: Amazon paid about $40M for the rights to her documentary, which she executive-produced (Jan 2025); about $35M more went on marketing, and it made about $16.5M worldwide. Jokes stay on the deal: nothing about her looks, marriage or immigration story, and no tabloid rumours.
+**Read in one glance:** a woman who is not impressed by this fight, or by you.
+
+> Satirical caricature of First Lady Melania Trump, instantly recognisable. A tall, slim woman in her fifties with very upright, poised posture and her chin raised. Long, thick, glossy caramel-brown hair with lighter highlights, falling in soft waves, swept behind the shoulders and down the back so the neck and shoulders stay clear. Wide, sharp cheekbones and a narrow, defined jaw. Narrow, almond-shaped eyes in a cool half-squint, heavy dark smoky eye make-up, thick arched dark eyebrows. Full lips pressed together in a blank, unreadable expression, one eyebrow a fraction higher. Sharp tailored dark-navy trouser suit: a long belted blazer with strong square shoulders and wide lapels, straight trousers, pointed black high heels. Elegant, not sexualised.
 
 ## Sam Ultman
 **Read in one glance:** a polite young man who is slightly worried about something he built.
 
-> A slight, boyish man around forty. Large head, very big wide-set eyes, eyebrows tilted up in the middle in permanent mild concern, small mouth in a careful half-smile. Tousled medium-brown hair falling forward. Thin neck, narrow shoulders, slim arms. Plain grey crewneck sweater, dark jeans, plain white sneakers.
+> Satirical caricature of OpenAI CEO Sam Altman, instantly recognisable. A short, slim man of about forty with a youthful, clean-shaven face (no stubble, no beard) and only light lines under the eyes. Narrow face with high cheekbones and slightly hollow cheeks, a narrow chin. Large, deep-set green-hazel eyes with a calm, intense, earnest stare (normal-sized pupils, not bulging, not bloodshot). Dark straight eyebrows that tilt up in the middle in sincere concern. Straight nose, thin lips in a small, careful, closed-mouth half-smile. Thick, short dark-brown hair, wavy on top, neatly combed forward and up into a soft quiff over the forehead, short at the sides: neat, not spiky. Ears stick out slightly. Slightly hunched, head pushed a little forward. Plain navy-blue crewneck sweater, slim dark jeans, plain white sneakers.
+
+### Sam Ultman's sidekick: Uncle Covfefe (shared with Melon Tusk)
+Owner's call, 18 Nov 2026: Sam shares Uncle Covfefe with Tusk as a running gag ("same daddy"). Real link: OpenAI president Greg Brockman and his wife gave $25M to MAGA Inc. (Sep 2025); Sam gave $1M to the inauguration fund. No new model needed.
+
+### On hold: Ted Cancún (Ted Cruz parody)
+Real link: Sam gave him the maximum legal donation in Oct 2024; Cruz chaired the May 2025 Senate Commerce hearing Sam testified at and pushed a 10-year moratorium on state AI laws. Gag source: the Feb 2021 Cancún trip during the Texas freeze.
+**Read in one glance:** a senator who is very pleased with himself and already has his bags packed.
+
+> Satirical caricature of US Senator Ted Cruz, instantly recognisable. A man in his mid-fifties, average height, thickset with soft shoulders and a small paunch. Long, fleshy face with full jowls. Full, neatly trimmed dark beard with grey streaks along the jaw and chin, joined to a moustache. Thick black hair slicked straight back with gel, shiny, receding at the temples into a widow's peak. Heavy-lidded dark eyes and thick dark eyebrows that slope down at the outer ends, giving a smug, sleepy look. Large, long nose. Mouth closed in a self-satisfied, slightly crooked smirk, one cheek pushed up. Dark navy suit with the jacket buttoned over the paunch, white shirt, red tie, a small plain red-white-blue lapel pin, brown cowboy boots.
+
+His suitcase and beach hat for the Cancún gag are separate props, modelled on their own.
 
 ## Mo'Cash Ambunny
 **Read in one glance:** the richest uncle at the wedding, and it is his wedding.

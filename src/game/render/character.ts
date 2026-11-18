@@ -29,10 +29,20 @@ const SIG_ANIM: Record<string, Win> = {
   sink: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.5, tail: 0.7 },
   losers: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.55, tail: 0.38 },
   lecture: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.25, tail: 0.25 },
-  pause: { clip: 'Long_Breathe_and_Look_Around', impact: 1, lead: 0, tail: 0 },
+  // After the long silence, the elbow.
+  pause: { clip: 'Left_Hook_from_Guard', impact: 0.333, lead: 0.22, tail: 0.45 },
   // Sidekick Policy Moves: an arm raised to bring the stamp down; a quick toss for each cat.
   tariff: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.5, tail: 0.38 },
   cats: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.3, tail: 0.3 },
+  // Bozo: a parcel lobbed overarm; the sweep for Day One; two grabs for the data he can't guarantee.
+  paid: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.4, tail: 0.38 },
+  dayone: { clip: 'Leg_Sweep', impact: 0.8, lead: 0.32, tail: 0.6 },
+  guarantee: { clip: 'Left_Hook_from_Guard', impact: 0.333, lead: 0.25, tail: 0.3 },
+  // Ultman: error cards flicked out; an arm up to call down the end of the world; the ad wall shoved in twice.
+  wrong: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.3, tail: 0.3 },
+  end: { clip: 'Right_Uppercut_from_Guard', impact: 0.62, lead: 0.55, tail: 0.38 },
+  ads: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.3, tail: 0.3 },
+  poster: { clip: 'Right_Jab_from_Guard', impact: 0.625, lead: 0.5, tail: 0.4 },
 };
 
 const HIPS = 'mixamorigHips';
@@ -397,8 +407,8 @@ export class FighterView {
       }
       case 'sig': {
         const sg = sigOf(def, f), w = SIG_ANIM[sg.id] ?? SIG_ANIM.lecture;
-        if (sg.id === 'chainsaw') {
-          // Three sweeps across the active frames.
+        if (sg.kind === 'melee' && (sg.hits ?? 1) > 1) {
+          // One swing per hit across the active frames.
           const per = sg.active / (sg.hits ?? 1);
           if (f.af <= sg.startup) return { key: 'sig-cs-0', clip: w.clip, t: this.win(w, f.af, sg.startup, sg.startup + per) };
           const k = Math.min((sg.hits ?? 1) - 1, Math.floor((f.af - sg.startup) / per));
@@ -414,7 +424,6 @@ export class FighterView {
       }
       case 'hitstun': return { key: `hit-${this.hitN}`, clip: 'Hit_Reaction', t: 0.3 + (fr / Math.max(1, fr + f.stun)) * 0.7, fade: 0.05 };
       case 'blockstun': return { key: 'block', clip: 'Block1', t: 1.15 + Math.min(1, fr / 10) * 0.35, fade: 0.06 };
-      case 'stunned': return { key: 'stunned', clip: 'Face_Punch_Reaction', t: 0.1 + Math.min(1, fr / Math.max(1, fr + f.stun)) * 2.3, fade: 0.06 };
       case 'knockdown': if (this.floored) return { key: 'c-down', clip: 'Knock_Down', t: 2.45, fade: 0.05 };
         return { key: 'down', clip: 'Knock_Down', t: Math.min(2.45, 0.5 + (fr / FPS) * 1.6 + (f.y > 0 ? 0 : 0.3)), fade: 0.06 };
       case 'getup': return { key: 'getup', clip: 'Stand_Up1', t: 3.2 + (fr / 26) * 3.6, fade: 0.1 };

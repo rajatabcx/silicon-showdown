@@ -14,13 +14,15 @@ let muted = false;
 const voices = new Map<VoiceId, AudioBuffer>();
 let voiceLoad: Promise<void> | null = null;
 let bed: { stop(): void } | null = null;
-let crowd: { gain: GainNode; stop(): void } | null = null;
 let ducks = 0;
 
 const VOICE_FILES: VoiceId[] = [
   'tusk_heart', 'tusk_chainsaw', 'tusk_chainsaw_yell', 'tusk_blackmail', 'tusk_gfy', 'tusk_omg', 'tusk_too_hard', 'tusk_plus_side',
   'tusk_empathy', 'tusk_next_year', 'teal_hesitation', 'teal_long_hes', 'teal_losers', 'teal_how_much_time', 'teal_long_time',
   'teal_greta', 'teal_armageddon', 'teal_monopoly', 'covfefe_maga', 'veep_cat_ladies',
+  'bozo_paid_short', 'bozo_always_day_one', 'bozo_cant_guarantee', 'bozo_laugh', 'bozo_best_day', 'bozo_optimistic',
+  'ultman_quite_wrong', 'ultman_end_short', 'ultman_last_resort', 'ultman_agi_here', 'ultman_this_era',
+  'melania_here_we_go', 'melania_here_it_is',
 ];
 
 /** Recorded one-shot effects in /public/audio/sfx. */
@@ -39,6 +41,29 @@ function clip(name: string, delay = 0) {
   return true;
 }
 
+/**
+ * The announcer at the start of each round (the owner's chosen clips). `say` is where "Round N" starts in the file and
+ * `fight` where "Fight!" starts, in seconds, so the call can be lined up with the FIGHT banner.
+ */
+export const ROUND_CALLS = {
+  1: { clip: 'round1', say: 0.29, fight: 1.55 },
+  2: { clip: 'round2', say: 0.36, fight: 2.37 },
+  3: { clip: 'roundFinal', say: 0.12, fight: 2.25 },
+} as const;
+const callFor = (round: number) => ROUND_CALLS[Math.min(3, Math.max(1, round)) as 1 | 2 | 3];
+
+/** Seconds after the round starts at which the announcer says "Round N", when "Fight!" lands `fightIn` seconds in. */
+export function roundSayAt(round: number, fightIn: number) {
+  const c = callFor(round);
+  return Math.max(0, fightIn - c.fight) + c.say;
+}
+
+/** Play the round call so its "Fight!" lands `fightIn` seconds from now. False if the clip isn't loaded. */
+export function roundCall(round: number, fightIn: number) {
+  const c = callFor(round);
+  return clip(c.clip, Math.max(0, fightIn - c.fight));
+}
+
 /** Must be called from a user gesture (browsers block audio until then). */
 export function unlockAudio() {
   if (ctx) { void ctx.resume(); return; }
@@ -49,7 +74,7 @@ export function unlockAudio() {
     master = ctx.createGain(); master.gain.value = muted ? 0 : 0.9;
     master.connect(comp).connect(ctx.destination);
     sfxBus = ctx.createGain(); sfxBus.gain.value = 0.7; sfxBus.connect(master);
-    loadClip(ctx, 'wasted');
+    for (const n of ['wasted', 'round1', 'round2', 'roundFinal']) loadClip(ctx, n);
     bedBus = ctx.createGain(); bedBus.gain.value = 0.5; bedBus.connect(master);
     voiceBus = ctx.createGain(); voiceBus.gain.value = 1.15; voiceBus.connect(master);
     noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
@@ -86,7 +111,6 @@ function duck(on: boolean) {
   ducks = Math.max(0, ducks + (on ? 1 : -1));
   const g = ducks > 0 ? 0.12 : 0.5;
   bedBus.gain.setTargetAtTime(g, ctx.currentTime, 0.08);
-  if (crowd) crowd.gain.gain.setTargetAtTime(ducks > 0 ? 0.05 : 0.16, ctx.currentTime, 0.1);
 }
 
 export type VoiceHandle = { stop(): void };
@@ -206,26 +230,13 @@ function crowdSwell(dir: number) {
   for (let k = 0; k < 3; k++) {
     const s = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
     s.buffer = noise; s.loop = true;
-    f.type = 'bandpass'; f.Q.value = 1.4; f.frequency.value = dir > 0 ? 700 + k * 500 : 300 + k * 120;
+    f.type = 'bandpass'; f.Q.value = 2.2; f.frequency.value = dir > 0 ? 600 + k * 300 : 300 + k * 120;
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(0.18, t + 0.25);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6 + k * 0.2);
+    g.gain.exponentialRampToValueAtTime(0.07, t + 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.1 + k * 0.15);
     s.connect(f).connect(g).connect(sfxBus); if (verb) g.connect(verb);
     s.start(t, Math.random()); s.stop(t + 2);
   }
-}
-
-/** Room tone and murmuring gallery, under everything. */
-export function startAmbience() {
-  if (!ctx || !master || !noise || crowd) return;
-  const s = ctx.createBufferSource(); s.buffer = noise; s.loop = true;
-  const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 520; f.Q.value = 0.8;
-  const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 0.23; lg.gain.value = 0.05;
-  const g = ctx.createGain(); g.gain.value = 0.16;
-  lfo.connect(lg).connect(g.gain);
-  s.connect(f).connect(g).connect(master);
-  s.start(); lfo.start();
-  crowd = { gain: g, stop() { try { s.stop(); lfo.stop(); } catch { /* */ } } };
 }
 
 /** Placeholder music bed: a low pulse and a slow minor pad. Replaced by recorded tracks later. */
@@ -252,7 +263,7 @@ export function startBed() {
     if (step % 8 === 4 && noise) {
       const s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
       s.buffer = noise; f.type = 'highpass'; f.frequency.value = 3000;
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.04, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
       s.connect(f).connect(g).connect(out); s.start(t, Math.random()); s.stop(t + 0.15);
     }
     step++;
@@ -262,4 +273,3 @@ export function startBed() {
 }
 
 export function stopBed() { bed?.stop(); }
-export function stopAmbience() { crowd?.stop(); crowd = null; }

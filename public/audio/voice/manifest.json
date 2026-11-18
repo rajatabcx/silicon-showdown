@@ -137,5 +137,144 @@
     "seconds": 3.26,
     "heard": "by a bunch of childless cat ladies who are miserable at their own lives",
     "source": "vance_cats"
+  },
+  "bozo_paid_long": {
+    "file": "/audio/voice/bozo_paid_long.mp3",
+    "seconds": 6.86,
+    "heard": "every amazon employee and every amazon customer because you guys paid for all of this",
+    "source": "bezos_paid_ctv"
+  },
+  "melania_here_we_go": {
+    "file": "/audio/voice/melania_here_we_go.mp3",
+    "seconds": 2.22,
+    "heard": "here we go again",
+    "source": "melania_trailer"
+  },
+  "melania_here_it_is": {
+    "file": "/audio/voice/melania_here_it_is.mp3",
+    "seconds": 3.8,
+    "heard": "everyone wants to know so here it is",
+    "source": "melania_trailer"
+  },
+  "melania_be_best": {
+    "file": "/audio/voice/melania_be_best.mp3",
+    "seconds": 4.92,
+    "heard": "so today i'm very excited to announce be best",
+    "source": "melania_bebest"
+  },
+  "ultman_quite_wrong": {
+    "file": "/audio/voice/ultman_quite_wrong.mp3",
+    "seconds": 3.14,
+    "heard": "if this technology goes wrong it can go quite wrong",
+    "source": "altman_wrong"
+  },
+  "ultman_last_resort": {
+    "file": "/audio/voice/ultman_last_resort.mp3",
+    "seconds": 3.2,
+    "heard": "i kind of think of ads as like a last resort for us for a business model",
+    "source": "altman_harvard"
+  },
+  "ultman_end_world": {
+    "file": "/audio/voice/ultman_end_world.mp3",
+    "seconds": 9.2,
+    "heard": "i think ai will probably most likely sort of lead to the end of the world but in the meantime there will be great companies created with serious machine learning",
+    "source": "altman_end_world"
+  },
+  "ultman_end_short": {
+    "file": "/audio/voice/ultman_end_short.mp3",
+    "seconds": 4.58,
+    "heard": "i think ai will probably like most likely sort of lead to the end of the world",
+    "source": "altman_end_world"
+  },
+  "ultman_this_era": {
+    "file": "/audio/voice/ultman_this_era.mp3",
+    "seconds": 2.94,
+    "heard": "i think this will be the most important project of this era",
+    "source": "altman_stargate"
+  },
+  "ultman_agi_here": {
+    "file": "/audio/voice/ultman_agi_here.mp3",
+    "seconds": 11.92,
+    "heard": "i think this will be the most important project of this era and as masa said for agi to get built here to create hundreds of thousands of jobs to create a new industry centered here we wouldn't be able to do this without you mr president",
+    "source": "altman_stargate"
+  },
+  "bozo_paid": {
+    "file": "/audio/voice/bozo_paid.mp3",
+    "seconds": 9.16,
+    "heard": "so i want to thank every amazon employee and every amazon customer because you guys paid for all this",
+    "source": "bezos_paid"
+  },
+  "bozo_paid_short": {
+    "file": "/audio/voice/bozo_paid_short.mp3",
+    "seconds": 1.7,
+    "heard": "you guys paid for all this",
+    "source": "bezos_paid_ctv"
+  },
+  "melania_peacemaker": {
+    "file": "/audio/voice/melania_peacemaker.mp3",
+    "seconds": 3.24,
+    "heard": "my proudest legacy will be that of peacemakers",
+    "source": "melania_trailer"
+  },
+  "bozo_laugh": {
+    "file": "/audio/voice/bozo_laugh.mp3",
+    "seconds": 4.01,
+    "heard": "(laugh)",
+    "source": "bezos_laugh",
+    "note": "the meme laugh; cut by hand (silence-trimmed), no words to align"
+  },
+  "bozo_day_two": {
+    "file": "/audio/voice/bozo_day_two.mp3",
+    "seconds": 23.48,
+    "heard": "day two is stasis followed by irrelevance followed by excruciating painful decline followed by death",
+    "source": "bezos_day1"
+  },
+  "bozo_day_one": {
+    "file": "/audio/voice/bozo_day_one.mp3",
+    "seconds": 8.42,
+    "heard": "and that is why it is always day one",
+    "source": "bezos_day1"
+  },
+  "bozo_optimistic": {
+    "file": "/audio/voice/bozo_optimistic.mp3",
+    "seconds": 3.58,
+    "heard": "i'm actually very optimistic this time around",
+    "source": "bezos_dealbook"
+  },
+  "bozo_help_him": {
+    "file": "/audio/voice/bozo_help_him.mp3",
+    "seconds": 2.2,
+    "heard": "but if i can help him do that i'm going to help him",
+    "source": "bezos_dealbook"
+  },
+  "bozo_cant_guarantee": {
+    "file": "/audio/voice/bozo_cant_guarantee.mp3",
+    "seconds": 4.6,
+    "heard": "but i can't guarantee you that that policy has never been violated",
+    "source": "bezos_hearing"
+  },
+  "bozo_policy": {
+    "file": "/audio/voice/bozo_policy.mp3",
+    "seconds": 14.04,
+    "heard": "i can't answer that question yes or no what i can tell you is we have a policy against using seller specific data to aid our private label business but i can't guarantee you that that policy has never been violated",
+    "source": "bezos_hearing"
+  },
+  "bozo_dont_remember": {
+    "file": "/audio/voice/bozo_dont_remember.mp3",
+    "seconds": 4.4,
+    "heard": "i cannot comment on that because i don't remember it",
+    "source": "bezos_hearing"
+  },
+  "bozo_best_day": {
+    "file": "/audio/voice/bozo_best_day.mp3",
+    "seconds": 1.64,
+    "heard": "best day ever",
+    "source": "bezos_bestday"
+  },
+  "bozo_always_day_one": {
+    "file": "/audio/voice/bozo_always_day_one.mp3",
+    "seconds": 4.82,
+    "heard": "i it is always day one",
+    "source": "bezos_day1"
   }
 }

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { simDef, TEAL, TUSK } from '../data/roster';
 import { cpuInput, makeCpu } from './ai/cpu';
 import {
-  FACT_CHECK_WINDOW, INTRO_FRAMES, MOVES, SCANDAL_DAMAGE, STAGE_HALF, SUPER_COST, SUPER_DAMAGE, SUPER_GAP, SUPER_STARTUP, TAG_FRAMES,
+  INTRO_FRAMES, SIG_COOLDOWN, MOVES, SCANDAL_DAMAGE, STAGE_HALF, SUPER_COST, SUPER_DAMAGE, SUPER_GAP, SUPER_STARTUP, TAG_FRAMES,
   WINDED_FRAMES,
 } from './constants';
-import { hashMatch, newMatch, step } from './match';
+import { hashMatch, newMatch, staging, step } from './match';
 import { makeRng } from './rng';
 import { BTN, type Ev, type Match, type SimDef } from './types';
 
@@ -32,7 +32,7 @@ function cpuMatch(seed: number) {
   const a = makeCpu('hard', seed), b = makeCpu('normal', seed + 1);
   let n = 0;
   while (m.phase !== 'matchEnd' && n++ < 60 * 60 * 12) {
-    step(m, cpuInput(a, m, 0, DEFS[0], DEFS[1]), cpuInput(b, m, 1, DEFS[1], DEFS[0]), DEFS);
+    step(m, cpuInput(a, m, 0, DEFS[0]), cpuInput(b, m, 1, DEFS[1]), DEFS);
   }
   return m;
 }
@@ -89,62 +89,53 @@ describe('fight simulation', () => {
     expect(go).toBeGreaterThanOrEqual(0);
     expect(hit).toBeGreaterThan(go);
     expect(m.f[1].hp).toBeLessThan(100);
-    expect(m.f[0].eng).toBeGreaterThan(20);
+    expect(m.f[0].eng).toBeGreaterThan(10);
   });
 
-  it('dodging in the last beat of a line Fact-Checks it', () => {
-    const m = started(); close(m);
-    step(m, BTN.S, 0, DEFS);
-    const quote = DEFS[0].sigs[0].quote;
-    run(m, quote - FACT_CHECK_WINDOW / 2);
-    const evs: Ev[] = [];
-    step(m, 0, BTN.G, DEFS); evs.push(...m.events);
-    evs.push(...run(m, 60));
-    expect(evs.some((e) => e.t === 'factCheck')).toBe(true);
-    expect(evs.some((e) => e.t === 'sigGo')).toBe(false);
-    expect(m.f[0].hp).toBeLessThan(100);
-    expect(m.f[1].hp).toBe(100);
+  it('every signature lands, from any range, whatever the opponent is doing', () => {
+    for (const [side, def] of [[0, DEFS[0]], [1, DEFS[1]]] as const) {
+      for (const k of [0, 1, 2]) {
+        for (const opp of [0, BTN.L | BTN.R, BTN.U, BTN.G, BTN.P]) {
+          for (const gap of [1.4, 3, 6]) {
+            const m = started();
+            m.f[0].x = -gap / 2; m.f[1].x = gap / 2;
+            // The defender holds back (block), jumps, dodges or punches: none of it matters.
+            const press = BTN.S | (k === 1 ? (side === 0 ? BTN.R : BTN.L) : k === 2 ? BTN.D : 0);
+            const before = m.f[1 - side].hp;
+            if (side === 0) step(m, press, opp, DEFS); else step(m, opp, press, DEFS);
+            expect(m.f[side].state).toBe('quote');
+            const sg = def.sigs[k];
+            run(m, sg.quote + sg.startup + sg.active + 160, side === 0 ? 0 : opp, side === 0 ? opp : 0);
+            expect(m.f[1 - side].hp, `${side} sig ${k} vs ${opp} at ${gap}`).toBeLessThan(before);
+          }
+        }
+      }
+    }
   });
 
-  it('dodging too early is just a dodge', () => {
+  it("a signature can't be interrupted: the opponent is frozen until it lands", () => {
     const m = started(); close(m);
     step(m, BTN.S, 0, DEFS);
-    run(m, 10);
-    step(m, 0, BTN.G, DEFS);
-    expect(m.events.some((e) => e.t === 'factCheck')).toBe(false);
-    expect(m.events.some((e) => e.t === 'dodge')).toBe(true);
+    const x1 = m.f[1].x;
+    const evs = run(m, DEFS[0].sigs[0].quote + DEFS[0].sigs[0].startup + DEFS[0].sigs[0].active, 0, BTN.P);
+    expect(evs.some((e) => e.t === 'hit' && e.by === 1)).toBe(false);
+    expect(m.f[1].x).toBe(x1);
+    expect(m.f[1].hp).toBeLessThan(100);
   });
 
-  it('getting Fact-Checked at Main Character means a Meltdown', () => {
-    const m = started(); close(m);
-    m.f[0].eng = 100;
-    step(m, BTN.S, 0, DEFS);
-    run(m, DEFS[0].sigs[0].quote - 10);
-    step(m, 0, BTN.G, DEFS);
-    const fc = m.events.find((e) => e.t === 'factCheck');
-    expect(fc && fc.t === 'factCheck' && fc.ratioed).toBe(true);
-    expect(m.f[0].eng).toBe(0);
-    expect(m.f[0].melt).toBeGreaterThan(0);
-  });
-
-  it('hitting a talking fighter cuts the line', () => {
+  it('after a signature, all three rest for 5 seconds; the Super does not', () => {
     const m = started(); close(m);
     step(m, BTN.S, 0, DEFS);
-    step(m, 0, BTN.P, DEFS);
-    const evs = run(m, 12);
-    expect(evs.some((e) => e.t === 'quoteCut')).toBe(true);
+    run(m, 200);
+    expect(m.f[0].sigCd).toBeGreaterThan(0);
+    step(m, 0, 0, DEFS);
+    step(m, BTN.S | BTN.D, 0, DEFS);
     expect(m.f[0].state).not.toBe('quote');
-  });
-
-  it("Teal's long pause counters a punch", () => {
-    const m = started(); close(m);
-    step(m, 0, BTN.S | BTN.D, DEFS);
-    expect(m.f[1].state).toBe('quote');
-    step(m, BTN.P, 0, DEFS);
-    const evs = run(m, 12);
-    expect(evs.some((e) => e.t === 'counter')).toBe(true);
-    expect(m.f[0].hp).toBeLessThan(100);
-    expect(m.f[1].hp).toBe(100);
+    run(m, SIG_COOLDOWN);
+    m.f[1].state = 'idle';
+    step(m, 0, 0, DEFS);
+    step(m, BTN.S | BTN.D, 0, DEFS);
+    expect(m.f[0].state).toBe('quote');
   });
 
   it('the Monopoly gate drops where the opponent stood', () => {
@@ -199,7 +190,7 @@ describe('fight simulation', () => {
       for (let k = 0; k < 400; k++) {
         step(m, side === 0 ? 0 : back | (k % 20 === 0 ? BTN.G : 0), side === 0 ? back | (k % 20 === 0 ? BTN.G : 0) : 0, DEFS);
         evs.push(...m.events);
-        if (m.f[side].state === 'quote' || m.f[side].state === 'sig') expect(other.x).toBe(x);
+        if (staging(m, side)) expect(other.x).toBe(x);
       }
       expect(evs.some((e) => e.t === 'hit' && e.by === side)).toBe(true);
       expect(evs.some((e) => e.t === 'block')).toBe(false);
@@ -220,7 +211,7 @@ describe('fight simulation', () => {
         // Engagement is handed out generously and both sides mash random buttons on top of the CPU, Super included.
         if (n % 240 === 0) for (const f of m.f) f.eng = Math.min(100, f.eng + 40);
         const noise = () => (rnd() < 0.08 ? 1 << Math.floor(rnd() * 10) : 0);
-        step(m, cpuInput(a, m, 0, DEFS[0], DEFS[1]) | noise(), cpuInput(b, m, 1, DEFS[1], DEFS[0]) | noise(), DEFS);
+        step(m, cpuInput(a, m, 0, DEFS[0]) | noise(), cpuInput(b, m, 1, DEFS[1]) | noise(), DEFS);
         for (const e of m.events) {
           if (e.t === 'superStart') { expect(live[e.by]).toBeNull(); live[e.by] = { at: n, hp: m.f[1 - e.by].hp, hit: false }; supers++; }
           if (e.t === 'superHit') { expect(live[e.by]).not.toBeNull(); live[e.by]!.hit = true; expect(n - live[e.by]!.at).toBe(SUPER_STARTUP); }
@@ -231,7 +222,7 @@ describe('fight simulation', () => {
             live[e.by] = null;
           }
           // Nobody lays a hand on a fighter whose Super is running.
-          if (e.t === 'hit' || e.t === 'block' || e.t === 'counter') expect(live[e.by === 0 ? 1 : 0]).toBeNull();
+          if (e.t === 'hit' || e.t === 'block') expect(live[e.by === 0 ? 1 : 0]).toBeNull();
         }
         if (m.phase !== 'fight' && m.phase !== 'cine') { live[0] = null; live[1] = null; }
       }
@@ -292,9 +283,8 @@ describe('fight simulation', () => {
     const m = started(); m.f[0].x = -3; m.f[1].x = 3;
     step(m, BTN.S, 0, DEFS);
     expect(m.f[0].state).toBe('quote');
-    const evs = run(m, 2, 0, BTN.S);
+    run(m, 2, 0, BTN.S);
     expect(m.f[1].state).not.toBe('quote');
-    expect(evs.some((e) => e.t === 'outOfOrder' && e.by === 1)).toBe(true);
   });
 
   it('a Super stops time for the opponent', () => {
@@ -516,7 +506,7 @@ describe('a Super cannot be lost or interrupted', () => {
             until[i] = n + 1 + Math.floor(rng() * 14);
           }
           ins[i] = hold[i];
-          const ready = f.tag <= 0 && f.eng >= SUPER_COST && f.melt <= 0 && !f.superUsed;
+          const ready = f.tag <= 0 && f.eng >= SUPER_COST && !f.superUsed;
           if (ready && m.phase === 'fight' && asked[i] === null && rng() < 0.05 && !(f.prev & BTN.X)) { ins[i] |= BTN.X; asked[i] = n; }
         }
         const wasStop = m.hitstop > 0, phase = m.phase;
@@ -546,9 +536,9 @@ describe('a Super cannot be lost or interrupted', () => {
         for (const i of [0, 1] as const) {
           const f = m.f[i];
           if (asked[i] === null) continue;
-          if ((m.phase as string) !== 'fight' && (m.phase as string) !== 'cine' || f.tag > 0 || f.melt > 0) { asked[i] = null; continue; }
+          if ((m.phase as string) !== 'fight' && (m.phase as string) !== 'cine' || f.tag > 0) { asked[i] = null; continue; }
           const waiting = f.state === 'knockdown' || f.state === 'ko' || m.phase === 'cine' || m.hitstop > 0 || live !== null ||
-            m.f[1 - i].tag > 0;
+            m.f[1 - i].tag > 0 || staging(m, (1 - i) as 0 | 1);
           if (!waiting) expect(n - asked[i]!, `seed ${seed}: side ${i} pressed Enter at ${asked[i]} and is ${f.state}`).toBeLessThan(3);
           else asked[i] = n;
         }

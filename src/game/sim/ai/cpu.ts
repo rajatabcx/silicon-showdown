@@ -1,5 +1,4 @@
-import { FACT_CHECK_WINDOW, MOVES, REACH_PAD, SUPER_COST, TAG_FRAMES, TAG_MANUAL_CARDIO } from '../constants';
-import { sigOf } from '../match';
+import { MOVES, REACH_PAD, SUPER_COST, TAG_FRAMES, TAG_MANUAL_CARDIO } from '../constants';
 import { makeRng, type Rng } from '../rng';
 import { BTN, type Match, type SimDef } from '../types';
 
@@ -9,28 +8,26 @@ type Profile = {
   /** Frames of dithering between decisions. */
   think: number;
   block: number; aggro: number; chain: number; superUse: number; antiAir: number;
-  /** Chance to try a Fact-Check on a line, and how sloppy the timing is (frames). */
-  check: number; checkJitter: number;
   /** Chance per decision to go for a signature. */
   sig: number;
 };
 
 export const PROFILES: Record<Difficulty, Profile> = {
-  easy:   { think: 34, block: 0.18, aggro: 0.45, chain: 0.25, superUse: 0.25, antiAir: 0.05, check: 0.15, checkJitter: 40, sig: 0.06 },
-  normal: { think: 18, block: 0.42, aggro: 0.7,  chain: 0.6,  superUse: 0.5,  antiAir: 0.3,  check: 0.35, checkJitter: 26, sig: 0.1 },
-  hard:   { think: 9,  block: 0.7,  aggro: 0.88, chain: 0.85, superUse: 0.85, antiAir: 0.65, check: 0.6,  checkJitter: 14, sig: 0.13 },
+  easy:   { think: 34, block: 0.18, aggro: 0.45, chain: 0.25, superUse: 0.25, antiAir: 0.05, sig: 0.05 },
+  normal: { think: 18, block: 0.42, aggro: 0.7,  chain: 0.6,  superUse: 0.5,  antiAir: 0.3,  sig: 0.09 },
+  hard:   { think: 9,  block: 0.7,  aggro: 0.88, chain: 0.85, superUse: 0.85, antiAir: 0.65, sig: 0.13 },
 };
 
-export type Cpu = { rng: Rng; p: Profile; queue: [mask: number, frames: number][]; checkAt: number };
+export type Cpu = { rng: Rng; p: Profile; queue: [mask: number, frames: number][] };
 
 export function makeCpu(difficulty: Difficulty, seed: number): Cpu {
-  return { rng: makeRng(seed), p: PROFILES[difficulty], queue: [], checkAt: -1 };
+  return { rng: makeRng(seed), p: PROFILES[difficulty], queue: [] };
 }
 
 /** Returns the input bitmask the CPU presses this tick for fighter `me`. */
-export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: SimDef): number {
+export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef): number {
   const f = m.f[me], o = m.f[1 - me];
-  if (m.phase !== 'fight') { cpu.queue.length = 0; cpu.checkAt = -1; return 0; }
+  if (m.phase !== 'fight') { cpu.queue.length = 0; return 0; }
   const { rng, p } = cpu;
   const fwd = f.facing === 1 ? BTN.R : BTN.L;
   const back = f.facing === 1 ? BTN.L : BTN.R;
@@ -38,29 +35,12 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: Sim
   const dist = Math.abs(o.x - f.x) - REACH_PAD;
   const neutral = f.state === 'idle' || f.state === 'walk' || f.state === 'crouch';
 
-  // The opponent started a line: decide once whether to Fact-Check it, and when to press.
-  if (o.state === 'quote' && o.frame === 1) {
-    const sg = sigOf(oppDef, o);
-    cpu.checkAt = -1;
-    if (sg.kind !== 'counter' && o.sig !== 3 && f.tag <= 0 && rng() < p.check) {
-      const target = sg.quote - FACT_CHECK_WINDOW / 2;
-      cpu.checkAt = Math.round(target + (rng() - 0.5) * p.checkJitter);
-    } else if (sg.kind !== 'counter' && dist < 1.85 && rng() < p.aggro) {
-      // Or just punch them while they talk.
-      cpu.queue = [[BTN.P, 2], [0, 4], [BTN.P, 2], [0, 4], [BTN.P, 2]];
-    } else if (sg.kind === 'counter') {
-      cpu.queue = [[back, Math.min(sg.quote, 40 + Math.round(rng() * 30))]];
-    }
-  }
-  if (cpu.checkAt >= 0 && o.state === 'quote' && o.frame >= cpu.checkAt) {
-    cpu.checkAt = -1; cpu.queue.length = 0;
-    return neutral ? BTN.G : 0;
-  }
-  if (o.state !== 'quote') cpu.checkAt = -1;
+  // A signature freezes whoever it's aimed at: drop whatever was planned.
+  if (o.state === 'quote' && o.frame === 1) cpu.queue.length = 0;
 
   // Reflex: decide once per incoming attack whether to guard it.
   const threat = (o.state === 'attack' && o.move && o.af === 1 && dist < MOVES[o.move].range + 0.9) ||
-    (o.state === 'superStart' && o.frame === 1) || (o.state === 'sig' && o.af === 1);
+    (o.state === 'superStart' && o.frame === 1);
   if (threat && (neutral || f.state === 'blockstun')) {
     if (rng() < p.block) {
       const mv = o.move ? MOVES[o.move] : null;
@@ -82,31 +62,21 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef, oppDef: Sim
   const sk = f.tag > 0;
   if (!sk && f.cardio < TAG_MANUAL_CARDIO * 0.6 && !f.skOut && rng() < 0.03) { q.push([BTN.T, 2]); return 0; }
   if (!sk && f.cardio < 18) { q.push([back, 30]); return 0; }
-  const canSuper = !sk && f.eng >= SUPER_COST && f.melt <= 0 && !f.superUsed;
+  const canSuper = !sk && f.eng >= SUPER_COST && !f.superUsed;
   // A Super can't miss, so the CPU fires it as soon as it is ready (once the opponent isn't mid-line).
   if (canSuper && o.state !== 'quote' && o.state !== 'sig') { q.push([BTN.X, 2]); rest(); return 0; }
   if (o.state === 'jump' && dist < 2.15 && rng() < p.antiAir) { q.push([BTN.K, 2]); rest(); return 0; }
   if (o.state === 'knockdown' || o.state === 'getup') { q.push([dist > 1.65 ? fwd : 0, 8]); return 0; }
 
-  // The sidekick's one Policy Move.
   // The sidekick's one Policy Move: it can't be interrupted or missed, so it comes out soon after the tag.
   if (sk && !f.skPolicy && o.state !== 'quote' && o.state !== 'sig' && f.tag < TAG_FRAMES - 90 && rng() < 0.25) {
     q.push([BTN.S, 2]); rest(); return 0;
   }
-  // Signatures: pick by range.
-  if (!sk && f.melt <= 0 && o.state !== 'quote' && rng() < p.sig) {
-    const opts: number[] = [];
-    def.sigs.forEach((s, k) => {
-      if (s.kind === 'projectile' && dist > 2.65) opts.push(k);
-      if (s.kind === 'drop' && dist > 1.85 && dist < s.range) opts.push(k);
-      if (s.kind === 'melee' && dist < s.range + 0.6) opts.push(k);
-      if (s.kind === 'counter' && dist < 2.05 && (o.state === 'walk' || o.state === 'attack')) opts.push(k);
-    });
-    if (opts.length) {
-      const k = opts[Math.floor(rng() * opts.length)];
-      q.push([BTN.S | (k === 1 ? fwd : k === 2 ? BTN.D : 0), 2]); rest();
-      return 0;
-    }
+  // Signatures always land, so any of the three will do once they're off cooldown.
+  if (!sk && f.sigCd <= 0 && o.state !== 'quote' && rng() < p.sig) {
+    const k = Math.floor(rng() * def.sigs.length);
+    q.push([BTN.S | (k === 1 ? fwd : k === 2 ? BTN.D : 0), 2]); rest();
+    return 0;
   }
 
   if (dist > 2.55) {

@@ -1,10 +1,10 @@
-import { sfx, startAmbience, startBed, stopAmbience, stopBed, voice, type VoiceHandle } from './audio';
+import { roundCall, sfx, startBed, stopBed, voice, type VoiceHandle } from './audio';
 import { InputLatch } from './input';
 import { sigInfo, simDef, VOICE_SECONDS, type FighterInfo, type VoiceId } from './data/roster';
 import type { Assets } from './render/assets';
 import { Renderer } from './render/renderer';
 import { cpuInput, makeCpu, type Cpu, type Difficulty } from './sim/ai/cpu';
-import { FPS, ROUND_END_FRAMES } from './sim/constants';
+import { FPS, INTRO_FRAMES, ROUND_END_FRAMES } from './sim/constants';
 import { newMatch, sigOf, step } from './sim/match';
 import { BTN, type Ev, type Match, type SimDef } from './sim/types';
 
@@ -55,7 +55,6 @@ export class Game {
     window.addEventListener('keyup', this.onKey);
     window.addEventListener('blur', this.onBlur);
     window.addEventListener('resize', this.onResize);
-    startAmbience();
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.loop);
     if (process.env.NODE_ENV !== 'production') (window as unknown as { __game: Game }).__game = this;
@@ -94,6 +93,7 @@ export class Game {
   /** Where a fighter's head is on screen, 0..1 from the top-left. */
   propRect(side: 0 | 1) { return this.renderer.propRect(side); }
   headOnScreen(side: 0 | 1, who?: 'boss' | 'sk') { return this.renderer.headOnScreen(side, this.match, who); }
+  headRect(side: 0 | 1, who?: 'boss' | 'sk') { return this.renderer.headRect(side, this.match, who); }
 
   private onKey = (e: KeyboardEvent) => {
     const bit = KEYS[e.code];
@@ -124,7 +124,7 @@ export class Game {
       const m = this.match;
       // Let the last line of a round finish before the next round (or the result) starts.
       if (m.phase === 'roundEnd' && m.phaseFrame >= ROUND_END_FRAMES - 2 && this.micBusy()) continue;
-      step(m, this.keys.read(), this.debugCpu ?? cpuInput(this.cpu, m, 1, this.defs[1], this.defs[0]), this.defs);
+      step(m, this.keys.read(), this.debugCpu ?? cpuInput(this.cpu, m, 1, this.defs[1]), this.defs);
       for (const e of m.events) this.handle(e);
     }
     if (n >= 5) this.acc = 0;
@@ -177,7 +177,7 @@ export class Game {
     if (this.say(side, prio, [{ id, at: 0 }])) this.lastBark[side] = now;
   }
 
-  /** Stop whatever this fighter is saying (it was hit, fact-checked, ...). */
+  /** Stop whatever this fighter is saying (a sidekick tagged in over them, ...). */
   private stopTalking(side: 0 | 1) { if (this.mic?.side === side) { this.mic.h.stop(); this.mic = null; } }
 
   private hushAll() { this.mic?.h.stop(); this.mic = null; }
@@ -188,8 +188,9 @@ export class Game {
     switch (e.t) {
       case 'hit':
         sfx(e.heavy ? 'heavy' : 'hit');
-        // A Policy Move landing gets the same slow, heavy beat as a Super.
+        // A Policy Move landing gets the same slow, heavy beat as a Super; a signature's last hit a shorter one.
         if (e.move === 'sig' && m.f[e.by].tag > 0 && m.f[e.by].sig === 3) this.slow = { t: 0.5, k: 0.25 };
+        else if (e.move === 'sig' && m.f[e.by].hit && this.slow.t <= 0) this.slow = { t: 0.3, k: 0.3 };
         if (e.move === 'sig') {
           const sg = sigInfo(this.infos[e.by], m.f[e.by].sig);
           if (sg?.bark) this.bark(e.by, sg.bark, 1, 1);
@@ -210,15 +211,6 @@ export class Game {
       }
       case 'sigGo': sfx('whoosh'); if (sigInfo(this.infos[e.by], e.sig).prop === 'chainsaw') sfx('chainsaw'); break;
       case 'throw': sfx('whoosh'); break;
-      case 'quoteCut': this.stopTalking(e.by); break;
-      case 'factCheck': {
-        const s = (1 - e.by) as 0 | 1;
-        this.stopTalking(s);
-        sfx('factCheck'); sfx('cheer');
-        window.setTimeout(() => this.bark(s, this.infos[s].barks.checked), 450);
-        break;
-      }
-      case 'counter': sfx('heavy'); break;
       case 'tier': sfx('tier'); break;
       case 'superStart': sfx('superStart'); break;
       case 'superHit': {
@@ -235,9 +227,14 @@ export class Game {
         break;
       case 'winded': sfx('wheeze'); break;
       case 'outOfOrder': sfx('gavel'); break;
-      case 'tagIn': this.stopTalking(e.by); sfx('whoosh'); sfx('cheer'); break;
+      case 'tagIn': {
+        this.stopTalking(e.by); sfx('whoosh'); sfx('cheer');
+        const tv = this.infos[e.by].sidekick.tagVoice;
+        if (tv) this.say(e.by, 1, [{ id: tv, at: 0.2 }]);
+        break;
+      }
       case 'tagOut': sfx(e.scandal ? 'boo' : 'whoosh'); if (e.scandal) sfx('stamp'); break;
-      case 'roundStart': this.hushAll(); sfx('gavel'); break;
+      case 'roundStart': this.hushAll(); sfx('gavel'); roundCall(e.round, INTRO_FRAMES / FPS); break;
       case 'timeUp': this.hushAll(); break;
       case 'fight': sfx('gavel'); break;
       case 'matchEnd': stopBed(); break;
@@ -249,7 +246,7 @@ export class Game {
     this.dead = true;
     cancelAnimationFrame(this.raf);
     this.hushAll();
-    stopBed(); stopAmbience();
+    stopBed();
     window.removeEventListener('keydown', this.onKey);
     window.removeEventListener('keyup', this.onKey);
     window.removeEventListener('blur', this.onBlur);

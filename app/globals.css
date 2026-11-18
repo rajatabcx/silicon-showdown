@@ -96,3 +96,14 @@ body {
 
 .hud-tier[data-hot="true"] { color: #ffb347; animation: pulse 0.6s ease-in-out infinite; }
 [data-hud="qwin"][data-open="true"] > span { animation: pulse 0.35s ease-in-out infinite; font-weight: 600; }
+
+/* Speech bubble tails. The bubble's data-tail (set each frame from its placement) says which way the tail points. */
+.bubble .tail { position: absolute; width: 0; height: 0; display: none; }
+.bubble[data-tail="down"] .tail { display: block; left: 50%; transform: translateX(-50%); border-left-color: transparent; border-right-color: transparent; border-style: solid; }
+.bubble[data-tail="down"] .tail-ink { bottom: -19px; border-width: 18px 14px 0; border-top-color: #000; }
+.bubble[data-tail="down"] .tail-fill { bottom: -13px; border-width: 13px 10px 0; border-top-color: var(--fill); }
+.bubble[data-tail="left"] .tail, .bubble[data-tail="right"] .tail { display: block; top: 50%; transform: translateY(-50%); border-top-color: transparent; border-bottom-color: transparent; border-style: solid; }
+.bubble[data-tail="left"] .tail-ink { left: -19px; border-width: 14px 18px 14px 0; border-right-color: #000; }
+.bubble[data-tail="left"] .tail-fill { left: -13px; border-width: 10px 13px 10px 0; border-right-color: var(--fill); }
+.bubble[data-tail="right"] .tail-ink { right: -19px; border-width: 14px 0 14px 18px; border-left-color: #000; }
+.bubble[data-tail="right"] .tail-fill { right: -13px; border-width: 10px 0 10px 13px; border-left-color: var(--fill); }

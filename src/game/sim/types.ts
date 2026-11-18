@@ -14,20 +14,22 @@ export type MoveDef = {
   lunge?: number; heavy?: boolean; chain?: boolean;
 };
 
-/** A signature move: the fighter says a real line (the wind-up), then does the thing. */
+/**
+ * A signature move: the fighter starts a real line (the wind-up), then does the thing. The opponent is frozen from the
+ * first word until the last hit, so it can't be interrupted, blocked or dodged, and it always lands.
+ */
 export type SigDef = {
   id: string;
-  /** Frames of the spoken line (or post card). The last FACT_CHECK_WINDOW frames can be Fact-Checked. */
+  /** Frames of wind-up before the move goes (the line keeps playing over the move). */
   quote: number;
-  kind: 'melee' | 'projectile' | 'drop' | 'counter';
+  kind: 'melee' | 'projectile' | 'drop';
   startup: number; active: number; recovery: number;
   damage: number; range: number;
   /** Melee: hits landed across the active frames (chainsaw). Projectile: how many are thrown. */
   hits?: number;
   knockdown?: boolean;
-  lunge?: number;
-  /** Projectile launch speed and arc. */
-  speed?: number; arc?: number;
+  /** Projectile launch speed. */
+  speed?: number;
 };
 
 export type SuperDef = {
@@ -39,10 +41,10 @@ export type SuperDef = {
 
 export type FState =
   | 'idle' | 'walk' | 'crouch' | 'jump' | 'attack' | 'hitstun' | 'blockstun'
-  | 'knockdown' | 'getup' | 'winded' | 'dodge' | 'quote' | 'sig' | 'stunned'
+  | 'knockdown' | 'getup' | 'winded' | 'dodge' | 'quote' | 'sig'
   | 'superStart' | 'ko' | 'win';
 
-export type Ego = 'needy' | 'contrarian';
+export type Ego = 'needy' | 'contrarian' | 'customer' | 'hype';
 
 /** The stats the simulation needs about a fighter. Looks and lines live in data/. */
 export type SimDef = {
@@ -60,12 +62,15 @@ export type Fighter = {
   state: FState; frame: number; stun: number;
   move: MoveKey | null; af: number; hit: boolean; chain: number; buf: number;
   combo: number; prev: number; cur: number;
-  /** Which signature is being said or done (0..2), and how many hits it has landed. */
+  /**
+   * Which signature is being said or done (0..2, 3 = the sidekick's Policy Move), how many hits it has landed, and
+   * where it lands (drops) or where a melee one dashes to.
+   */
   sig: number; sigHits: number; dropX: number;
+  /** Frames until a signature can be used again. */
+  sigCd: number;
   /** Frames since this fighter last landed or said something wild; Engagement decays after a while. */
   quiet: number;
-  /** Meltdown frames left after being Ratioed: weak attacks, can't block, no signatures. */
-  melt: number;
   wins: number;
   /** Super already used this round (one per round). */
   superUsed: boolean;
@@ -84,17 +89,14 @@ export type Fighter = {
 export type Projectile = { owner: 0 | 1; sig: number; x: number; y: number; vx: number; vy: number; dmg: number; knockdown: boolean };
 
 export type Ev =
-  | { t: 'hit'; by: 0 | 1; move: MoveKey | 'sig' | 'counter'; heavy: boolean; x: number; y: number; dmg: number; combo: number }
+  | { t: 'hit'; by: 0 | 1; move: MoveKey | 'sig'; heavy: boolean; x: number; y: number; dmg: number; combo: number }
   | { t: 'block'; by: 0 | 1; x: number; y: number; heavy: boolean }
   | { t: 'whiff'; by: 0 | 1; move: MoveKey }
   | { t: 'jump'; by: 0 | 1 }
   | { t: 'dodge'; by: 0 | 1 }
   | { t: 'quote'; by: 0 | 1; sig: number }
-  | { t: 'quoteCut'; by: 0 | 1; sig: number }
   | { t: 'sigGo'; by: 0 | 1; sig: number }
   | { t: 'throw'; by: 0 | 1; sig: number }
-  | { t: 'counter'; by: 0 | 1 }
-  | { t: 'factCheck'; by: 0 | 1; sig: number; ratioed: boolean }
   | { t: 'tier'; by: 0 | 1; tier: number }
   | { t: 'superStart'; by: 0 | 1 }
   | { t: 'superHit'; by: 0 | 1 }

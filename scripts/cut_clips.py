@@ -38,6 +38,30 @@ CLIPS = [
     # Sidekick Policy Moves.
     ("covfefe_maga",      "trump_inaugural", 1000, 1009,"together",         "great again"),
     ("veep_cat_ladies",   "vance_cats",       94, 103, "a bunch of",        "own lives"),
+    # Jeff Bozo, Madame Producer (Melania) and Sam Ultman: candidates for their Supers / Policy Move.
+    ("bozo_paid",         "bezos_paid",        14, 30, "i want to thank",    "all of this"),
+    ("bozo_paid_short",   "bezos_paid_ctv",    66, 75, "you guys",           "for all this"),
+    ("bozo_paid_long",    "bezos_paid_ctv",    64, 75, "every amazon",       "for all this"),
+    ("melania_here_we_go","melania_trailer",    0, 6,  "here we go",         "again"),
+    ("melania_peacemaker","melania_trailer",   12, 19, "i promise",          "peacemaker"),
+    ("melania_here_it_is","melania_trailer",   36, 50, "everyone",           "here it is"),
+    ("melania_be_best",   "melania_bebest",    28, 40, "so today",           "be best"),
+    ("ultman_quite_wrong","altman_wrong",     416, 426, "if this technology", "quite wrong"),
+    ("ultman_last_resort","altman_harvard",  2385, 2393, "i kind of think",   "business model"),
+    ("ultman_end_world",  "altman_end_world",   1, 12, "i think ai",         "machine learning"),
+    ("ultman_end_short",  "altman_end_world",   1, 9,  "i think ai",         "the world"),
+    ("ultman_this_era",   "altman_stargate",  546, 553, "i think this",      "this era"),
+    ("ultman_agi_here",   "altman_stargate",  546, 561, "i think this",      "mr president"),
+    # More Jeff Bozo.
+    ("bozo_best_day",     "bezos_bestday",    146, 160, "best day",           "ever"),
+    ("bozo_day_two",      "bezos_day1",        25, 51, "day two",            "by death"),
+    ("bozo_day_one",      "bezos_day1",        52, 63, "and that",           "day one"),
+    ("bozo_always_day_one","bezos_day1",       55, 63, "it is always",       "day one"),
+    ("bozo_optimistic",   "bezos_dealbook",     1, 12, "i'm actually",       "this time around"),
+    ("bozo_help_him",     "bezos_dealbook",    13, 24, "if i can help",      "going to help him"),
+    ("bozo_cant_guarantee","bezos_hearing",    26, 32, "but i can't",        "been violated"),
+    ("bozo_policy",       "bezos_hearing",     16, 32, "i can't answer",     "been violated"),
+    ("bozo_dont_remember","bezos_hearing",    116, 123, "i cannot",          "remember it"),
 ]
 
 norm = lambda s: re.sub(r"[^a-z' ]", "", s.lower()).split()

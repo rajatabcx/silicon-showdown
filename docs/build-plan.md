@@ -190,9 +190,14 @@ Real names are writer notes only. Every gag traces back to `research.md` §3.
 - **Sidekick: Senator Clueless** (fictional; asks "how does the internet work?"). Policy Move **"Hearing Gavel"**.
 
 ### 7.4 Jeff Bozo (Bezos) · Team Prime · fitness 1.0 (newly buff)
-- **Super: "YOU PAID FOR THIS"**: rides a suspiciously shaped rocket (a shape gag, PG) into orbit, then rains Prime boxes on the opponent while laughing (the 2017 laugh meme). Ends with "Thank you, customers."
-- sp1 **"Same-Day Delivery"** (a box projectile) · sp2 **"Two-Pizza Team"** (throws two pizzas) · grab **"One-Click Buy"** · uppercut **"Bald & Buff"** · sweep **"Day One"** · finisher **"Customer Obsession"**.
-- **Sidekick: Senator Same-Day** (fictional lobbyist-funded senator). Policy Move **"Tax Loophole"**: a trapdoor opens under the opponent.
+- **Locked by the owner, 18 Nov 2026.** Same layout as Tusk and Teal: 3 signature moves, a Super, and a sidekick Policy Move. Clips are in `public/audio/voice/`.
+  - Move 1 **"You Paid For This"**: throws a Prime box forward. Clip `bozo_paid` ("…because you guys paid for all this"; Blue Origin press conference, Jul 2021), with `bozo_paid_short` as the on-hit bark.
+  - Move 2 **"Day One"**: a sweep. Clip `bozo_day_one` ("And that is why it is always day one"; Amazon all-hands).
+  - Move 3 **"Can't Guarantee"**: a grab that steals the opponent's data. Clip `bozo_cant_guarantee` ("I can't guarantee you that that policy has never been violated"; House antitrust hearing, Jul 2020).
+  - **Super "BEST DAY EVER"**: rides a suspiciously shaped rocket (a shape gag, PG) into orbit and rains Prime boxes on the opponent. Clips: `bozo_laugh`, then `bozo_best_day` ("Best day ever!"; landing, Jul 2021).
+  - **Sidekick: Madame Producer** (Melania parody; replaces Senator Same-Day; see `docs/art-briefs.md`). Tag-in clip `melania_here_we_go` ("Here we go again"). Policy Move **"$40M Premiere"**: a giant movie poster drops on the opponent. Clip `melania_here_it_is` ("Everyone wants to know… so, here it is"); both clips are from the Amazon *MELANIA* trailer.
+  - Spare real clips: `bozo_day_two`, `bozo_optimistic`, `bozo_help_him`, `bozo_policy`, `bozo_dont_remember`, `bozo_paid_long`, `melania_be_best`, `melania_peacemaker`.
+- Older ideas (not in the locked set): sp2 "Two-Pizza Team", uppercut "Bald & Buff", finisher "Customer Obsession".
 
 ### 7.5 Peter Teal (Thiel) · Team Founders Fund · fitness 0.8
 - **Super: "THE ANTICHRIST LECTURE"**: a lectern appears and a 4-part lecture series bores the opponent to sleep (Zzz). He then drains their HP with a **"Young Blood"** IV-bag beam (a parabiosis gag).
@@ -200,9 +205,14 @@ Real names are writer notes only. Every gag traces back to `research.md` §3.
 - **Sidekick: Hillbilly Veep** (Vance parody; documented $15M funding). Policy Move **"Cat Lady Barrage"** (throws cartoon cats), referencing his "childless cat ladies" line. Wears eyeliner (a meme). Don't use any joke built on fabricated internet rumours about him.
 
 ### 7.6 Sam Ultman (Altman) · Team Closed-AI · fitness 0.9
-- **Super: "AGI ACHIEVED INTERNALLY"**: a giant eyeball-scanning **Orb** scans the opponent, and 500B "Stargate" dollars rain down as a beam.
-- sp1 **"lowercase tweet"** (projectile letters, all lowercase) · sp2 **"Feel the AGI"** · **passive "Fired & Rehired"**: the first KO each match revives him at 10% HP after a 2 s "board meeting" text card (once per match; balance this) · grab **"Ads (Last Resort)"** · finisher **"Scaling Laws"**.
-- **Sidekick: Stargate Senator** (fictional). Policy Move **"$500B Announcement"** (a podium confetti blast).
+- **Locked by the owner, 18 Nov 2026.**
+  - Move 1 **"Quite Wrong"**: a glitchy AI projectile. Clip `ultman_quite_wrong` ("If this technology goes wrong, it can go quite wrong"; Senate testimony, May 2023).
+  - Move 2 **"End of the World"**: a shockwave. Clip `ultman_end_short` ("I think AI will probably, most likely, sort of lead to the end of the world"; 2015 talk), or `ultman_end_world` for the full line.
+  - Move 3 **"Last Resort"**: an ad-wall grab. Clip `ultman_last_resort` ("I kind of think of ads as like a last resort for us"; Harvard, May 2024).
+  - **Super "WITHOUT YOU, MR. PRESIDENT"**: $500B of Stargate money rains down on the opponent. Clip `ultman_agi_here` (the full Stargate statement, ending "we wouldn't be able to do this without you, Mr. President"; White House, Jan 2025).
+  - **Sidekick: Uncle Covfefe** (shared with Tusk; see `docs/art-briefs.md`). Uses his existing Tariff Policy Move. Replaces Stargate Senator.
+  - Spare clip: `ultman_this_era`.
+- Older ideas (not in the locked set): sp1 "lowercase tweet", sp2 "Feel the AGI", passive "Fired & Rehired", finisher "Scaling Laws".
 
 ### 7.7 Mo'Cash Ambunny (Mukesh Ambani) · Team Geo · India edition · fitness 0.6
 - **Super: "BIG FAT WEDDING SEASON"**: the stage turns into a 6-month wedding. Pop-star **cardboard cutouts** (generic, no real likenesses) perform, the baraat stampedes over the opponent, and elephants (Vantara) finish the job.

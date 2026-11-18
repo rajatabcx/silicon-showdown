@@ -1,18 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { isMuted, setMuted, sfx } from '../audio';
-import { sigInfo, type FighterInfo, type SigInfo } from '../data/roster';
+import { isMuted, roundSayAt, setMuted, sfx } from '../audio';
+import { lineSeconds, sigInfo, type FighterInfo, type SigInfo } from '../data/roster';
 import { fill, pick, TICKER } from '../data/satire';
 import type { Game } from '../Game';
-import { FACT_CHECK_WINDOW, FPS, SIDEKICK_HITS, SUPER_COST, TAG_FRAMES, TAG_MANUAL_CARDIO, tierOf } from '../sim/constants';
-import { sigOf } from '../sim/match';
+import { FPS, INTRO_FRAMES, SIDEKICK_HITS, SIG_COOLDOWN, SUPER_COST, TAG_FRAMES, TAG_MANUAL_CARDIO, tierOf } from '../sim/constants';
+import { staging } from '../sim/match';
+import { placeBubble, type Placement } from './bubbles';
 
 type Props = { game: Game; onDone(won: boolean): void; onQuit(): void };
 
 type Banner = { k: number; text: string; sub?: string; dur: number; tone?: 'gold' | 'red' | 'white' };
-type Check = { k: number; speaker: 0 | 1; context: string; ratioed: boolean };
-type Quote = { side: 0 | 1; sig: SigInfo; frames: number; policy: boolean } | null;
+type Quote = { k: number; side: 0 | 1; sig: SigInfo; policy: boolean } | null;
 type Tag = { hits: number } | null;
 type Callout = { k: number; side: number; text: string; tone: string };
 /** The running combo count for one side: one line that updates in place, never a pile of them. */
@@ -26,7 +26,6 @@ const TIER_NAMES = ['', 'TRENDING', 'VIRAL', 'MAIN CHARACTER'];
 export function FightScreen({ game, onDone, onQuit }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [banner, setBanner] = useState<Banner | null>(null);
-  const [check, setCheck] = useState<Check | null>(null);
   const [quote, setQuote] = useState<Quote>(null);
   const [callouts, setCallouts] = useState<Callout[]>([]);
   const [combos, setCombos] = useState<[Combo, Combo]>([null, null]);
@@ -67,7 +66,11 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
       switch (e.t) {
         case 'roundStart':
           setCine(null); setCinema(false); setQuote(null); setChats([]); setCombos([null, null]); setCallouts([]);
-          later(() => announce(m.round === 3 ? 'FINAL ROUND' : `ROUND ${e.round}`, 'The hearing will come to order.', 1.7), 250);
+          {
+            // In step with the announcer: the banner goes up as he says "Round N" and comes down before "Fight!".
+            const at = roundSayAt(e.round, INTRO_FRAMES / FPS);
+            later(() => announce(m.round === 3 ? 'FINAL ROUND' : `ROUND ${e.round}`, 'The hearing will come to order.', Math.max(0.9, INTRO_FRAMES / FPS - at - 0.1)), at * 1000);
+          }
           break;
         case 'fight': announce('FIGHT', undefined, 0.8, 'white'); break;
         case 'hit':
@@ -78,14 +81,12 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
             news(TICKER.combo, e.by);
           }
           else if (Math.random() < 0.15) news(TICKER.hit, e.by);
-          if (e.move === 'counter') callout(e.by, 'COUNTERED', '#8fd3ff');
           break;
-        case 'quoteCut': callout(1 - e.by, 'INTERRUPTED', '#ffffff'); break;
-        case 'factCheck': {
-          const k = ++id, speaker = (1 - e.by) as 0 | 1;
-          setCheck({ k, speaker, context: sigInfo(infos[speaker], e.sig).context, ratioed: e.ratioed });
-          later(() => setCheck((c) => (c?.k === k ? null : c)), 2600);
-          news(TICKER.factCheck, e.by);
+        // The line stays up for as long as it's being said, which runs on past the move itself.
+        case 'quote': {
+          const k = ++id, sig = sigInfo(infos[e.by], e.sig);
+          setQuote({ k, side: e.by, sig, policy: e.sig === 3 });
+          later(() => setQuote((q) => (q?.k === k ? null : q)), (lineSeconds(sig.line, sig.post) + 0.35) * 1000);
           break;
         }
         case 'tier': callout(e.by, TIER_NAMES[e.tier], e.tier === 3 ? '#ff8f6b' : '#ffe6a3'); break;
@@ -107,7 +108,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
             if (m.phase !== 'cine') chat(e.by, 'sk', pick(infos[e.by].sidekick.banter.back), 0, 1900);
           }
           break;
-        case 'superStart': setChats([]); break;
+        case 'superStart': setChats([]); setQuote(null); break;
         case 'superHit': news(TICKER.super, e.by); break;
         // The knockout: the room goes grey and slow first, then the word lands.
         case 'ko': { const w = 1 - e.by; later(() => announce('WASTED', `${infos[w].name}: "${infos[w].win}"`, 2.8, 'red'), 550); news(TICKER.ko, w); break; }
@@ -120,20 +121,11 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
     const el: Record<string, HTMLElement> = {};
     rootRef.current?.querySelectorAll<HTMLElement>('[data-hud]').forEach((n) => { el[n.dataset.hud!] = n; });
     let raf = 0;
-    let lastQuote = '';
     let lastCine = '';
+    /** Where each bubble was put last frame, so it only moves to another spot when it has to. */
+    const placed = new Map<string, Placement>();
     let stampShown = '';
     let lastCinema = false;
-    /**
-     * The lowest "top" (in % of the screen) at which a bubble that grows upward still clears the HUD and the
-     * combo / callout lines under it, so no two pieces of text ever sit on top of each other.
-     */
-    const underHud = (bubble: HTMLElement) => {
-      const root = rootRef.current, zone = el.hudzone;
-      if (!root || !zone) return 30;
-      const r = root.getBoundingClientRect();
-      return Math.max(30, ((zone.getBoundingClientRect().bottom - r.top + bubble.offsetHeight + 10) / r.height) * 100);
-    };
     const frame = () => {
       raf = requestAnimationFrame(frame);
       const m = game.match;
@@ -147,8 +139,8 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
         const te = el[`tier${i}`];
         if (te) {
           const ready = f.eng >= SUPER_COST && !f.superUsed && f.tag <= 0;
-          te.textContent = f.melt > 0 ? 'MELTDOWN' : ready ? 'SUPER READY · ENTER' : f.superUsed ? `${TIER_NAMES[tier] || 'ENGAGEMENT'} · SUPER USED` : TIER_NAMES[tier] || 'ENGAGEMENT';
-          te.dataset.hot = String(ready || f.melt > 0);
+          te.textContent = ready ? 'SUPER READY · ENTER' : f.superUsed ? `${TIER_NAMES[tier] || 'ENGAGEMENT'} · SUPER USED` : TIER_NAMES[tier] || 'ENGAGEMENT';
+          te.dataset.hot = String(ready);
         }
         const ce = el[`clabel${i}`];
         if (ce) {
@@ -157,6 +149,14 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
           ce.dataset.hot = String(can);
         }
         el[`sktime${i}`]?.style.setProperty('transform', `scaleX(${f.tag / TAG_FRAMES})`);
+        // Signature cooldown: the bar refills; the label says when the three moves are back.
+        const cd = f.tag > 0 ? 0 : f.sigCd;
+        el[`sigcd${i}`]?.style.setProperty('transform', `scaleX(${1 - cd / SIG_COOLDOWN})`);
+        const sl = el[`slabel${i}`];
+        if (sl) {
+          sl.textContent = f.tag > 0 ? 'MOVES · SIDEKICK' : cd > 0 ? `MOVES · ${Math.ceil(cd / FPS)}s` : i === 0 ? 'MOVES READY · L' : 'MOVES READY';
+          sl.dataset.hot = String(cd <= 0 && f.tag <= 0);
+        }
         const w = el[`wins${i}`];
         if (w) [...w.children].forEach((c, k) => ((c as HTMLElement).dataset.on = String(k < f.wins)));
       });
@@ -165,73 +165,10 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
       setTags((t) => (t[0]?.hits ?? -1) === tagKey[0] && (t[1]?.hits ?? -1) === tagKey[1] ? t
         : [tagKey[0] >= 0 ? { hits: tagKey[0] } : null, tagKey[1] >= 0 ? { hits: tagKey[1] } : null]);
 
-      // Quote subtitle and its Fact-Check window.
-      const qi = m.f.findIndex((f) => f.state === 'quote');
-      const qKey = qi >= 0 ? `${qi}-${m.f[qi].sig}-${m.round}` : '';
-      if (qKey !== lastQuote) {
-        lastQuote = qKey;
-        setQuote(qi >= 0 ? { side: qi as 0 | 1, sig: sigInfo(infos[qi], m.f[qi].sig), frames: sigOf(game.defs[qi], m.f[qi]).quote, policy: m.f[qi].sig === 3 } : null);
-      }
-      if (qi >= 0) {
-        const f = m.f[qi], sg = sigOf(game.defs[qi], f), total = sg.quote;
-        // Bubbles are re-queried: React mounts them after the first frame of a line.
-        const bar = rootRef.current?.querySelector<HTMLElement>('[data-hud="qbar"]');
-        const win = rootRef.current?.querySelector<HTMLElement>('[data-hud="qwin"]');
-        const bub = rootRef.current?.querySelector<HTMLElement>('[data-hud="qbubble"]');
-        bar?.style.setProperty('transform', `scaleX(${Math.min(1, f.frame / total)})`);
-        if (win) win.dataset.open = String(f.frame >= total - FACT_CHECK_WINDOW && sg.kind !== 'counter');
-        if (bub) {
-          const p = game.headOnScreen(qi as 0 | 1);
-          // A prop held overhead (the chainsaw) would sit under the bubble: put the bubble beside him instead,
-          // on the side away from his opponent, or the other side if there isn't room.
-          const overhead = m.f[qi].tag <= 0 && sigInfo(infos[qi], m.f[qi].sig).prop === 'chainsaw';
-          const tail = bub.querySelectorAll<HTMLElement>('[data-tail]');
-          if (overhead) {
-            // Wait for the saw to land, then sit above its tip if there's room under the HUD, else beside it.
-            const r = game.propRect(qi as 0 | 1);
-            const W = rootRef.current!.clientWidth, H = rootRef.current!.clientHeight;
-            const bw = bub.offsetWidth / W, bh = bub.offsetHeight / H;
-            bub.style.visibility = r ? 'visible' : 'hidden';
-            if (r) {
-              const top = Math.min(r.y0, p.y) - 0.02;
-              if (top - bh > 0.15) {
-                bub.style.left = `${Math.min(1 - bw / 2 - 0.01, Math.max(bw / 2 + 0.01, (r.x0 + r.x1) / 2)) * 100}%`;
-                bub.style.top = `${top * 100}%`;
-                bub.style.translate = '-50% -100%';
-              } else {
-                const l = Math.min(r.x0, p.x - 0.04) - 0.015, rr = Math.max(r.x1, p.x + 0.04) + 0.015;
-                let side = -m.f[qi].facing;
-                if (side < 0 && l - bw < 0.01) side = 1;
-                if (side > 0 && rr + bw > 0.99) side = -1;
-                bub.style.left = `${(side < 0 ? l : rr) * 100}%`;
-                bub.style.top = `${Math.max(0.15 + bh / 2, Math.min(0.75, (r.y0 + r.y1) / 2)) * 100}%`;
-                bub.style.translate = side < 0 ? '-100% -50%' : '0 -50%';
-              }
-            }
-            tail.forEach((t) => { t.style.display = 'none'; });
-          } else {
-            bub.style.left = `${Math.min(80, Math.max(20, p.x * 100))}%`;
-            bub.style.top = `${Math.max(underHud(bub), Math.min(70, p.y * 100))}%`;
-            bub.style.translate = '-50% -100%';
-            bub.style.visibility = 'visible';
-            tail.forEach((t) => { t.style.display = ''; });
-          }
-        }
-      }
-
-      // Anything directed by the camera: a Super (its flash and its cinematic) or a sidekick's Policy Move.
-      const policy = m.phase === 'fight' && (m.proj.some((p) => p.sig === 3) || m.f.some((f) => f.tag > 0 && f.sig === 3 && (f.state === 'quote' || f.state === 'sig')));
+      // Anything directed by the camera: a Super (its flash and its cinematic), a signature or a Policy Move.
+      const policy = m.phase === 'fight' && (staging(m, 0) || staging(m, 1));
       const cinema = m.phase === 'cine' || policy || (m.phase === 'fight' && m.f.some((f) => f.state === 'superStart'));
       if (cinema !== lastCinema) { lastCinema = cinema; setCinema(cinema); }
-
-      // Banter bubbles follow their speaker's head; they step aside while a real line or a Super is on screen.
-      rootRef.current?.querySelectorAll<HTMLElement>('[data-chat]').forEach((b) => {
-        const [side, who] = b.dataset.chat!.split('-') as ['0' | '1', 'boss' | 'sk'];
-        const p = game.headOnScreen(Number(side) as 0 | 1, who);
-        b.style.left = `${Math.min(82, Math.max(18, p.x * 100))}%`;
-        b.style.top = `${Math.max(underHud(b), Math.min(70, p.y * 100))}%`;
-        b.style.visibility = qi >= 0 || cinema ? 'hidden' : 'visible';
-      });
 
       // Super overlays, keyed to the same seconds as the 3D script.
       let cv: CineView = null;
@@ -253,10 +190,40 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
         if (cv && cv.stamp >= 0 && stampShown !== `${m.round}-${m.frame - m.phaseFrame}`) { stampShown = `${m.round}-${m.frame - m.phaseFrame}`; sfx('stamp'); }
         lastCine = cKey; setCine(cv);
       }
-      if (cv) for (const k of cv.bubbles) {
-        const b = el[`bubble${k}`];
-        const side = infos[cv.by].super.beats[k].side === 'atk' ? cv.by : (1 - cv.by) as 0 | 1;
-        if (b) { const p = game.headOnScreen(side); b.style.left = `${Math.min(80, Math.max(8, p.x * 100))}%`; b.style.top = `${Math.max(14, p.y * 100 - 4)}%`; }
+
+      // Every speech bubble (the line, tag banter, a Super's asides) sits next to its speaker's head and never over
+      // anyone's face, from whatever angle the camera is at: above the head if there's room, else beside it.
+      const root = rootRef.current;
+      if (root) {
+        const R = root.getBoundingClientRect();
+        const zone = el.hudzone?.getBoundingClientRect();
+        // Never over the health bars, cinematic or not.
+        const top = zone ? (zone.bottom - R.top) / R.height + 0.01 : 0.25;
+        const bottom = cinema ? 0.9 : 0.86;
+        const faces = ([0, 1] as const).map((i) => game.headRect(i)).filter((r) => !!r);
+        const put = (b: HTMLElement, key: string, side: 0 | 1, who?: 'boss' | 'sk') => {
+          const head = game.headRect(side, who);
+          const other = game.headRect((1 - side) as 0 | 1);
+          const spot = placeBubble({
+            w: b.offsetWidth / R.width, h: b.offsetHeight / R.height, head, other, faces, top, bottom, last: placed.get(key),
+          });
+          placed.set(key, spot);
+          b.style.left = `${spot.x * 100}%`; b.style.top = `${spot.y * 100}%`;
+          b.style.visibility = 'visible';
+          b.dataset.tail = spot.kind === 'above' ? 'down' : spot.kind === 'left' ? 'right' : spot.kind === 'right' ? 'left' : 'none';
+        };
+        const qb = root.querySelector<HTMLElement>('[data-hud="qbubble"]');
+        if (qb) put(qb, 'q', Number(qb.dataset.side) as 0 | 1);
+        root.querySelectorAll<HTMLElement>('[data-chat]').forEach((b) => {
+          const [side, who] = b.dataset.chat!.split('-') as ['0' | '1', 'boss' | 'sk'];
+          if (qb || cinema) { b.style.visibility = 'hidden'; return; }
+          put(b, `chat-${who}`, Number(side) as 0 | 1, who);
+        });
+        if (cv) for (const k of cv.bubbles) {
+          const b = el[`bubble${k}`] ?? root.querySelector<HTMLElement>(`[data-hud="bubble${k}"]`);
+          const side = infos[cv.by].super.beats[k].side === 'atk' ? cv.by : (1 - cv.by) as 0 | 1;
+          if (b) put(b, `sup-${k}`, side);
+        }
       }
     };
     raf = requestAnimationFrame(frame);
@@ -312,37 +279,22 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
         </div>
       )}
 
-      {/* The line being said, with its source and the Fact-Check window */}
-      {quote && !cine && <SpeechBubble key={`${quote.side}-${quote.sig.name}`} q={quote} info={infos[quote.side]} isCpu={quote.side === 1} />}
+      {/* The line being said, with its source */}
+      {quote && !cine && <SpeechBubble key={quote.k} q={quote} info={infos[quote.side]} />}
 
       {/* Tag banter */}
       {chats.map((c) => (
-        <div key={c.k} data-chat={`${c.side}-${c.who}`} className="absolute -translate-x-1/2 -translate-y-full" style={{ left: '50%', top: '40%', visibility: 'hidden' }}>
+        <div key={c.k} data-chat={`${c.side}-${c.who}`} className="bubble absolute" style={{ left: '50%', top: '40%', visibility: 'hidden' }}>
           <div className="anim-pop relative max-w-[min(18rem,70vw)] rounded-[1.2rem] border-[3px] border-black bg-[#fff8e6] px-3.5 pb-2 pt-1.5 text-black shadow-[4px_4px_0_#000]">
             <div className="flex items-center gap-2">
               <span className="display rounded-sm bg-black px-1.5 py-0.5 text-[10px] tracking-wider text-[#ffe6a3]">BANTER</span>
               <span className="mono truncate text-[10px] tracking-widest text-black/55">{c.name.toUpperCase()}</span>
             </div>
             <div className="mt-1 text-base font-bold leading-snug sm:text-lg">{c.text}</div>
-            <span className="absolute -bottom-[17px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[12px] border-t-[16px] border-x-transparent border-t-black" />
-            <span className="absolute -bottom-[11px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[9px] border-t-[11px] border-x-transparent border-t-[#fff8e6]" />
+            <Tail fill="#fff8e6" />
           </div>
         </div>
       ))}
-
-      {/* Fact-Check result */}
-      {check && (
-        <div key={check.k} className="absolute inset-x-0 top-[30%] flex flex-col items-center gap-4">
-          <div className="stamp anim-slam text-5xl text-[#5fc8ff] sm:text-7xl" style={{ textShadow: '0 4px 0 #000', background: 'rgb(0 0 0 / .35)' }}>
-            {check.ratioed ? 'RATIOED' : 'FACT-CHECKED'}
-          </div>
-          <div className="anim-rise max-w-md border-l-4 border-[#5fc8ff] bg-[#0d1626]/95 px-4 py-3 text-left shadow-2xl">
-            <div className="mono text-[11px] tracking-[0.18em] text-[#5fc8ff]">READERS ADDED CONTEXT</div>
-            <div className="mt-1 text-sm text-white sm:text-base">{check.context}</div>
-            {check.ratioed && <div className="mono mt-2 text-[11px] tracking-widest text-[#ff8f6b]">{infos[check.speaker].name.toUpperCase()} IS HAVING A MELTDOWN</div>}
-          </div>
-        </div>
-      )}
 
       {/* Super: title card, real-clip subtitles, bubbles, closing stamp */}
       {cine && sp && (
@@ -364,8 +316,11 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
             </div>
           )}
           {cine.bubbles.map((k) => (
-            <div key={k} data-hud={`bubble${k}`} className="anim-pop absolute max-w-[16rem] -translate-x-1/2 -translate-y-full rounded-2xl border-[3px] border-black bg-white px-3 py-2 text-center text-sm font-bold leading-tight text-black shadow-[4px_4px_0_#000] sm:text-base">
-              {sp.beats[k].text}
+            <div key={k} data-hud={`bubble${k}`} className="bubble absolute" style={{ visibility: 'hidden' }}>
+              <div className="anim-pop relative max-w-[16rem] rounded-2xl border-[3px] border-black bg-white px-3 py-2 text-center text-sm font-bold leading-tight text-black shadow-[4px_4px_0_#000] sm:text-base">
+                {sp.beats[k].text}
+                <Tail fill="#fff" />
+              </div>
             </div>
           ))}
           {cine.sub >= 0 && (
@@ -400,7 +355,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
           <span><K>J</K> light (tap 3x)</span>
           <span><K>K</K> heavy</span>
           <span><K>L</K> say it · <K>L</K>+fwd · <K>L</K>+<K>S</K></span>
-          <span><K>Space</K> dodge / Fact-Check</span>
+          <span><K>Space</K> dodge</span>
           <span><K>Enter</K> Super (gold mark, once a round)</span>
           <span><K>U</K> tag sidekick (low cardio)</span>
           <span><K>Esc</K> pause <K>M</K> {muted ? 'unmute' : 'mute'}</span>
@@ -468,6 +423,11 @@ function Side({ i, info, tag }: { i: 0 | 1; info: FighterInfo; tag: Tag }) {
         <div className="h-1.5 flex-1 border border-black bg-black/60"><div className={`bar ${right ? 'flip' : ''}`}><div data-hud={`cardio${i}`} className="fill bg-[#7fd3ff]" /></div></div>
         <span data-hud={`clabel${i}`} className="mono hud-tier shrink-0 text-[8px] tracking-[0.16em] text-white/50 sm:text-[9px]">CARDIO</span>
       </div>
+      {/* Signature cooldown */}
+      <div className={`flex w-[70%] items-center gap-2 ${right ? 'flex-row-reverse' : ''}`}>
+        <div className="h-1.5 flex-1 border border-black bg-black/60"><div className={`bar ${right ? 'flip' : ''}`}><div data-hud={`sigcd${i}`} className="fill bg-[#ffb347]" /></div></div>
+        <span data-hud={`slabel${i}`} className="mono hud-tier shrink-0 text-[8px] tracking-[0.16em] text-white/50 sm:text-[9px]">MOVES READY</span>
+      </div>
       {/* Sidekick on stage: time left and the hits it can still take */}
       <div className={`flex w-[70%] items-center gap-2 ${right ? 'flex-row-reverse' : ''} ${tag ? '' : 'invisible'}`}>
         <div className="h-1 flex-1 bg-black/60"><div className={`bar ${right ? 'flip' : ''}`}><div data-hud={`sktime${i}`} className="fill bg-[#ffe6a3]" /></div></div>
@@ -482,17 +442,15 @@ function Side({ i, info, tag }: { i: 0 | 1; info: FighterInfo; tag: Tag }) {
   );
 }
 
-/** A comic speech bubble over the speaker's head: who is talking, which move it is, the real line and its source. */
-function SpeechBubble({ q, info, isCpu }: { q: NonNullable<Quote>; info: FighterInfo; isCpu: boolean }) {
-  const counter = q.sig.sim.kind === 'counter';
+/** A comic speech bubble beside the speaker's head: who is talking, which move it is, the real line and its source. */
+function SpeechBubble({ q, info }: { q: NonNullable<Quote>; info: FighterInfo }) {
   const speaker = q.sig.line?.speaker ?? info.name;
-  const tone = q.side === 0 ? info.color : info.color;
-  const kind = q.policy ? 'POLICY MOVE' : counter ? 'COUNTER' : 'SIGNATURE';
+  const kind = q.policy ? 'POLICY MOVE' : 'SIGNATURE';
   return (
-    <div data-hud="qbubble" className="absolute -translate-x-1/2 -translate-y-full" style={{ left: '50%', top: '40%', visibility: q.sig.prop === 'chainsaw' && !q.policy ? 'hidden' : undefined }}>
-      <div className="anim-pop relative w-[min(24rem,80vw)] rounded-[1.4rem] border-[3px] border-black bg-white px-4 pb-3 pt-2.5 text-black shadow-[5px_5px_0_#000]">
+    <div data-hud="qbubble" data-side={q.side} className="bubble absolute" style={{ left: '50%', top: '40%', visibility: 'hidden' }}>
+      <div className="anim-pop relative w-[min(22rem,70vw)] rounded-[1.4rem] border-[3px] border-black bg-white px-4 pb-3 pt-2.5 text-black shadow-[5px_5px_0_#000]">
         <div className="flex items-center gap-2">
-          <span className="display rounded-sm px-1.5 py-0.5 text-xs tracking-wider text-white" style={{ background: tone }}>{kind}</span>
+          <span className="display rounded-sm px-1.5 py-0.5 text-xs tracking-wider text-white" style={{ background: info.color }}>{kind}</span>
           <span className="display truncate text-base tracking-wide">{q.sig.name}</span>
           <span className="mono ml-auto truncate text-[10px] tracking-widest text-black/55">{speaker.toUpperCase()}</span>
         </div>
@@ -510,21 +468,21 @@ function SpeechBubble({ q, info, isCpu }: { q: NonNullable<Quote>; info: Fighter
         <div className="mono mt-1.5 text-[9px] tracking-[0.18em] text-black/50">
           {q.sig.post ? 'REAL POST' : 'REAL QUOTE'} · {q.sig.post?.source ?? q.sig.line?.source}
         </div>
-        {!counter && !q.policy && (
-          <div className="relative mt-3 h-2 bg-black/10">
-            <div data-hud="qbar" className="absolute inset-0 origin-left bg-black/60" style={{ transform: 'scaleX(0)' }} />
-            <div data-hud="qwin" className="absolute inset-y-[-3px] right-0 border border-[#1d9bf0] bg-[#1d9bf0]/25 data-[open=true]:bg-[#1d9bf0]" style={{ width: `${(FACT_CHECK_WINDOW / q.frames) * 100}%` }}>
-              <span className="mono absolute -top-4 right-0 whitespace-nowrap text-[9px] font-semibold tracking-widest text-[#1d9bf0]">
-                {isCpu ? 'SPACE TO FACT-CHECK' : 'FACT-CHECK WINDOW'}
-              </span>
-            </div>
-          </div>
-        )}
-        {counter && <div className="mono mt-2 text-[10px] tracking-widest text-[#1d6fa0]">HE IS NOT ANSWERING. DON&apos;T HIT HIM.</div>}
-        {/* Tail */}
-        <span data-tail className="absolute -bottom-[19px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[14px] border-t-[18px] border-x-transparent border-t-black" />
-        <span data-tail className="absolute -bottom-[13px] left-1/2 h-0 w-0 -translate-x-1/2 border-x-[10px] border-t-[13px] border-x-transparent border-t-white" />
+        <Tail fill="#fff" />
       </div>
     </div>
+  );
+}
+
+/**
+ * The bubble's tail, pointing at the speaker. Its direction comes from the bubble's data-tail (set each frame by the
+ * placement): down when the bubble is above the head, left or right when it's beside it.
+ */
+function Tail({ fill }: { fill: string }) {
+  return (
+    <>
+      <span className="tail tail-ink" />
+      <span className="tail tail-fill" style={{ ['--fill' as string]: fill }} />
+    </>
   );
 }

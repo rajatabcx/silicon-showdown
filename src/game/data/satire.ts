@@ -19,10 +19,6 @@ export const TICKER = {
     '{w} lands three in a row. Senators check their notes.',
     '{l} enters "founder mode" (lying down).',
   ],
-  factCheck: [
-    'FACT-CHECKED: Readers added context to {l}.',
-    '{w} fact-checks {l}. Engagement collapses.',
-  ],
   super: [
     '{w} uses a Super. Committee "deeply concerned".',
     'Regulators "monitoring the situation" after {w} Super.',
