@@ -570,5 +570,47 @@
     "seconds": 5.5,
     "heard": "the phrase days from going out of business i've used for years",
     "source": "huang_rogan_30"
+  },
+  "bozo_day_one_tight": {
+    "file": "/audio/voice/bozo_day_one_tight.mp3",
+    "seconds": 3.26,
+    "heard": "always day one",
+    "source": "bezos_day1"
+  },
+  "bozo_guarantee_tight": {
+    "file": "/audio/voice/bozo_guarantee_tight.mp3",
+    "seconds": 3.98,
+    "heard": "but i can't guarantee you that that policy has never been violated",
+    "source": "bezos_hearing"
+  },
+  "ultman_end_tight": {
+    "file": "/audio/voice/ultman_end_tight.mp3",
+    "seconds": 2.56,
+    "heard": "most likely sort of lead to the end of the world",
+    "source": "altman_end_world"
+  },
+  "jensen_ceo_tight": {
+    "file": "/audio/voice/jensen_ceo_tight.mp3",
+    "seconds": 3.8,
+    "heard": "but it is correct okay that's called ceo math",
+    "source": "huang_computex"
+  },
+  "mork_masculine_tight": {
+    "file": "/audio/voice/mork_masculine_tight.mp3",
+    "seconds": 3.68,
+    "heard": "the kind of masculine energy i think is good",
+    "source": "zuck_masculine"
+  },
+  "mork_ribs_tight": {
+    "file": "/audio/voice/mork_ribs_tight.mp3",
+    "seconds": 2.42,
+    "heard": "maybe throw some sweet baby rays on the ribs",
+    "source": "zuck_meats"
+  },
+  "carp_poorer_tight": {
+    "file": "/audio/voice/carp_poorer_tight.mp3",
+    "seconds": 2.3,
+    "heard": "in part honestly to make them poorer",
+    "source": "karp_burry"
   }
 }

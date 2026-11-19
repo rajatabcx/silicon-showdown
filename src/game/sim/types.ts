@@ -22,6 +22,8 @@ export type SigDef = {
   id: string;
   /** Frames of wind-up before the move goes (the line keeps playing over the move). */
   quote: number;
+  /** Frames the whole line runs, from the first word. The move (and the opponent's freeze) lasts at least this long. */
+  line?: number;
   kind: 'melee' | 'projectile' | 'drop';
   startup: number; active: number; recovery: number;
   damage: number; range: number;
@@ -30,6 +32,8 @@ export type SigDef = {
   knockdown?: boolean;
   /** Projectile launch speed. */
   speed?: number;
+  /** Policy Move only: the MAGA move. Against Average Joe it sets off the blue wave and the politician is voted out. */
+  wave?: boolean;
 };
 
 export type SuperDef = {
@@ -37,6 +41,8 @@ export type SuperDef = {
   /** Frame the damage lands (one hit), or the range over which health drains. */
   hitAt: number;
   drain?: [from: number, to: number];
+  /** Aimed at Average Joe: the frame he cuts it off, and how long the deflection runs in all. */
+  deflect?: { cut: number; frames: number };
 };
 
 export type FState =
@@ -44,7 +50,7 @@ export type FState =
   | 'knockdown' | 'getup' | 'winded' | 'dodge' | 'quote' | 'sig'
   | 'superStart' | 'ko' | 'win';
 
-export type Ego = 'needy' | 'contrarian' | 'customer' | 'hype' | 'triggered' | 'marketcap' | 'harvest';
+export type Ego = 'needy' | 'contrarian' | 'customer' | 'hype' | 'triggered' | 'marketcap' | 'harvest' | 'immune';
 
 /** The stats the simulation needs about a fighter. Looks and lines live in data/. */
 export type SimDef = {
@@ -58,6 +64,11 @@ export type SimDef = {
   ego: Ego;
   /** The funded politician who tags in when cardio runs out. Its one Policy Move is sig index 3. */
   sidekick: { walk: number; policy: SigDef };
+  /**
+   * Average Joe: no signatures, no Super, no sidekick. Supers aimed at him are deflected (no damage, the caller is left
+   * winded), and a sidekick tagged in against him is a lame duck who gets voted out.
+   */
+  everyman?: boolean;
 };
 
 export type Fighter = {
@@ -88,6 +99,10 @@ export type Fighter = {
   skOut: boolean;
   /** The sidekick's Policy Move is spent for this tag. */
   skPolicy: boolean;
+  /** This signature has already been negated by Average Joe (one retort per move, however many hits). */
+  negated: boolean;
+  /** Frames left of the line this fighter is saying (0 = not talking). */
+  talk: number;
 };
 
 export type Projectile = { owner: 0 | 1; sig: number; x: number; y: number; vx: number; vy: number; dmg: number; knockdown: boolean };
@@ -108,8 +123,11 @@ export type Ev =
   | { t: 'superLand'; by: 0 | 1 }
   | { t: 'winded'; by: 0 | 1 }
   | { t: 'outOfOrder'; by: 0 | 1 }
-  | { t: 'tagIn'; by: 0 | 1; manual: boolean }
-  | { t: 'tagOut'; by: 0 | 1; scandal: boolean }
+  | { t: 'tagIn'; by: 0 | 1; manual: boolean; lameDuck?: boolean }
+  | { t: 'tagOut'; by: 0 | 1; scandal: boolean; votedOut?: boolean }
+  | { t: 'deflect'; by: 0 | 1 }
+  /** A signature or Policy Move by `by` landed on Average Joe and did nothing. */
+  | { t: 'negate'; by: 0 | 1; sig: number; wave?: boolean }
   | { t: 'ko'; by: 0 | 1 }
   | { t: 'timeUp' }
   | { t: 'roundStart'; round: number }

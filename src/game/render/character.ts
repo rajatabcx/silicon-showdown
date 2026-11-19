@@ -95,7 +95,7 @@ function prepareClip(clip: THREE.AnimationClip, model: THREE.Object3D, srcHipsRe
   return new THREE.AnimationClip(clip.name, clip.duration, tracks);
 }
 
-export type Role = 'fight' | 'talk' | 'pump' | 'reel' | 'frozen' | 'down' | 'shrug' | 'strike' | 'fall';
+export type Role = 'fight' | 'talk' | 'pump' | 'reel' | 'frozen' | 'down' | 'shrug' | 'strike' | 'fall' | 'flee';
 
 /** One fighter on screen: the model, its cel materials and ink outline, and a mixer driven by the simulation. */
 export class FighterView {
@@ -380,6 +380,7 @@ export class FighterView {
         case 'down': return { key: 'c-down', clip: 'Knock_Down', t: 2.45, fade: 0.2 };
         case 'shrug': return { key: 'c-shrug', clip: 'Long_Breathe_and_Look_Around', speed: 0.6, fade: 0.3 };
         case 'fight': return { key: 'c-fight', clip: 'Block1', t: 0.3, fade: 0.2 };
+        case 'flee': return { key: 'c-flee', clip: 'Running', speed: 1.1, fade: 0.15 };
       }
     }
     if (this.limited) {

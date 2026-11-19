@@ -28,6 +28,7 @@ const VOICE_FILES: VoiceId[] = [
   'jensen_more_buy', 'jensen_ceo_math', 'jensen_pain', 'jensen_howard', 'kennedy_short', 'jensen_30_days', 'jensen_wouldnt',
   'lootnick_say_no', 'lootnick_fourth_best', 'lootnick_addicted',
   'mork_run_ads', 'mork_masculine', 'mork_beat', 'mork_ribs', 'mork_ribs_short', 'mork_neutered',
+  'bozo_day_one_tight', 'bozo_guarantee_tight', 'ultman_end_tight', 'carp_poorer_tight', 'jensen_ceo_tight', 'mork_masculine_tight', 'mork_ribs_tight',
   'mork_roadmap', 'mork_legs_full', 'mork_legs_hard', 'wite_animal', 'wite_nine_to_six', 'wite_why_here',
 ];
 
@@ -173,7 +174,7 @@ function hiss(dur: number, vol: number, type: BiquadFilterType, f0: number, f1: 
 
 export type Sfx =
   | 'hit' | 'heavy' | 'block' | 'whoosh' | 'ko' | 'superStart' | 'superBoom' | 'ui' | 'gavel' | 'wheeze' | 'factCheck'
-  | 'wasted' | 'thud' | 'chainsaw' | 'riser' | 'tick' | 'stamp' | 'dodge' | 'tier' | 'cheer' | 'boo';
+  | 'wasted' | 'thud' | 'chainsaw' | 'riser' | 'tick' | 'stamp' | 'dodge' | 'tier' | 'cheer' | 'boo' | 'scratch';
 
 export function sfx(name: Sfx) {
   switch (name) {
@@ -227,6 +228,8 @@ export function sfx(name: Sfx) {
     case 'tier': osc('triangle', 660, 660, 0.1, 0.25); osc('triangle', 990, 990, 0.18, 0.25, 0.09, true); break;
     case 'cheer': crowdSwell(1); break;
     case 'boo': crowdSwell(-1); break;
+    // A record scratch: a fast falling squeal over a scrape of noise.
+    case 'scratch': osc('sawtooth', 1400, 180, 0.28, 0.22); hiss(0.3, 0.6, 'bandpass', 3000, 400, 2.5); osc('square', 700, 90, 0.18, 0.08, 0.05); break;
   }
 }
 

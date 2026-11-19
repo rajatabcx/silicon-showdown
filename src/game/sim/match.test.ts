@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { simDef, TEAL, TUSK } from '../data/roster';
-import { cpuInput, makeCpu } from './ai/cpu';
+import { JENSEN, JOE, ROSTER, simDef, TEAL, TUSK } from '../data/roster';
+import { cpuDef, cpuInput, makeCpu } from './ai/cpu';
 import {
   INTRO_FRAMES, SIG_COOLDOWN, MOVES, SCANDAL_DAMAGE, STAGE_HALF, SUPER_COST, SUPER_DAMAGE, SUPER_GAP, SUPER_STARTUP, TAG_FRAMES,
-  WINDED_FRAMES,
+  WAVE_EXIT_FRAMES, WINDED_FRAMES,
 } from './constants';
 import { hashMatch, newMatch, staging, step } from './match';
 import { makeRng } from './rng';
@@ -576,5 +576,115 @@ describe('a Super cannot be lost or interrupted', () => {
       }
     }
     expect(supers).toBeGreaterThan(40);
+  });
+});
+
+describe('Average Joe (boss)', () => {
+  const JD: [SimDef, SimDef] = [base(simDef(JENSEN)), base(simDef(JOE))];
+  const go = (m: Match, frames: number, in0 = 0, in1 = 0) => {
+    const evs: Ev[] = [];
+    for (let i = 0; i < frames; i++) { step(m, in0, in1, JD); evs.push(...m.events); }
+    return evs;
+  };
+  const fight = () => { const m = newMatch(); go(m, INTRO_FRAMES); return m; };
+
+  it("a Super aimed at him is cut off: no damage, the caller is left winded", () => {
+    const m = fight();
+    m.f[0].eng = 100;
+    const evs = go(m, 1, BTN.X).concat(go(m, SUPER_STARTUP + 2));
+    expect(m.phase).toBe('cine');
+    let n = 0;
+    while (m.phase === 'cine' && n++ < 3000) evs.push(...go(m, 1));
+    // The cinematic runs the deflection's length, not the full Super's.
+    expect(Math.abs(n - JD[0].super.deflect!.frames)).toBeLessThan(4);
+    expect(JD[0].super.deflect!.frames).toBeLessThan(JD[0].super.frames);
+    expect(m.f[1].hp).toBe(100);
+    expect(m.f[0].state).toBe('winded');
+    expect(evs.some((e) => e.t === 'deflect')).toBe(true);
+    expect(evs.some((e) => e.t === 'superDamage')).toBe(false);
+    // Out of breath, not out of the fight: no sidekick is sent in.
+    const after = go(m, WINDED_FRAMES + 2);
+    expect(after.some((e) => e.t === 'tagIn')).toBe(false);
+  });
+
+  it('he has nothing to call: Super, signatures and tag do nothing', () => {
+    const m = fight();
+    m.f[1].eng = 100; m.f[1].cardio = 10;
+    const evs = go(m, 3, 0, BTN.X).concat(go(m, 3, 0, BTN.S), go(m, 3, 0, BTN.T));
+    expect(evs.filter((e) => e.t === 'superStart' || e.t === 'quote' || e.t === 'tagIn')).toEqual([]);
+  });
+
+  it('a sidekick tagged in against him is a lame duck: half the tag, then voted out for the round', () => {
+    const m = fight();
+    m.f[0].cardio = 10;
+    const evs = go(m, 2, BTN.T);
+    expect(evs.find((e) => e.t === 'tagIn')).toMatchObject({ lameDuck: true });
+    expect(m.f[0].tag).toBeLessThanOrEqual(TAG_FRAMES / 2);
+    const out = go(m, TAG_FRAMES / 2 + 30);
+    expect(out.find((e) => e.t === 'tagOut')).toMatchObject({ votedOut: true, scandal: false });
+    m.f[0].cardio = 10;
+    expect(go(m, 2, BTN.T).some((e) => e.t === 'tagIn')).toBe(false);
+  });
+
+  it('only the MAGA move sets off the blue wave, and that politician is voted out soon after', () => {
+    // Tusk's sidekick has the MAGA move; Teal's doesn't.
+    for (const [who, wave] of [['tusk', true], ['teal', false]] as const) {
+      const defs: [SimDef, SimDef] = [base(simDef(ROSTER.find((f) => f.id === who)!)), JD[1]];
+      const run = (m: Match, frames: number, in0 = 0) => {
+        const evs: Ev[] = [];
+        for (let i = 0; i < frames; i++) { step(m, in0, 0, defs); evs.push(...m.events); }
+        return evs;
+      };
+      const m = newMatch(); run(m, INTRO_FRAMES);
+      m.f[0].x = -0.6; m.f[1].x = 0.6; m.f[0].cardio = 10;
+      run(m, 1, BTN.T); run(m, 100);
+      run(m, 1, BTN.S);
+      let n = 0;
+      while (!run(m, 1).some((e) => e.t === 'negate' && (expect(e, who).toMatchObject({ sig: 3, wave }), true))) expect(n++, who).toBeLessThan(600);
+      // Voted out within the wave's exit time; without the wave the tag just runs on.
+      const out = run(m, WAVE_EXIT_FRAMES + 3).find((e) => e.t === 'tagOut');
+      if (wave) expect(out, who).toMatchObject({ votedOut: true });
+      else expect(out, who).toBeUndefined();
+    }
+  });
+
+  it('every signature and Policy Move is negated: no damage, no knockdown, one negate event', () => {
+    for (const k of [0, 1, 2, 3]) {
+      const m = fight();
+      m.f[0].x = -0.6; m.f[1].x = 0.6;
+      if (k === 3) { m.f[0].cardio = 10; go(m, 1, BTN.T); go(m, 100); }
+      const evs = go(m, 1, BTN.S | (k === 1 ? BTN.R : k === 2 ? BTN.D : 0)).concat(go(m, 600));
+      expect(m.f[1].hp, `sig ${k}`).toBe(100);
+      expect(evs.filter((e) => e.t === 'negate'), `sig ${k}`).toHaveLength(1);
+      expect(evs.some((e) => e.t === 'hit' || (e.t === 'ko'))).toBe(false);
+      expect(['knockdown', 'getup']).not.toContain(m.f[1].state);
+    }
+  });
+
+  it('he is a boss: on Founder he beats even a skilled player most of the time; on Intern he can be beaten', () => {
+    const rate = (lv: 'easy' | 'normal') => {
+      let joe = 0, n = 0;
+      for (const b of ROSTER) for (let seed = 1; seed <= 4; seed++) {
+        // The player's billionaire on normal stats, played by the strongest AI as a stand-in for a skilled human.
+        const D: [SimDef, SimDef] = [simDef(b), cpuDef(simDef(JOE), lv)];
+        const m = newMatch(); const a = makeCpu('hard', seed), c = makeCpu(lv, seed + 99);
+        let k = 0; while (m.phase !== 'matchEnd' && k++ < 60 * 60 * 15) step(m, cpuInput(a, m, 0, D[0]), cpuInput(c, m, 1, D[1]), D);
+        n++; if (m.winner === 1) joe++;
+      }
+      return joe / n;
+    };
+    expect(rate('normal')).toBeGreaterThan(0.5);
+    expect(rate('easy')).toBeLessThan(0.4);
+  });
+
+  it('the CPU playing him just fights (it never stands there pressing Super)', () => {
+    const m = newMatch();
+    const a = makeCpu('normal', 7), b = makeCpu('hard', 8);
+    let hits = 0, n = 0;
+    while (m.phase !== 'matchEnd' && n++ < 60 * 60 * 8) {
+      step(m, cpuInput(a, m, 0, JD[0]), cpuInput(b, m, 1, JD[1]), JD);
+      hits += m.events.filter((e) => e.t === 'hit' && e.by === 1).length;
+    }
+    expect(hits).toBeGreaterThan(20);
   });
 });

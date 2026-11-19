@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { isMuted, roundSayAt, setMuted, sfx } from '../audio';
 import { lineSeconds, ROSTER, sigInfo, type FighterInfo, type SigInfo } from '../data/roster';
 import { fill, pick, TICKER } from '../data/satire';
+import { COUNTERS, DEFLECTS, DISOWN, LAME_DUCK, NEGATES, superFor } from '../data/joe';
 import type { Game } from '../Game';
 import { FPS, INTRO_FRAMES, SIDEKICK_HITS, SIG_COOLDOWN, SUPER_COST, TAG_FRAMES, TAG_MANUAL_CARDIO, tierOf } from '../sim/constants';
 import { staging } from '../sim/match';
@@ -11,7 +12,7 @@ import { placeBubble, type Placement } from './bubbles';
 
 type Props = { game: Game; onDone(won: boolean): void; onQuit(): void };
 
-type Banner = { k: number; text: string; sub?: string; dur: number; tone?: 'gold' | 'red' | 'white' };
+type Banner = { k: number; text: string; sub?: string; dur: number; tone?: 'gold' | 'red' | 'white' | 'blue' };
 type Quote = { k: number; side: 0 | 1; sig: SigInfo; policy: boolean } | null;
 type Tag = { hits: number } | null;
 type Callout = { k: number; side: number; text: string; tone: string };
@@ -37,7 +38,11 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
   const [muted, setMutedState] = useState(isMuted());
   const [tags, setTags] = useState<[Tag, Tag]>([null, null]);
   const [chats, setChats] = useState<Chat[]>([]);
+  /** Average Joe shrugging off a signature or Policy Move: his one line. */
+  const [negate, setNegate] = useState<{ k: number; side: 0 | 1; text: string } | null>(null);
   const infos = game.infos;
+  /** Per side: whether this tag's politician was swept out by the blue wave (outlives the effect re-running). */
+  const wavedRef = useRef([false, false]);
 
   useEffect(() => {
     const timers: number[] = [];
@@ -62,10 +67,11 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
     }, delay);
     const news = (pool: string[], w: number) => setTicker(fill(pick(pool), { w: infos[w].name, l: infos[1 - w].name }));
 
+    const waved = wavedRef.current;
     const off = game.on((e, m) => {
       switch (e.t) {
         case 'roundStart':
-          setCine(null); setCinema(false); setQuote(null); setChats([]); setCombos([null, null]); setCallouts([]);
+          setCine(null); setCinema(false); setQuote(null); setChats([]); setNegate(null); setCombos([null, null]); setCallouts([]);
           {
             // In step with the announcer: the banner goes up as he says "Round N" and comes down before "Fight!".
             const at = roundSayAt(e.round, INTRO_FRAMES / FPS);
@@ -93,6 +99,17 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
         case 'winded': callout(e.by, 'OUT OF BREATH', '#9fd8ff'); break;
         case 'outOfOrder': callout(e.by, 'OUT OF ORDER', '#ffffff'); break;
         case 'tagIn':
+          waved[e.by] = false;
+          if (e.lameDuck) {
+            // Against Average Joe: the sidekick walks in, Joe has a line for them, they have a comeback.
+            const c = COUNTERS[infos[e.by].sidekick.model], joe = (1 - e.by) as 0 | 1;
+            callout(e.by, `TAG IN: ${infos[e.by].sidekick.name.toUpperCase()}`, '#ffe6a3');
+            setTicker(c.ticker);
+            // Both lines fit inside the lame duck's half-length tag (4 s).
+            chat(joe, 'boss', c.joe, 200, 1900);
+            chat(e.by, 'sk', c.back, 2200, 1700);
+            break;
+          }
           callout(e.by, `TAG IN: ${infos[e.by].sidekick.name.toUpperCase()}`, '#ffe6a3');
           setTicker(`${infos[e.by].name} is out of breath. ${infos[e.by].sidekick.name} has been sent in by the donor.`);
           chat(e.by, 'boss', pick(infos[e.by].sidekick.banter.out), 0, 1900);
@@ -103,6 +120,11 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
             announce('DONOR EXPOSED', `${infos[e.by].sidekick.name} is out for the round · ${infos[e.by].name} -8`, 1.6, 'red');
             setTicker(`SCANDAL: ${infos[e.by].sidekick.name}'s funding traced back to ${infos[e.by].name}. Sidekick benched.`);
             chat(e.by, 'sk', pick(infos[e.by].sidekick.banter.scandal), 0, 2000);
+          } else if (e.votedOut) {
+            const sk = infos[e.by].sidekick;
+            announce(waved[e.by] ? 'VOTED OUT' : COUNTERS[sk.model].stamp,
+              waved[e.by] ? `BLUE WAVE · MIDTERMS NOV 2026 · ${sk.name} is out for the round` : `${sk.name} is out for the round`, 1.6, 'blue');
+            if (waved[e.by]) setTicker(`${sk.name} concedes. ${infos[e.by].name} says they never met.`);
           } else {
             callout(e.by, 'BACK IN', '#ffffff');
             if (m.phase !== 'cine') chat(e.by, 'sk', pick(infos[e.by].sidekick.banter.back), 0, 1900);
@@ -110,6 +132,26 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
           break;
         case 'superStart': setChats([]); setQuote(null); break;
         case 'superHit': news(TICKER.super, e.by); break;
+        case 'negate': {
+          const k = ++id, side = (1 - e.by) as 0 | 1, sg = sigInfo(infos[e.by], e.sig);
+          const sim = e.sig === 3 ? infos[e.by].sidekick.policy.sim : infos[e.by].sigs[e.sig].sim;
+          setNegate({ k, side, text: NEGATES[sim.id] ?? 'Nope.' });
+          callout(side, 'NEGATED', '#cfe0ff');
+          setTicker(`${sg.name.toUpperCase()} did nothing. ${infos[side].name} has never heard of it.`);
+          later(() => setNegate((n) => (n?.k === k ? null : n)), 2600);
+          if (e.wave) {
+            // The MAGA move, after the midterms: the blue wave, the billionaire disowns him, and he's a lame duck.
+            const sk = infos[e.by].sidekick.name, boss = infos[e.by].id;
+            waved[e.by] = true;
+            // The wave itself says BLUE WAVE (renderer); the banner waits for the vote-out so it doesn't cover it.
+            setTicker(`BLUE WAVE: voters sweep both chambers in the midterms. ${sk} is a lame duck.`);
+            // He panics, he's voted out (WAVE_EXIT_FRAMES), then the billionaire has never met him.
+            chat(e.by, 'sk', pick(LAME_DUCK), 500, 1500);
+            const d = boss !== 'joe' ? DISOWN[boss] : undefined;
+            if (d) chat(e.by, 'boss', pick(d), 2500, 2400);
+          }
+          break;
+        }
         // The knockout: the room goes grey and slow first, then the word lands.
         case 'ko': { const w = 1 - e.by; later(() => announce('WASTED', `${infos[w].name}: "${infos[w].win}"`, 2.8, 'red'), 550); news(TICKER.ko, w); break; }
         case 'timeUp': announce('TIME', 'The chair has run out of patience.', 1.8); break;
@@ -138,14 +180,15 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
         const tier = tierOf(f.eng);
         const te = el[`tier${i}`];
         if (te) {
-          const ready = f.eng >= SUPER_COST && !f.superUsed && f.tag <= 0;
-          te.textContent = ready ? 'SUPER READY · ENTER' : f.superUsed ? `${TIER_NAMES[tier] || 'ENGAGEMENT'} · SUPER USED` : TIER_NAMES[tier] || 'ENGAGEMENT';
+          const plain = !!infos[i].everyman;
+          const ready = !plain && f.eng >= SUPER_COST && !f.superUsed && f.tag <= 0;
+          te.textContent = plain ? 'NO SUPER · IMMUNE TO YOURS' : ready ? 'SUPER READY · ENTER' : f.superUsed ? `${TIER_NAMES[tier] || 'ENGAGEMENT'} · SUPER USED` : TIER_NAMES[tier] || 'ENGAGEMENT';
           te.dataset.hot = String(ready);
         }
         const ce = el[`clabel${i}`];
         if (ce) {
-          const can = f.tag <= 0 && !f.skOut && f.cardio < TAG_MANUAL_CARDIO;
-          ce.textContent = f.tag > 0 ? 'RECOVERING' : f.skOut ? 'CARDIO · NO SIDEKICK' : can ? (i === 0 ? 'CARDIO · U TO TAG' : 'CARDIO · CAN TAG') : 'CARDIO';
+          const can = !infos[i].everyman && f.tag <= 0 && !f.skOut && f.cardio < TAG_MANUAL_CARDIO;
+          ce.textContent = infos[i].everyman ? 'CARDIO · NO SIDEKICK' : f.tag > 0 ? 'RECOVERING' : f.skOut ? 'CARDIO · NO SIDEKICK' : can ? (i === 0 ? 'CARDIO · U TO TAG' : 'CARDIO · CAN TAG') : 'CARDIO';
           ce.dataset.hot = String(can);
         }
         el[`sktime${i}`]?.style.setProperty('transform', `scaleX(${f.tag / TAG_FRAMES})`);
@@ -173,7 +216,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
       // Super overlays, keyed to the same seconds as the 3D script.
       let cv: CineView = null;
       if (m.phase === 'cine') {
-        const by = m.cineBy, sp = infos[by].super, t = m.phaseFrame / FPS;
+        const by = m.cineBy, sp = superFor(infos, by), t = m.phaseFrame / FPS;
         const titleAt = sp.beats.find((b) => b.kind === 'title')!.at;
         const next = sp.beats.find((b) => b.at > titleAt)?.at ?? titleAt + 1.8;
         cv = {
@@ -182,7 +225,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
           sub: sp.subs.findIndex((s) => t >= s.at && t < s.to),
           bubbles: sp.beats.map((b, k) => (b.kind === 'bubble' && t >= b.at && t < b.at + 2.4 ? k : -1)).filter((k) => k >= 0),
           stamp: sp.beats.findIndex((b) => b.kind === 'stamp' && t >= b.at),
-          question: infos[by].id === 'teal' && t >= 2.0 && t < 11.4,
+          question: infos[by].id === 'teal' && t >= 2.0 && t < (infos[1 - by].everyman ? DEFLECTS.teal.cut + 2.4 : 11.4),
         };
       }
       const cKey = JSON.stringify(cv);
@@ -212,6 +255,8 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
           b.style.visibility = 'visible';
           b.dataset.tail = spot.kind === 'above' ? 'down' : spot.kind === 'left' ? 'right' : spot.kind === 'right' ? 'left' : 'none';
         };
+        const nb = root.querySelector<HTMLElement>('[data-hud="negate"]');
+        if (nb) put(nb, 'neg', Number(nb.dataset.side) as 0 | 1);
         const qb = root.querySelector<HTMLElement>('[data-hud="qbubble"]');
         if (qb) put(qb, 'q', Number(qb.dataset.side) as 0 | 1);
         root.querySelectorAll<HTMLElement>('[data-chat]').forEach((b) => {
@@ -221,7 +266,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
         });
         if (cv) for (const k of cv.bubbles) {
           const b = el[`bubble${k}`] ?? root.querySelector<HTMLElement>(`[data-hud="bubble${k}"]`);
-          const side = infos[cv.by].super.beats[k].side === 'atk' ? cv.by : (1 - cv.by) as 0 | 1;
+          const side = superFor(infos, cv.by).beats[k].side === 'atk' ? cv.by : (1 - cv.by) as 0 | 1;
           if (b) put(b, `sup-${k}`, side);
         }
       }
@@ -236,7 +281,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
     return () => { off(); cancelAnimationFrame(raf); timers.forEach(clearTimeout); window.removeEventListener('keydown', onKey); };
   }, [game, infos, onDone]);
 
-  const sp = cine ? infos[cine.by].super : null;
+  const sp = cine ? superFor(infos, cine.by) : null;
 
   return (
     <div ref={rootRef} className="pointer-events-none absolute inset-0 select-none overflow-hidden">
@@ -283,7 +328,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
       {banner && (
         <div key={banner.k} className="absolute inset-0 flex flex-col items-center justify-center gap-2">
           {banner.text === 'WASTED' && <div className="anim-rise absolute inset-x-0 top-1/2 h-[30%] -translate-y-1/2 bg-gradient-to-r from-transparent via-black/75 to-transparent" />}
-          <div className="display anim-banner relative text-7xl sm:text-9xl" style={{ ['--dur' as string]: `${banner.dur}s`, color: banner.tone === 'red' ? '#ff5a52' : banner.tone === 'white' ? '#fff' : '#ffe6a3', textShadow: '0 6px 0 #000, 0 0 40px rgb(0 0 0 / .6)' }}>
+          <div className="display anim-banner relative text-7xl sm:text-9xl" style={{ ['--dur' as string]: `${banner.dur}s`, color: banner.tone === 'red' ? '#ff5a52' : banner.tone === 'blue' ? '#7fb0ff' : banner.tone === 'white' ? '#fff' : '#ffe6a3', textShadow: '0 6px 0 #000, 0 0 40px rgb(0 0 0 / .6)' }}>
             {banner.text}
           </div>
           {banner.sub && <div className="anim-rise mono relative rounded bg-black/70 px-3 py-1 text-xs tracking-widest text-white/90 sm:text-sm">{banner.sub}</div>}
@@ -292,6 +337,20 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
 
       {/* The line being said, with its source */}
       {quote && !cine && <SpeechBubble key={quote.k} q={quote} info={infos[quote.side]} />}
+
+      {/* Average Joe negating a signature or Policy Move */}
+      {negate && (
+        <div key={negate.k} data-hud="negate" data-side={negate.side} className="bubble absolute" style={{ left: '50%', top: '40%', visibility: 'hidden' }}>
+          <div className="anim-pop relative max-w-[min(18rem,70vw)] rounded-[1.2rem] border-[3px] border-black bg-[#e8f0ff] px-3.5 pb-2 pt-1.5 text-black shadow-[4px_4px_0_#000]">
+            <div className="flex items-center gap-2">
+              <span className="display rounded-sm bg-[#2f6fe0] px-1.5 py-0.5 text-[10px] tracking-wider text-white">NEGATED</span>
+              <span className="mono truncate text-[10px] tracking-widest text-black/55">{infos[negate.side].name.toUpperCase()}</span>
+            </div>
+            <div className="mt-1 text-base font-bold leading-snug sm:text-lg">{negate.text}</div>
+            <Tail fill="#e8f0ff" />
+          </div>
+        </div>
+      )}
 
       {/* Tag banter */}
       {chats.map((c) => (

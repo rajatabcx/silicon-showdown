@@ -98,7 +98,7 @@ function bannerTex() {
 
 const NAMES = ['SEN. QUORUM', 'SEN. FILIBUSTER', 'SEN. RECESS', 'THE CHAIR', 'RANKING MEMBER', 'SEN. AMENDMENT', 'SEN. CLOTURE'];
 
-export type Mood = 'normal' | 'red' | 'grey' | 'gold' | 'dark';
+export type Mood = 'normal' | 'red' | 'grey' | 'gold' | 'dark' | 'blue';
 
 export class Stage {
   group = new THREE.Group();
@@ -239,6 +239,7 @@ export class Stage {
       this.crowd.setMatrixAt(i, mtx);
       this.crowd.setColorAt(i, col.set(pal[i % pal.length]));
     });
+    this.crowd.userData.pal = pal;
     this.crowd.castShadow = true;
     g.add(this.crowd);
     const headGeo = new THREE.SphereGeometry(0.15, 10, 8); this.disposables.push(headGeo);
@@ -314,8 +315,15 @@ export class Stage {
     this.flashes.push({ s, life: -s.userData.delay });
   }
 
+  /** The crowd's own colours, or every spectator in one colour (the blue wave). */
+  setCrowd(color: string | null) {
+    const col = new THREE.Color(), pal = this.crowd.userData.pal as string[];
+    for (let i = 0; i < this.crowd.count; i++) this.crowd.setColorAt(i, col.set(color ?? pal[i % pal.length]));
+    if (this.crowd.instanceColor) this.crowd.instanceColor.needsUpdate = true;
+  }
+
   setMood(m: Mood) {
-    const c = { normal: [1, 1, 1], red: [1.5, 0.35, 0.3], grey: [0.55, 0.55, 0.6], gold: [1.4, 1.1, 0.6], dark: [0.25, 0.25, 0.32] }[m];
+    const c = { normal: [1, 1, 1], red: [1.5, 0.35, 0.3], grey: [0.55, 0.55, 0.6], gold: [1.4, 1.1, 0.6], dark: [0.25, 0.25, 0.32], blue: [0.5, 0.75, 1.5] }[m];
     this.moodTarget.setRGB(c[0], c[1], c[2]);
   }
 

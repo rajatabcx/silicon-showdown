@@ -19,6 +19,10 @@ export const SUPER_GAP = 2.2;
 /** Frames a Super press is remembered once the fighter is able to act (it doesn't run down while they're on the floor). */
 export const SUPER_BUFFER = 30;
 export const SUPER_DAMAGE = 32;
+/** A Super aimed at Average Joe: the caller's opening, Joe's retort, the headline, the walk of shame. */
+export const DEFLECT_SECONDS = 9;
+/** Joe cuts the Super off this far in. */
+export const DEFLECT_CUT = 2.6;
 
 export const WINDED_FRAMES = 90;
 /** Cardio regained per frame while standing still (x fitness). Walking regains half. */
@@ -43,6 +47,10 @@ export const SCANDAL_DAMAGE = 8;
 export const SIDEKICK_DAMAGE = 0.75;
 /** The billionaire recovers this many times faster while the sidekick fights. */
 export const TAG_REGEN = 4;
+/** A sidekick tagged in against Average Joe is a lame duck: this share of the tag, then voted out for the round. */
+export const LAME_DUCK_TAG = 0.5;
+/** After the MAGA move is negated (the blue wave), frames until the politician is voted out. */
+export const WAVE_EXIT_FRAMES = 120;
 
 /** Dodge: invincible from frame 2 to 16, recovers at 26. */
 export const DODGE_FRAMES = 26;

@@ -115,6 +115,14 @@ CLIPS = [
     ("wite_nine_to_six",  "white_board",       44, 57,   "these board",       "till six"),
     ("wite_shut_up",      "white_board2",      36.8, 49, "i'm going to shut", "first board meeting"),
     ("wite_why_here",     "white_board2",      43, 46.2, "i go",              "why i'm here"),
+    # Signature lines cut to end with their moves (20 Nov 2026): 3.8 s at most, punchline kept.
+    ("bozo_day_one_tight", "bezos_day1",       57.5, 62, "always",            "day one"),
+    ("bozo_guarantee_tight","bezos_hearing",   27.8, 32.5, "i can't",         "been violated"),
+    ("ultman_end_tight",  "altman_end_world",   3.5, 6.6, "most likely",      "the world"),
+    ("carp_poorer_tight", "karp_burry",       234.2, 237, "in part",         "them poorer"),
+    ("jensen_ceo_tight",  "huang_computex",    18.1, 22.5, "but it is",       "ceo math"),
+    ("mork_masculine_tight","zuck_masculine",  27.9, 31.7, "the kind",        "is good"),
+    ("mork_ribs_tight",   "zuck_meats",        29.6, 32.2, "maybe throw",     "the ribs"),
 ]
 
 norm = lambda s: re.sub(r"[^a-z' ]", "", s.lower()).split()

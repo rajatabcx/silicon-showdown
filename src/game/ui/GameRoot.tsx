@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { playMusic, sfx, unlockAudio } from '../audio';
-import { ROSTER, TUSK, type FighterInfo } from '../data/roster';
+import { BOSSES, ROSTER, TUSK, type FighterInfo } from '../data/roster';
 import { fill, HEADLINES, PAPERS, pick } from '../data/satire';
 import { Game } from '../Game';
 import { loadAssets } from '../render/assets';
@@ -34,11 +34,19 @@ export function GameRoot() {
   const [pickId, setPickId] = useState<FighterInfo['id']>(TUSK.id);
   const [cpuPref, setCpuPref] = useState<FighterInfo['id']>('teal');
   const drawCpu = (not: FighterInfo['id']) => {
+    // A boss chosen as the CPU stays chosen when you change your own fighter.
+    if (BOSSES.some((b) => b.id === cpuPref)) return;
     const rest = ROSTER.filter((f) => f.id !== not);
     setCpuPref(rest[Math.floor(Math.random() * rest.length)].id);
   };
   const player = ROSTER.find((f) => f.id === pickId)!;
-  const cpu = ROSTER.find((f) => f.id === cpuPref && f.id !== pickId) ?? ROSTER.find((f) => f.id !== pickId)!;
+  const cpu = [...ROSTER, ...BOSSES].find((f) => f.id === cpuPref && f.id !== pickId) ?? ROSTER.find((f) => f.id !== pickId)!;
+  /** Fight a boss (the CPU plays it), or click it again to go back to a billionaire. */
+  const toggleBoss = (id: FighterInfo['id']) => {
+    sfx('ui');
+    if (cpuPref === id) setCpuPref(ROSTER.find((f) => f.id !== pickId)!.id);
+    else setCpuPref(id);
+  };
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // Load models while the satire notice is up, then build the room (with this matchup) behind the title screen.
@@ -49,7 +57,7 @@ export function GameRoot() {
       g = new Game({ canvas: canvasRef.current, assets, player, cpu });
       setGame(g);
       setPortraits((p) => (p.tusk ? p : makePortraits({
-        tusk: assets.tusk, teal: assets.teal, bozo: assets.bozo, ultman: assets.ultman, carp: assets.carp, jensen: assets.jensen, mork: assets.mork, covfefe: assets.covfefe, veep: assets.veep, melania: assets.melania, pete: assets.pete, lootnick: assets.lootnick, wite: assets.wite,
+        tusk: assets.tusk, teal: assets.teal, bozo: assets.bozo, ultman: assets.ultman, carp: assets.carp, jensen: assets.jensen, mork: assets.mork, joe: assets.joe, covfefe: assets.covfefe, veep: assets.veep, melania: assets.melania, pete: assets.pete, lootnick: assets.lootnick, wite: assets.wite,
       })));
     }).catch((e: unknown) => setError(e instanceof Error ? e.message : 'Could not load the models.'));
     return () => { dead = true; g?.dispose(); setGame(null); };
@@ -157,6 +165,11 @@ export function GameRoot() {
                   <Tile key={f.id} name={f.name} src={portraits[f.id]} color={f.color} on={pickId === f.id}
                     badges={[pickId === f.id ? '1P' : '', cpu.id === f.id ? 'CPU' : '']} onClick={() => choose(f.id)} />
                 ))}
+                {BOSSES.map((b) => (
+                  <Tile key={b.id} name={b.name} src={portraits[b.id]} color={b.color} on={cpu.id === b.id} boss
+                    badges={['', cpu.id === b.id ? 'CPU' : '']} onClick={() => toggleBoss(b.id)} />
+                ))}
+                {/* The final boss: the Auditor. */}
                 <Tile name="???" locked boss />
               </RosterRow>
               <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
@@ -217,15 +230,15 @@ function Plate({ f, tag, right, portraits }: { f: FighterInfo; tag: string; righ
       <span className="display px-2 py-0.5 text-sm tracking-wider text-black" style={{ background: f.accent }}>{tag}</span>
       <span className={`display break-words leading-none text-white drop-shadow-[0_3px_0_#000] ${f.name.length > 12 ? 'text-2xl sm:text-[2.1rem] xl:text-[2.6rem]' : 'text-3xl sm:text-4xl xl:text-5xl'}`}>{f.name}</span>
       <span className="mono text-[10px] tracking-[0.25em]" style={{ color: f.accent }}>{f.title.toUpperCase()}</span>
-      <span className="mt-1 text-sm text-white/80"><span className="mono mr-1.5 text-[10px] tracking-widest text-white/45">SUPER</span><span className="display tracking-wide text-[#ffe6a3]">{f.super.name}</span></span>
+      <span className="mt-1 text-sm text-white/80"><span className="mono mr-1.5 text-[10px] tracking-widest text-white/45">SUPER</span><span className="display tracking-wide text-[#ffe6a3]">{f.everyman ? 'NONE · IMMUNE TO YOURS' : f.super.name}</span></span>
       <div className={`flex items-center gap-2 ${right ? 'flex-row-reverse' : ''}`}>
         {/* eslint-disable-next-line @next/next/no-img-element -- a data URL photographed from the 3D model */}
-        {sk && <img src={sk} alt="" className="h-9 w-9 rounded-full border border-[#e3b95a]/60 bg-black/50 object-cover" />}
-        <span className="text-sm text-white/80"><span className="mono mr-1.5 hidden text-[10px] tracking-widest text-white/45 sm:inline">SIDEKICK</span>{f.sidekick.name}</span>
+        {sk && !f.everyman && <img src={sk} alt="" className="h-9 w-9 rounded-full border border-[#e3b95a]/60 bg-black/50 object-cover" />}
+        <span className="text-sm text-white/80"><span className="mono mr-1.5 hidden text-[10px] tracking-widest text-white/45 sm:inline">SIDEKICK</span>{f.everyman ? 'None. Calls in a blue wave on yours.' : f.sidekick.name}</span>
       </div>
       <Vitals f={f} right={right} />
       <ul className="mt-1 hidden flex-col gap-0.5 text-xs text-white/70 lg:flex">
-        {f.sigs.map((s, i) => (
+        {f.everyman ? <li>Fists only</li> : f.sigs.map((s, i) => (
           <li key={s.name}><span className="mono text-[10px] text-white/40">{['L', 'L+FWD', 'L+DOWN'][i]}</span> {s.name}</li>
         ))}
       </ul>
@@ -250,7 +263,7 @@ function Vitals({ f, right }: { f: FighterInfo; right?: boolean }) {
   );
   return (
     <div className={`mt-1 flex w-full flex-col gap-0.5 ${right ? 'items-end' : 'items-start'}`}>
-      {meter('HEALTH', f.stats.health / MAX_HEALTH, String(f.stats.health), '#ff6b6b')}
+      {meter('HEALTH', Math.min(1, f.stats.health / MAX_HEALTH), String(f.stats.health), '#ff6b6b')}
       {meter('CARDIO', f.stats.fitness / MAX_FITNESS, `${f.stats.fitness.toFixed(2).replace(/0$/, '')}×`, '#7fd3ff')}
       <span className="text-[11px] italic text-white/55">{f.healthNote}</span>
     </div>
@@ -361,7 +374,7 @@ function Help({ onClose }: { onClose(): void }) {
             <p><b className="text-white">One speaker at a time.</b> Nobody can start a line while the other is still talking: the chair calls it out of order.</p>
             <p><b className="text-[#ffb347]">Engagement.</b> Saying wild things fills it: Trending, Viral, Main Character. You hit harder and take more. Viral unlocks your Super: one per round, and time stops while it starts.</p>
             <p><b className="text-[#7fd3ff]">Cardio.</b> Every swing, jump and block costs breath. Run out and your funded politician tags in for 8 seconds while you recover. Let it take 3 hits and it&apos;s a scandal: you lose 8 health and it&apos;s benched for the round.</p>
-            <p className="text-white/60">Melon Tusk goes quiet badly: his meter drains twice as fast. Peter Teal gains Engagement while losing.</p>
+            <p className="text-white/60">Space Karen Tusk goes quiet badly: his meter drains twice as fast. Antichrist Teal gains Engagement while losing.</p>
           </div>
         </div>
         <div className="mt-5 flex justify-end"><button className="btn" onClick={onClose}>Got it</button></div>

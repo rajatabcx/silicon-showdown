@@ -230,7 +230,7 @@ export function talkShowSet() {
   return g;
 }
 
-// ---------- Jeff Bozo, Sam Ultman and Madame Producer
+// ---------- Prime Bozo, Hype-Man Sam and Madame Producer
 
 function outlined(g: THREE.Object3D, w = 0.02) {
   const meshes: THREE.Mesh[] = [];
@@ -715,7 +715,7 @@ export function exportStamp() {
   return g;
 }
 
-// ---------- Mork Zuckerbot and Dana Wite
+// ---------- Lizard Mork and Dana Wite
 
 /** A pop-up ad card flicked across the floor (Senator, We Run Ads). */
 export function adCard() {
@@ -967,4 +967,137 @@ export function petitionBoard() {
   });
   (m.material as THREE.Material).side = THREE.DoubleSide;
   return m;
+}
+
+/**
+ * A tabloid front page for Average Joe's deflections: an invented masthead (no real paper), the headline, and the
+ * source stamp. The headline is a paraphrase of real reporting, never a real paper's words.
+ */
+export function newspaper(headline: string, sub: string, w = 2.6) {
+  const mesh = canvasPlane(w, w * 1.25, 900, (c, W, H) => {
+    c.fillStyle = '#f3ecdc'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#15110a'; c.textAlign = 'center';
+    c.font = `600 26px ${SANS_F()}`; c.fillText('LATE EDITION · PRICE: ONE PAYCHECK', W / 2, 46);
+    c.fillRect(40, 62, W - 80, 4);
+    c.font = `900 96px ${DISPLAY_F()}`; c.fillText('THE DAILY AVERAGE', W / 2, 160);
+    c.fillRect(40, 182, W - 80, 10); c.fillRect(40, 198, W - 80, 3);
+    c.font = `900 92px ${DISPLAY_F()}`;
+    const end = wrap(c, headline, W / 2, 320, W - 90, 100);
+    c.fillStyle = '#5a4f3c'; c.font = `600 30px ${SANS_F()}`; c.fillText(sub, W / 2, end + 70);
+    // Column filler: grey lines of body text.
+    c.fillStyle = 'rgba(21,17,10,.22)';
+    for (let y = end + 120; y < H - 50; y += 26) for (const x of [50, W / 2 + 15]) c.fillRect(x, y, W / 2 - 65 - ((y * 7) % 60), 10);
+  });
+  mesh.add(new THREE.Mesh(new THREE.PlaneGeometry(w + 0.06, w * 1.25 + 0.06), new THREE.MeshBasicMaterial({ color: '#111' })).translateZ(-0.01));
+  return mesh;
+}
+
+/** The blue wave: a translucent wall of water that sweeps across the stage. Call userData.tick(k) with k in 0..1. */
+/**
+ * The blue wave: a curling wall of water across the stage, extruded from a breaking-wave profile that faces +x (the
+ * group's scale.x flips it). `set(h, alpha, t)` raises it out of the floor (h 0..1), fades it, and churns the foam.
+ */
+export function blueWave() {
+  const g = new THREE.Group();
+  const DEPTH = 3.4;
+  // The cross-section: a long back slope, the crest, the lip curling over, and the hollow face under it.
+  const sh = new THREE.Shape();
+  sh.moveTo(-3.4, 0);
+  sh.quadraticCurveTo(-1.6, 0.3, -0.6, 1.9);
+  sh.bezierCurveTo(-0.1, 3.2, 1.1, 3.5, 1.6, 2.5);
+  sh.quadraticCurveTo(1.75, 1.9, 1.15, 2.0);
+  sh.quadraticCurveTo(0.6, 2.1, 0.5, 1.2);
+  sh.quadraticCurveTo(0.45, 0.4, 0.9, 0);
+  sh.lineTo(-3.4, 0);
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: DEPTH, bevelEnabled: true, bevelSize: 0.15, bevelThickness: 0.25, bevelSegments: 3, curveSegments: 24 });
+  geo.translate(0, 0, -DEPTH / 2);
+  const mat = new THREE.MeshStandardMaterial({
+    color: '#2c6be0', emissive: '#0f3a96', emissiveIntensity: 0.7, roughness: 0.12, metalness: 0.15,
+    transparent: true, opacity: 0.88, side: THREE.DoubleSide, depthWrite: false,
+  });
+  const water = new THREE.Group();
+  water.add(new THREE.Mesh(geo, mat));
+  // A lighter skin on the face, for a bit of depth.
+  const skin = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: '#7fb2ff', transparent: true, opacity: 0.18, side: THREE.BackSide, depthWrite: false }));
+  skin.scale.setScalar(1.03); water.add(skin);
+  g.add(water);
+  // Foam along the crest and the lip.
+  const N = 90;
+  const foamMat = new THREE.MeshBasicMaterial({ color: '#f2f7ff', transparent: true, opacity: 0.95, depthWrite: false });
+  const foam = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.16, 0), foamMat, N);
+  const seeds = Array.from({ length: N }, (_, i) => ({ z: -DEPTH / 2 - 0.2 + (i / N) * (DEPTH + 0.4), u: (i * 0.618) % 1, s: 0.6 + ((i * 0.37) % 1) * 0.9 }));
+  water.add(foam);
+  // Foam where the wave meets the floor in front.
+  const wash = new THREE.Mesh(new THREE.PlaneGeometry(1.6, DEPTH + 0.6), new THREE.MeshBasicMaterial({ color: '#dfeaff', transparent: true, opacity: 0.5, depthWrite: false }));
+  wash.rotation.x = -Math.PI / 2; wash.position.set(1.4, 0.02, 0); g.add(wash);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  g.userData.set = (h: number, alpha: number, t: number) => {
+    water.scale.y = Math.max(0.001, h);
+    mat.opacity = 0.88 * alpha; skin.material.opacity = 0.18 * alpha; foamMat.opacity = 0.95 * alpha;
+    tag.visible = h > 0.6; tag.position.y = 4.3 * h;
+    (wash.material as THREE.MeshBasicMaterial).opacity = 0.5 * alpha * h;
+    for (let i = 0; i < N; i++) {
+      const sd = seeds[i];
+      // Along the crest-to-lip curve, churning.
+      const u = (sd.u + t * 0.6) % 1;
+      const x = -0.3 + u * 1.9 + Math.sin(t * 7 + i) * 0.08;
+      const y = 3.05 - (u * u) * 1.1 + Math.sin(t * 9 + i * 1.7) * 0.1;
+      v.set(x, y, sd.z + Math.sin(t * 5 + i) * 0.06);
+      sc.setScalar(sd.s * (0.7 + 0.3 * Math.sin(t * 11 + i)));
+      q.setFromAxisAngle(_up, t * 3 + i);
+      foam.setMatrixAt(i, m4.compose(v, q, sc));
+    }
+    foam.instanceMatrix.needsUpdate = true;
+  };
+  // The words ride on top of it (the renderer un-mirrors them when it rolls left).
+  const tag = label('BLUE WAVE', '#d6e6ff', 0.7); tag.position.set(0.2, 4.3, 0); g.add(tag);
+  g.userData.tag = tag;
+  /** Local x on the crest where a swept-up body rides. */
+  g.userData.pocket = 0.6;
+  return g;
+}
+const _up = new THREE.Vector3(0, 1, 0);
+
+/**
+ * A stainless wedge of a pickup truck (generic, no badge), for Space Karen Tusk's Super. Its side window is
+ * "armour glass": call userData.crack() to shatter it into a spiderweb.
+ */
+export function cybertruck() {
+  const g = new THREE.Group();
+  const prof = new THREE.Shape();
+  prof.moveTo(-2.85, 0.45); prof.lineTo(-2.85, 0.95); prof.lineTo(-0.25, 1.9); prof.lineTo(2.85, 1.25); prof.lineTo(2.85, 0.45); prof.closePath();
+  const body = new THREE.Mesh(
+    new THREE.ExtrudeGeometry(prof, { depth: 1.9, bevelEnabled: false }).translate(0, 0, -0.95),
+    new THREE.MeshStandardMaterial({ color: '#b9bec4', metalness: 0.85, roughness: 0.32, flatShading: true }),
+  );
+  body.castShadow = true; g.add(body);
+  // Headlight bar across the nose, tail bar across the back.
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 1.8), new THREE.MeshBasicMaterial({ color: '#ffffff' })).translateX(-2.87).translateY(0.92));
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.05, 1.8), new THREE.MeshBasicMaterial({ color: '#ff2b2b' })).translateX(2.87).translateY(1.2));
+  const wheelGeo = new THREE.CylinderGeometry(0.46, 0.46, 0.34, 20).rotateX(Math.PI / 2);
+  const tyre = new THREE.MeshStandardMaterial({ color: '#16161a', roughness: 0.9 });
+  for (const x of [-1.85, 1.85]) for (const z of [-0.85, 0.85]) g.add(new THREE.Mesh(wheelGeo, tyre).translateX(x).translateY(0.46).translateZ(z));
+  // The side window, facing the camera: dark glass, then the spiderweb.
+  const glass = canvasPlane(2.1, 0.62, 512, (c, W, H) => {
+    c.fillStyle = '#1b2430'; c.fillRect(0, 0, W, H);
+    c.fillStyle = 'rgba(255,255,255,.12)'; c.fillRect(0, 0, W, H * 0.35);
+  });
+  glass.position.set(-0.55, 1.4, 0.96);
+  g.add(glass);
+  g.userData.crack = (cx = 0.45, cy = 0.55) => {
+    (glass.userData.redraw as (fn: (c: CanvasRenderingContext2D, W: number, H: number) => void) => void)((c, W, H) => {
+      c.fillStyle = '#1b2430'; c.fillRect(0, 0, W, H);
+      const x = W * cx, y = H * cy;
+      c.strokeStyle = 'rgba(235,240,255,.9)'; c.lineWidth = 3;
+      for (let k = 0; k < 14; k++) {
+        const a = (k / 14) * Math.PI * 2 + Math.sin(k * 7) * 0.2;
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * W, y + Math.sin(a) * W); c.stroke();
+      }
+      c.lineWidth = 2;
+      for (const r of [18, 42, 75, 120]) { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.stroke(); }
+      c.fillStyle = 'rgba(255,255,255,.85)'; c.beginPath(); c.arc(x, y, 9, 0, Math.PI * 2); c.fill();
+    });
+  };
+  const tag = label('ARMOR GLASS', '#e9eef5', 0.55); tag.position.set(-0.55, 2.55, 0.9); tag.name = 'tag'; g.add(tag);
+  return g;
 }

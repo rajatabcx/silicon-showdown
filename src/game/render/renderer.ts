@@ -6,7 +6,8 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { FighterInfo } from '../data/roster';
-import { FPS, INTRO_FRAMES, SUPER_STARTUP } from '../sim/constants';
+import { DEFLECTS, DEFLECT_TAIL } from '../data/joe';
+import { FPS, INTRO_FRAMES, STAGE_HALF, SUPER_STARTUP } from '../sim/constants';
 import { sigAt, sigOf, staging } from '../sim/match';
 import type { Ev, Match, Projectile, SimDef } from '../sim/types';
 import type { Assets } from './assets';
@@ -15,6 +16,7 @@ import {
   adCard, adPanel, announcementScreen, bill, chatPhone, crashArrow, crashScreen, type MarketMode, petitionBoard, drone, errorCard, exportStamp, gate, gpuCard, label,
   legsSign, meteor, modelProp, moviePoster, octagonCage, page, parcel, postCard, reticle, rocket, sauceBottle, shortChart, sprayDrop,
   strikeMissile, talkShowSet, tickerScreen, typingDots, vrVoid, metaAvatar,
+  newspaper, blueWave, cybertruck,
 } from './props';
 import { catSprite, tariffStamp } from './sidekick';
 import { Stage, type Mood } from './stage';
@@ -113,6 +115,11 @@ export class Renderer {
   /** Knockout: the picture drains to grey until the next round starts. */
   private grey = false;
   private dots: THREE.Sprite | null = null;
+  /**
+   * The blue wave (the MAGA move against Average Joe): it rises behind Joe, rolls past him, scoops up the politician
+   * and carries him off the stage, then sinks away. by: the politician's side; dir: the way it rolls; t: seconds.
+   */
+  private wave: { g: THREE.Object3D; t: number; by: 0 | 1; dir: number; x0: number; caught: boolean } | null = null;
   /** Menu mode (nothing is simulated): a slow orbit of the room on the title, a steady two-shot on the select screen. */
   attract = true;
   lobby: 'title' | 'select' = 'title';
@@ -259,6 +266,8 @@ export class Renderer {
       case 'superLand': {
         this.endCine();
         const d = this.views[1 - e.by];
+        // Deflected by Average Joe: nobody goes down.
+        if (this.sides[1 - e.by].def.everyman) { this.ring(m.f[e.by].x, '#9fb4d8'); break; }
         d.floored = true;
         this.ring(m.f[1 - e.by].x);
         this.kick(0.2, 0.05, 0.4);
@@ -273,7 +282,23 @@ export class Renderer {
         this.grey = true;
         break;
       }
-      case 'roundStart': this.endCine(); this.grey = false; break;
+      case 'roundStart': this.endCine(); this.grey = false; this.stage.setCrowd(null); break;
+      case 'negate': {
+        // It lands on Average Joe and bounces off: a cool flash and a ring, no hit spark.
+        const v = this.views[1 - e.by], p = v.bonePos('chest'); p.z += 0.35;
+        this.spark(p, 1.8, '#cfe0ff', 0.3); this.burst(p, 10, '#9fb4d8', 6); this.ring(m.f[1 - e.by].x, '#9fb4d8');
+        this.kick(0.12, 0.05, 0.2);
+        if (e.wave) {
+          // The MAGA move after the midterms: the blue wave washes across and the crowd flips blue.
+          if (this.wave) this.fx.remove(this.wave.g);
+          const joeX = m.f[1 - e.by].x, dir = Math.sign(m.f[e.by].x - joeX) || 1;
+          const g = blueWave(); g.scale.x = dir; (g.userData.tag as THREE.Object3D).scale.x *= dir; this.fx.add(g);
+          this.wave = { g, t: 0, by: e.by, dir, x0: joeX - dir * 4.5, caught: false };
+          this.sk[e.by].root.rotation.z = 0;
+          this.stage.setMood('blue'); this.stage.setCrowd('#2f6fe0'); this.kick(0.3, 0.1, 0.6);
+        }
+        break;
+      }
       case 'tagIn': {
         const f = m.f[e.by];
         this.restX[e.by] = f.x;
@@ -287,6 +312,7 @@ export class Renderer {
         this.spark(p, e.scandal ? 3 : 1.4, e.scandal ? '#ff5a52' : '#fff0a0', 0.35);
         this.burst(p, e.scandal ? 18 : 6, e.scandal ? '#ff8f6b' : '#fff6c8', 8);
         if (e.scandal) { this.kick(0.35, 0.15, 0.8, 0.01); this.stage.photo(); }
+        if (e.votedOut || e.scandal) this.stage.setCrowd(null);
         break;
       }
     }
@@ -471,6 +497,29 @@ export class Renderer {
     const frozen = m.hitstop > 0 && m.phase !== 'cine';
     const cine = m.phase === 'cine' && this.cine ? this.cine : null;
     if (cine) cine.t = m.phaseFrame / FPS;
+    const wv = this.wave;
+    let pocket: THREE.Vector3 | null = null;
+    if (wv) {
+      if (!frozen) wv.t += dt;
+      const k = wv.t;
+      // Rises for 0.4 s, rolls across at 6.5 m/s, sinks into the floor from 2 s (the politician is voted out at 2 s).
+      const h = k < 0.4 ? 1 - (1 - k / 0.4) ** 2 : k > 2 ? Math.max(0, 1 - (k - 2) / 0.7) : 1;
+      wv.g.position.x = wv.x0 + wv.dir * 6.5 * k;
+      (wv.g.userData.set as (h: number, a: number, t: number) => void)(h, k > 2 ? h : 1, k);
+      const px = wv.g.position.x + wv.dir * (wv.g.userData.pocket as number);
+      if (!frozen && Math.random() < 0.7) {
+        this.burst(new THREE.Vector3(px + wv.dir * 0.6, 2.7 * h, (Math.random() - 0.5) * 3), 2, '#dcebff', 4);
+      }
+      if (m.f[wv.by].tag > 0 && (wv.caught || wv.dir * (px - this.sk[wv.by].root.position.x) >= 0)) {
+        if (!wv.caught) { wv.caught = true; this.burst(new THREE.Vector3(px, 1.4, 0.3), 26, '#e6f0ff', 8); this.kick(0.25, 0.08, 0.4); }
+        // Tumbling on the crest, legs in the water.
+        pocket = new THREE.Vector3(px, (2.6 + Math.sin(k * 9) * 0.15) * h, 0.3);
+      }
+      if (k > 2.7) {
+        this.fx.remove(wv.g); this.wave = null; this.stage.setMood('normal');
+        this.sk[wv.by].root.rotation.z = 0;
+      }
+    }
 
     this.updateSigProps(m);
     this.views.forEach((v, i) => {
@@ -499,6 +548,12 @@ export class Renderer {
         this.restX[i] = f.x;
       }
     });
+    // Swept up by the blue wave: the politician tumbles in the curl until he's voted out.
+    if (wv && pocket) {
+      const r = this.sk[wv.by].root;
+      r.position.copy(pocket);
+      if (!frozen) r.rotation.z += wv.dir * dt * 6;
+    }
     // The title screen shows the empty hearing room; the fighters walk on at the select screen.
     const empty = this.attract && this.lobby === 'title';
     this.views.forEach((v) => { v.root.visible = !empty; });
@@ -582,6 +637,11 @@ export class Renderer {
       shot = { pos: new THREE.Vector3(f.x + f.facing * (2.5 - k * 0.9), 0.95, 4.4 - k * 1.5), look: new THREE.Vector3(f.x, head.y - 0.2, 0), fov: 36 - k * 6 };
       snap = this.flashBy !== flashBy;
       wantBlur = 0.9;
+    } else if (this.wave) {
+      // The blue wave: a wide shot that follows it from Joe to the edge of the stage.
+      const wx = Math.max(-STAGE_HALF, Math.min(STAGE_HALF, this.wave.g.position.x));
+      const cx = (m.f[1 - this.wave.by].x + wx) / 2;
+      shot = { pos: new THREE.Vector3(cx, 2.6, 11.5), look: new THREE.Vector3(cx, 1.5, 0), fov: 44 };
     } else if (this.policy) {
       const r = this.policy.direct(this, m);
       shot = r.shot; snap = r.cut; wantBlur = this.policy.blur;
@@ -761,7 +821,8 @@ class CineState {
     this.blur = 0;
     av.roleSpeed = 1; vv.roleSpeed = 1;
     const id = av.info.id;
-    const script = { tusk: this.tusk, teal: this.teal, bozo: this.bozo, ultman: this.ultman, carp: this.carp, jensen: this.jensen, mork: this.mork }[id];
+    const script = vv.info.everyman || id === 'joe' ? this.deflect
+      : { tusk: this.tusk, teal: this.teal, bozo: this.bozo, ultman: this.ultman, carp: this.carp, jensen: this.jensen, mork: this.mork }[id];
     const b = script.call(this, r, atk.x, vic.x, dir, this.t, av, vv);
     const cut = b.name !== this.beat;
     this.beat = b.name;
@@ -804,7 +865,7 @@ class CineState {
     if (t < 4.4) {
       if (this.once('post')) {
         st.setMood('normal');
-        const card = postCard('Am considering taking Tesla private at $420. Funding secured.', '@melontusk', 'Melon Tusk', 'POST ON X · AUG 2018', 3.6);
+        const card = postCard('Am considering taking Tesla private at $420. Funding secured.', '@spacekarentusk', 'Space Karen Tusk', 'POST ON X · AUG 2018', 3.6);
         card.position.set(mid, 9, -1.2);
         this.add(r, 'post', card);
         st.cheer(1);
@@ -828,37 +889,50 @@ class CineState {
       (this.objs.ticker.userData.tick as (k: number) => void)(k);
       return { name: 'insert', shot: { pos: V(0, 3.0, 0.2 - k * 0.3), look: V(0, 3.0, -2.6), fov: 34 } };
     }
-    if (this.once('rocket')) {
+    if (this.once('truck')) {
       if (this.objs.ticker) this.objs.ticker.visible = false;
       st.setMood('red');
-      const rk = rocket(); rk.scale.setScalar(0.55); this.add(r, 'rocket', rk);
-      const tag = label('TO MARS', '#ff7a3a', 0.9).translateY(3.6); tag.name = 'tag'; rk.add(tag);
-      this.bloom = 0.3;
+      const tr = cybertruck(); tr.scale.setScalar(0.62); this.add(r, 'truck', tr);
+      // Nose toward the opponent.
+      tr.rotation.y = dir > 0 ? Math.PI : 0;
+      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 14), new THREE.MeshStandardMaterial({ color: '#d7dbe0', metalness: 1, roughness: 0.15 }));
+      ball.visible = false; this.add(r, 'ball', ball);
+      this.bloom = 0.2;
     }
-    const rk = this.objs.rocket;
-    const sx = ax - dir * 2.2;
+    const tr = this.objs.truck, ball = this.objs.ball;
+    // Parked beside him, behind the line of the fight.
+    const park = ax - dir * 2.6;
     if (t < 6.5) {
-      // Lift-off behind him, seen from the floor.
+      // It rolls in behind him; a steel ball is lobbed at the "armour glass", and the glass gives.
       av.role = 'pump'; vv.role = 'fight';
-      const k = (t - 5.4) / 1.1;
-      rk.position.set(sx, -1.5 + k * k * 11, -1.5); rk.rotation.z = 0;
-      if (this.once('rumble')) r.fxKick(0.35, 0.1, 0.6);
-      return { name: 'launch', shot: { pos: V(THREE.MathUtils.clamp(sx - dir * 1.5, -3.6, 3.6), 0.9, 5.2), look: V(sx, 2.0 + k * k * 6.5, -1.5), fov: 38 } };
+      const k = clamp01((t - 5.4) / 0.5), e = 1 - Math.pow(1 - k, 3);
+      tr.position.set(park - dir * 9 * (1 - e), 0, -1.4);
+      const bk = clamp01((t - 5.85) / 0.35);
+      const win = tr.localToWorld(V(-0.55, 1.4, 0.96));
+      ball.visible = bk > 0 && bk < 1;
+      ball.position.set(THREE.MathUtils.lerp(ax, win.x, bk), 1.4 + Math.sin(Math.PI * bk) * 0.8, THREE.MathUtils.lerp(0.4, win.z + 0.2, bk));
+      if (bk >= 1 && this.once('crack')) {
+        (tr.userData.crack as () => void)(); r.fxSpark(win, 1.6, '#ffffff', 0.25); r.fxKick(0.3, 0.15, 0.4); st.cheer(1);
+        const oops = label('OH MY GOD', '#ffd34d', 0.7); oops.position.set(win.x, 3.1, win.z); this.add(r, 'oops', oops);
+      }
+      if (this.objs.oops) this.objs.oops.position.y = 3.1 + Math.sin(t * 7) * 0.05;
+      return { name: 'truck', shot: { pos: V(park + dir * 1.2, 1.3, 4.6), look: V(park, 1.2, -1.2), fov: 40 } };
     }
+    if (this.objs.oops) this.objs.oops.visible = false;
     if (t < 7.5) {
-      // It turns over and comes down on the opponent, in slow motion: first from the floor looking up past them,
-      // then tight on their face as its light reaches them.
+      // Cracked glass and all, it floors it at the opponent, in slow motion: low past the bumper, then tight on
+      // their face as the headlights reach them.
       av.role = 'pump'; vv.role = 'reel'; vv.roleSpeed = 0.22;
-      const k = t - 6.5;
-      rk.rotation.z = Math.PI;
-      const tag = rk.getObjectByName('tag'); if (tag) tag.visible = false;
-      rk.position.set(sx + (vx - sx) * Math.min(1, k * 2.5), 7.4 - Math.pow(k, 1.6) * 5.6, -1.5 + Math.min(1, k * 2.5) * 1.5);
+      const k = clamp01((t - 6.5) / 1.0);
+      tr.position.set(park + dir * Math.pow(k, 1.4) * (Math.abs(vx - park) - 1.2), 0, -1.4 + k * 1.4);
+      const tag = tr.getObjectByName('tag'); if (tag) tag.visible = false;
       this.blur = 0.4 + k * 0.25;
-      if (t < 7.12) return { name: 'lookup', shot: { pos: V(vx + dir * 1.4, 0.3, 3.5), look: V(vx - dir * 0.1, 1.9, 0), fov: 56 } };
+      if (t < 7.12) return { name: 'ram', shot: { pos: V(vx + dir * 1.4, 0.3, 3.5), look: V(vx - dir * 1.2, 0.9, 0), fov: 56 } };
       const head = vv.bonePos('head'), kf = (t - 7.12) / 0.38;
       this.sat = 0.6;
       return { name: 'face', shot: { pos: V(head.x - dir * 0.6, head.y + 0.1, 2.0 - kf * 0.3), look: V(head.x, head.y + 0.08, 0), fov: 30 } };
     }
+    const rk = tr;
     rk.visible = false;
     this.sat = 1;
     if (this.once('boom')) {
@@ -1444,6 +1518,69 @@ class CineState {
     av.role = 'talk';
     const head = av.bonePos('head'), k = (t - 12.6) / 6;
     return { name: 'payoff', shot: { pos: V(head.x + dir * (0.9 + k * 0.5), head.y + 0.08, 2.3 + k * 0.8), look: V(head.x - dir * 0.15, head.y + 0.06, 0), fov: 32 } };
+  }
+
+  /**
+   * A Super aimed at Average Joe (data/joe.ts): the opening plays, then a record scratch, his one line, a headline
+   * about the billionaire, the billionaire's reaction, and the stamp. Nobody gets hit.
+   */
+  private deflect(r: Renderer, ax: number, vx: number, dir: number, t: number, av: FighterView, vv: FighterView): Beat {
+    const st = r.stageRef();
+    const mid = (ax + vx) / 2;
+    const d = DEFLECTS[av.info.id as keyof typeof DEFLECTS];
+    const c = d.cut;
+    if (t < 0.6) return this.contact(ax, vx, dir, t, av, vv);
+    if (t < c) {
+      // The Super starts like any other: a low hero close-up while the real clip plays.
+      av.role = 'talk'; vv.role = 'fight';
+      if (this.once('dark')) st.setMood('dark');
+      const k = (t - 0.6) / Math.max(0.5, c - 0.6), head = av.bonePos('head');
+      return { name: 'title', shot: { pos: V(ax + dir * (2.3 - k * 0.7), 0.8 + k * 0.1, 2.7 - k * 0.25), look: V(ax, head.y - 0.12, 0), fov: 34 } };
+    }
+    if (this.once('scratch')) { st.setMood('normal'); r.fxKick(0.3, 0.25, 0.2); }
+    if (t < c + 1.4) {
+      // Record scratch. Tight on Joe, unimpressed.
+      av.role = 'frozen'; vv.role = 'talk';
+      const head = vv.bonePos('head'), k = (t - c) / 1.4;
+      return { name: 'retort', shot: { pos: V(head.x - dir * (1.5 - k * 0.2), head.y - 0.05, 2.9), look: V(head.x - dir * 0.25, head.y - 0.2, 0), fov: 34 } };
+    }
+    if (this.once('paper')) {
+      const p = newspaper(d.headline.text, d.headline.sub);
+      p.position.set(mid, 9, 0.4);
+      this.add(r, 'paper', p);
+      st.cheer(0.8);
+    }
+    const paper = this.objs.paper;
+    if (t < c + 3.6) {
+      // The paper drops in between them, spinning to a stop like a headline in an old film.
+      av.role = 'reel'; av.roleSpeed = 0.5; vv.role = 'shrug';
+      const k = clamp01((t - c - 1.4) / 0.55), e = 1 - Math.pow(1 - k, 3);
+      paper.position.y = 9 - (9 - 2.2) * e + (k >= 1 ? Math.sin(t * 2) * 0.03 : 0);
+      paper.rotation.z = (1 - e) * Math.PI * 4;
+      if (k >= 1 && this.once('paperLand')) r.fxKick(0.25, 0.05, 0.3);
+      return { name: 'headline', shot: { pos: V(mid, 2.0, 7.4), look: V(mid, 2.05, 0.4), fov: 34 } };
+    }
+    paper.visible = false;
+    // The billionaire takes it badly.
+    av.role = d.mood; vv.role = 'shrug';
+    if (this.once('react')) {
+      st.cheer(1.5);
+      if (d.chant) { const l = label(d.chant, '#9fe870', 0.7); l.position.set(mid, 2.9, -1.5); this.add(r, 'chant', l); }
+    }
+    if (this.objs.chant) this.objs.chant.position.y = 2.9 + Math.sin(t * 6) * 0.1;
+    if (d.mood === 'flee') {
+      // Runs for the exit, away from Joe, then off the stage.
+      const k = clamp01((t - c - 3.6) / 1.8);
+      av.root.position.x -= dir * k * 7;
+      av.root.rotation.y = dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+    }
+    if (t < c + 5.4) {
+      return { name: 'react', shot: { pos: V(mid - dir * 0.5, 2.0, 8.2), look: V(mid - dir * 0.8, 1.4, 0), fov: 36 } };
+    }
+    // Back to Joe for the stamp.
+    vv.role = 'pump';
+    const k = (t - c - 5.4) / (DEFLECT_TAIL - 5.4);
+    return { name: 'stamp', shot: { pos: V(vx - dir * 0.3, 0.6, 4.4 - k * 0.3), look: V(vx, 1.3, 0), fov: 40 } };
   }
 
   dispose(fx: THREE.Object3D) { for (const p of this.props) fx.remove(p); this.restore?.(); this.restore = null; this.unroom?.(); this.unroom = null; }

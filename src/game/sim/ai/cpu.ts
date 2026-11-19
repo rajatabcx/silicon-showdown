@@ -82,9 +82,11 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef): number {
   const rest = () => q.push([0, Math.round(p.think * (0.4 + rng()))]);
 
   const sk = f.tag > 0;
-  if (!sk && f.cardio < TAG_MANUAL_CARDIO * 0.6 && !f.skOut && rng() < 0.03) { q.push([BTN.T, 2]); return 0; }
+  // Average Joe has no Super, signatures or sidekick to call: he just fights.
+  const plain = !!def.everyman;
+  if (!plain && !sk && f.cardio < TAG_MANUAL_CARDIO * 0.6 && !f.skOut && rng() < 0.03) { q.push([BTN.T, 2]); return 0; }
   if (!sk && f.cardio < 18) { q.push([back, 30]); return 0; }
-  const canSuper = !sk && f.eng >= SUPER_COST && !f.superUsed;
+  const canSuper = !plain && !sk && f.eng >= SUPER_COST && !f.superUsed;
   // A Super can't miss, so the CPU fires it as soon as it is ready (once the opponent isn't mid-line).
   if (canSuper && o.state !== 'quote' && o.state !== 'sig') { q.push([BTN.X, 2]); rest(); return 0; }
   if (o.state === 'jump' && dist < 2.15 && rng() < p.antiAir) { q.push([BTN.K, 2]); rest(); return 0; }
@@ -95,7 +97,7 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef): number {
     q.push([BTN.S, 2]); rest(); return 0;
   }
   // Signatures always land, so any of the three will do once they're off cooldown.
-  if (!sk && f.sigCd <= 0 && o.state !== 'quote' && rng() < p.sig) {
+  if (!plain && !sk && f.sigCd <= 0 && o.state !== 'quote' && rng() < p.sig) {
     const k = Math.floor(rng() * def.sigs.length);
     q.push([BTN.S | (k === 1 ? fwd : k === 2 ? BTN.D : 0), 2]); rest();
     return 0;

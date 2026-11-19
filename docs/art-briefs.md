@@ -117,6 +117,16 @@ Second outfit for his Super: cream bandhgala wedding jacket with gold buttons.
 
 > A stocky Indian man in his sixties with a broad square body. Wide round face, thinning grey hair combed straight back, a thick grey moustache, heavy eyelids, a small unreadable smile. Thick neck, wide shoulders, solid stance with feet planted. Dark charcoal suit, light-blue shirt with an open collar, no tie, black shoes.
 
+## Average Joe (draft, 20 Nov 2026)
+The only fighter who isn't a billionaire. Modelled on the owner: the face comes from the owner's own photo, the drawing style from the cartoon reference they pick. Attach both to the image tool: the photo as the **face/likeness reference**, the cartoon as the **style reference** (alongside, or instead of, `tusk_sheet.png`). Face details below are placeholders until the photo is in.
+**Read in one glance:** a normal guy who wandered in on his lunch break and is not impressed by any of this.
+
+> Caricature of the man in the attached photo, instantly recognisable as him; keep his face shape, skin tone, hairstyle, eyebrows, nose and any facial hair or glasses exactly as in the photo, pushed only gently. An ordinary man around thirty, average height, average build, a little soft at the middle, relaxed slouch with the weight on one hip. Flat, unbothered expression: half-lidded tired eyes, one eyebrow slightly raised, mouth closed in a small dry "really?" line. Plain heather-grey pullover hoodie, hood down and lying flat on the back, sleeves pushed a little up the forearms, no drawstrings hanging, no print. Faded mid-blue straight jeans, slightly worn at the knees. Scuffed white low-top sneakers. A cheap black digital watch on the left wrist. The only character in the game who looks like he paid for his own clothes.
+
+Colours to hold: hoodie `#8a8d91`, jeans `#4f6f96`, sneakers `#e8e6e1`, watch `#1a1a1a`; skin and hair from the photo.
+
+Rigging notes: hood flat and drawstrings off (both flap and break the rig); no headphones or bag on the base model. His newspaper for the deflections is a separate prop, modelled on its own.
+
 ## Boss: The Auditor
 **Read in one glance:** paperwork in human form. A fictional character, not based on anyone.
 

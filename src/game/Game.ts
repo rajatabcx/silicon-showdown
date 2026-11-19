@@ -1,10 +1,11 @@
 import { playMusic, roundCall, sfx, startBed, stopBed, voice, type VoiceHandle } from './audio';
 import { InputLatch } from './input';
 import { sigInfo, simDef, VOICE_SECONDS, type FighterInfo, type VoiceId } from './data/roster';
+import { superFor } from './data/joe';
 import type { Assets } from './render/assets';
 import { Renderer } from './render/renderer';
 import { cpuDef, cpuInput, makeCpu, type Cpu, type Difficulty } from './sim/ai/cpu';
-import { FPS, INTRO_FRAMES, ROUND_END_FRAMES } from './sim/constants';
+import { FPS, INTRO_FRAMES, ROUND_END_FRAMES, ROUND_FRAMES } from './sim/constants';
 import { newMatch, sigOf, step } from './sim/match';
 import { BTN, type Ev, type Match, type SimDef } from './sim/types';
 
@@ -126,7 +127,7 @@ export class Game {
       const m = this.match;
       // Let the last line of a round finish before the next round (or the result) starts.
       if (m.phase === 'roundEnd' && m.phaseFrame >= ROUND_END_FRAMES - 2 && this.micBusy()) continue;
-      step(m, this.keys.read(), this.debugCpu ?? cpuInput(this.cpu, m, 1, this.defs[1]), this.defs);
+      step(m, this.devQueue.length ? this.devNext() : this.keys.read(), this.debugCpu ?? cpuInput(this.cpu, m, 1, this.defs[1]), this.defs);
       for (const e of m.events) this.handle(e);
     }
     if (n >= 5) this.acc = 0;
@@ -149,6 +150,42 @@ export class Game {
 
   /** Dev only: fixed CPU buttons instead of the AI. */
   debugCpu: number | null = null;
+
+  /** Dev only (the /dev lab): queued button presses for player 1, [buttons, frames]. */
+  private devQueue: [number, number][] = [];
+  private devNext() {
+    const head = this.devQueue[0];
+    if (--head[1] <= 0) this.devQueue.shift();
+    return head[0];
+  }
+
+  /**
+   * Dev only: stand both fighters up fresh and fire one of player 1's moves: a signature (0, 1, 2), the sidekick's
+   * Policy Move (3, tags the sidekick in first) or the Super. The opponent is left idle.
+   */
+  devFire(what: 0 | 1 | 2 | 3 | 'super') {
+    const m = this.match;
+    if (m.phase !== 'fight') return;
+    m.timer = ROUND_FRAMES; m.proj = []; m.hitstop = 0;
+    m.f.forEach((f, i) => {
+      Object.assign(f, {
+        hp: 100, x: i === 0 ? -1.2 : 1.2, y: 0, vx: 0, vy: 0, facing: i === 0 ? 1 : -1, cardio: 100, eng: 0,
+        state: 'idle', frame: 0, move: null, stun: 0, combo: 0, sigCd: 0, superUsed: false, superBuf: 0,
+        tag: 0, skHits: 0, skOut: false, skPolicy: false, talk: 0,
+      });
+    });
+    const p = m.f[0];
+    if (what === 'super') { p.eng = 100; this.devQueue = [[BTN.X, 2]]; return; }
+    if (what === 3) { p.cardio = 10; this.devQueue = [[BTN.T, 2], [0, 70], [BTN.S, 2]]; return; }
+    this.devQueue = [[BTN.S | (what === 1 ? BTN.R : what === 2 ? BTN.D : 0), 2]];
+  }
+
+  /** Dev only: is a move, a Super or a tag still playing out? */
+  devBusy() {
+    const m = this.match;
+    return this.devQueue.length > 0 || m.phase === 'cine' || m.hitstop > 0 || m.proj.length > 0 ||
+      m.f.some((f) => !['idle', 'walk', 'crouch'].includes(f.state)) || this.micBusy();
+  }
 
   /** Dev only: drive the game by hand (the browser pauses animation frames in a hidden tab). */
   debugRun(seconds: number, keys?: number) {
@@ -217,10 +254,14 @@ export class Game {
       case 'superStart': sfx('superStart'); break;
       case 'superHit': {
         sfx('riser');
-        this.say(e.by, 3, this.infos[e.by].super.audio.map((a) => ({ id: a.clip, at: a.at })));
+        this.say(e.by, 3, superFor(this.infos, e.by).audio.map((a) => ({ id: a.clip, at: a.at })));
         break;
       }
       case 'superDamage': sfx('superBoom'); sfx('cheer'); break;
+      // Average Joe cuts the Super off: the clip stops dead.
+      case 'deflect': this.stopTalking(e.by); sfx('scratch'); sfx('boo'); break;
+      // A signature landing on Average Joe: a dull thud, and the room laughs at it.
+      case 'negate': sfx('block'); sfx('boo'); break;
       case 'superLand': sfx('stamp'); this.slow = { t: 0.9, k: 0.25 }; break;
       case 'ko':
         sfx('ko'); sfx('wasted'); sfx('cheer'); this.slow = { t: 1.5, k: 0.22 };

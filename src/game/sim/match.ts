@@ -4,7 +4,7 @@ import {
   JUMP_SCALE, MOVES, ROUND_END_FRAMES, ROUND_FRAMES, STAGE_HALF, START_X,
   SUPER_BUFFER, SUPER_COST, SUPER_DAMAGE, SUPER_GAP, SUPER_STARTUP, TIER_DEALT, TIER_TAKEN, tierOf,
   WALK_SCALE, WINDED_FRAMES, SIG_CARDIO, SIG_COOLDOWN, SIG_REACH, TAG_FRAMES, TAG_MANUAL_CARDIO, SIDEKICK_HITS,
-  SCANDAL_DAMAGE, SIDEKICK_DAMAGE, TAG_REGEN,
+  SCANDAL_DAMAGE, SIDEKICK_DAMAGE, TAG_REGEN, DEFLECT_SECONDS, DEFLECT_CUT, LAME_DUCK_TAG, WAVE_EXIT_FRAMES, FPS,
 } from './constants';
 import { BTN, type Fighter, type Match, type MoveKey, type SigDef, type SimDef } from './types';
 
@@ -16,7 +16,7 @@ function newFighter(side: 0 | 1): Fighter {
     hp: 100, eng: 0, cardio: 100, state: 'idle', frame: 0, stun: 0,
     move: null, af: 0, hit: false, chain: 0, buf: 0, combo: 0, prev: 0, cur: 0,
     sig: 0, sigHits: 0, dropX: 0, sigCd: 0, quiet: 0, wins: 0,
-    superUsed: false, superBuf: 0, tag: 0, skHits: 0, skOut: false, skPolicy: false,
+    superUsed: false, superBuf: 0, tag: 0, skHits: 0, skOut: false, skPolicy: false, negated: false, talk: 0,
   };
 }
 
@@ -54,9 +54,11 @@ const holdsBack = (f: Fighter) => (f.cur & backBit(f)) !== 0;
  */
 export const staging = (m: Match, i: 0 | 1) => {
   const f = m.f[i];
-  return f.state === 'quote' || (f.state === 'sig' && !f.hit) || m.proj.some((p) => p.owner === i);
+  return f.state === 'quote' || (f.state === 'sig' && (!f.hit || f.talk > 0)) || m.proj.some((p) => p.owner === i);
 };
 const superReady = (f: Fighter) => f.tag <= 0 && f.eng >= SUPER_COST && !f.superUsed;
+/** Average Joe has nothing to call: no Super, no signatures, no sidekick. */
+const plain = (def: SimDef) => !!def.everyman;
 /**
  * A Super fires out of anything except lying on the floor: standing, walking, a punch or kick, a block, a jump, a line,
  * a dodge, getting up, being out of breath, and even while being hit (it breaks the combo).
@@ -68,8 +70,8 @@ const SUPER_FROM = new Set<Fighter['state']>([
  * Remember a Super press. Called on every tick for both fighters, including ticks where that fighter is frozen
  * (hit-stop, the other side's Super or Policy Move), so a press made with the gold mark lit is never thrown away.
  */
-function noteSuper(f: Fighter, pressed: number) {
-  if (pressed & BTN.X && superReady(f)) f.superBuf = SUPER_BUFFER;
+function noteSuper(f: Fighter, pressed: number, def: SimDef) {
+  if (pressed & BTN.X && superReady(f) && !plain(def)) f.superBuf = SUPER_BUFFER;
 }
 const faceOpponent = (f: Fighter, o: Fighter) => { if (o.x !== f.x) f.facing = o.x > f.x ? 1 : -1; };
 const canGuard = (f: Fighter) => (isNeutral(f) || f.state === 'blockstun') && holdsBack(f);
@@ -99,28 +101,37 @@ function airborne(f: Fighter) {
 
 function toIdle(f: Fighter) { f.state = 'idle'; f.move = null; f.frame = 0; f.af = 0; }
 
-function tagIn(m: Match, i: 0 | 1, manual: boolean) {
+/** Frames of a Super's cinematic: a Super aimed at Average Joe is cut short and deflected. */
+export const cineFrames = (defs: Defs, by: 0 | 1) =>
+  defs[1 - by].everyman ? defs[by].super.deflect?.frames ?? Math.round(DEFLECT_SECONDS * FPS) : defs[by].super.frames;
+
+function tagIn(m: Match, i: 0 | 1, manual: boolean, defs: Defs) {
   const f = m.f[i];
-  f.tag = TAG_FRAMES; f.skHits = 0; f.skPolicy = false;
+  // Against Average Joe the sidekick is a lame duck: half the tag, and they won't be back this round.
+  const lameDuck = !!defs[1 - i].everyman;
+  f.tag = lameDuck ? Math.round(TAG_FRAMES * LAME_DUCK_TAG) : TAG_FRAMES; f.skHits = 0; f.skPolicy = false;
+  if (lameDuck) f.skOut = true;
   toIdle(f); f.combo = 0;
-  m.events.push({ t: 'tagIn', by: i, manual });
+  m.events.push({ t: 'tagIn', by: i, manual, lameDuck });
 }
 
 function tagOut(m: Match, i: 0 | 1, scandal: boolean) {
   const f = m.f[i];
   f.tag = 0;
+  // A lame duck (tagged in against Average Joe) leaves without a scandal penalty.
+  const votedOut = f.skOut && !scandal;
   if (scandal) { f.skOut = true; f.hp = Math.max(1, f.hp - SCANDAL_DAMAGE); }
   if (f.state === 'quote' || f.state === 'sig' || f.state === 'attack') toIdle(f);
-  m.events.push({ t: 'tagOut', by: i, scandal });
+  m.events.push({ t: 'tagOut', by: i, scandal, votedOut });
 }
 
 /**
  * Start a signature (0..2) or a Policy Move (3). The opponent is frozen from here on: whatever they were starting
  * (a punch, a jump, a dodge) is dropped and they stand where they are until the move has landed.
  */
-function beginSig(m: Match, i: 0 | 1, k: number) {
+function beginSig(m: Match, i: 0 | 1, k: number, def: SimDef) {
   const f = m.f[i], o = m.f[1 - i];
-  f.sig = k; f.sigHits = 0; f.state = 'quote'; f.frame = 0; f.quiet = 0; f.hit = false; f.move = null;
+  f.sig = k; f.sigHits = 0; f.negated = false; f.talk = sigAt(def, k).line ?? 0; f.state = 'quote'; f.frame = 0; f.quiet = 0; f.hit = false; f.move = null;
   faceOpponent(f, o);
   if (o.state === 'attack' || o.state === 'jump' || o.state === 'dodge' || o.state === 'walk' || o.state === 'crouch') {
     toIdle(o); o.y = 0; o.vy = 0; o.vx = 0;
@@ -135,11 +146,12 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
   f.cur = inp;
   const pressed = inp & ~f.prev;
   f.prev = inp;
+  if (f.talk > 0) f.talk--;
   if (f.sigCd > 0 && f.state !== 'quote' && f.state !== 'sig') f.sigCd--;
 
   // Super: once it fires, nothing can stop it. The press was checked against the meter when it was made; it then
   // waits (without running out) while the fighter is on the floor, and fires the moment they can move.
-  noteSuper(f, pressed);
+  noteSuper(f, pressed, def);
   if (f.superBuf > 0) {
     const can = f.tag <= 0 && !f.superUsed;
     if (!can) f.superBuf = 0;
@@ -159,15 +171,15 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
       if (!sk && f.cardio <= 0) { f.state = 'winded'; f.frame = 0; m.events.push({ t: 'winded', by: i }); return; }
       if (!sk) f.cardio = Math.min(100, f.cardio + CARDIO_REGEN * def.fitness * (f.state === 'walk' ? 0.5 : 1));
       const fwd = (inp & fwdBit(f)) !== 0, back = (inp & backBit(f)) !== 0, down = (inp & BTN.D) !== 0;
-      if (!sk && pressed & BTN.T && f.cardio < TAG_MANUAL_CARDIO && !f.skOut) { tagIn(m, i, true); return; }
-      if (pressed & BTN.S && (sk ? !f.skPolicy : f.sigCd <= 0)) {
+      if (!sk && pressed & BTN.T && f.cardio < TAG_MANUAL_CARDIO && !f.skOut && !plain(def)) { tagIn(m, i, true, defs); return; }
+      if (pressed & BTN.S && !plain(def) && (sk ? !f.skPolicy : f.sigCd <= 0)) {
         // One speaker has the floor: no new line while the other side is still talking.
         if (o.state === 'quote' || o.state === 'sig') { m.events.push({ t: 'outOfOrder', by: i }); return; }
         // Someone on the floor can't be hit by one: wait for them to get up.
         if (canBeStaged(o)) {
           if (sk) f.skPolicy = true;
           else { f.cardio -= SIG_CARDIO / def.fitness; f.sigCd = SIG_COOLDOWN; }
-          beginSig(m, i, sk ? 3 : down ? 2 : fwd ? 1 : 0);
+          beginSig(m, i, sk ? 3 : down ? 2 : fwd ? 1 : 0, def);
           return;
         }
       }
@@ -249,7 +261,8 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
           if (k === n - 1) f.hit = true;
         }
       }
-      if (f.af >= sg.startup + sg.active + sg.recovery) { f.hit = true; toIdle(f); if (f.sig !== 3) f.sigCd = SIG_COOLDOWN; }
+      // The move holds its last pose until the line has finished: a move and its line end together.
+      if (f.af >= sg.startup + sg.active + sg.recovery && f.talk <= 0) { f.hit = true; toIdle(f); if (f.sig !== 3) f.sigCd = SIG_COOLDOWN; }
       return;
     }
     case 'dodge': {
@@ -273,7 +286,8 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
     }
     case 'winded': {
       if (++f.frame >= WINDED_FRAMES) {
-        if (f.skOut) { f.cardio = 40; toIdle(f); } else tagIn(m, i, false);
+        // Left winded by a deflected Super (cardio still above 0): just catch the breath, no tag.
+        if (f.skOut || plain(def) || f.cardio > 0) { f.cardio = Math.max(f.cardio, 40); toIdle(f); } else tagIn(m, i, false, defs);
       }
       return;
     }
@@ -312,6 +326,17 @@ function dealHit(
   o: { hitstun: number; knockdown?: boolean; launch?: boolean; heavy?: boolean },
 ) {
   const a = m.f[ai], d = m.f[1 - ai];
+  // Average Joe negates every signature and Policy Move: it lands, and does nothing. One retort per move.
+  if (key === 'sig' && defs[1 - ai].everyman) {
+    if (!a.negated) {
+      a.negated = true;
+      // The MAGA move sets off the blue wave: the politician is voted out shortly after.
+      const wave = a.sig === 3 && a.tag > 0 && !!defs[ai].sidekick.policy.wave;
+      if (wave) a.tag = Math.min(a.tag, WAVE_EXIT_FRAMES);
+      m.events.push({ t: 'negate', by: ai, sig: a.sig, wave });
+    }
+    return;
+  }
   const dmg = base * Math.max(0.5, 1 - 0.1 * d.combo) * TIER_DEALT[tierOf(a.eng)] * TIER_TAKEN[tierOf(d.eng)] *
     (a.tag > 0 ? SIDEKICK_DAMAGE : 1) * scale(defs, ai, 1 - ai);
   d.combo++;
@@ -475,9 +500,19 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   }
 
   if (m.phase === 'cine') {
-    for (const i of [0, 1] as const) { noteSuper(m.f[i], ins[i] & ~m.f[i].prev); m.f[i].prev = ins[i]; }
+    for (const i of [0, 1] as const) { noteSuper(m.f[i], ins[i] & ~m.f[i].prev, defs[i]); m.f[i].prev = ins[i]; }
     const ai = m.cineBy, a = m.f[ai], d = m.f[1 - ai], sp = defs[ai].super, sd = SUPER_DAMAGE * scale(defs, ai, 1 - ai);
     const fr = ++m.phaseFrame;
+    if (defs[1 - ai].everyman) {
+      // Deflected: none of it works on Average Joe. No damage; the caller is left standing there, winded.
+      if (fr === (sp.deflect?.cut ?? Math.round(DEFLECT_CUT * FPS))) m.events.push({ t: 'deflect', by: ai });
+      if (fr < cineFrames(defs, ai)) return;
+      d.state = 'idle'; d.frame = 0; d.stun = 0;
+      a.state = 'winded'; a.frame = 0; a.cardio = Math.min(a.cardio, 20);
+      m.phase = 'fight'; m.hitstop = 8;
+      m.events.push({ t: 'superLand', by: ai });
+      return;
+    }
     if (sp.drain) {
       const [from, to] = sp.drain;
       if (fr > from && fr <= to) d.hp = Math.max(0.0001, d.hp - sd / (to - from));
@@ -503,7 +538,7 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
       const f = m.f[i];
       const pressed = ins[i] & ~f.prev;
       if (f.state === 'attack' && pressed & (BTN.P | BTN.K)) f.buf = pressed & (BTN.P | BTN.K);
-      noteSuper(f, pressed);
+      noteSuper(f, pressed, defs[i]);
       f.prev = ins[i]; f.cur = ins[i];
     }
     return;
@@ -533,7 +568,7 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   const caller = m.f[0].state === 'superStart' ? 0 : m.f[1].state === 'superStart' ? 1 : -1;
   if (caller >= 0) {
     const other = m.f[1 - caller];
-    noteSuper(other, ins[1 - caller] & ~other.prev);
+    noteSuper(other, ins[1 - caller] & ~other.prev, defs[1 - caller]);
     other.prev = ins[1 - caller];
     updateFighter(m, caller as 0 | 1, ins[caller], defs);
     return;
@@ -542,7 +577,7 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   const pi = ([0, 1] as const).find((i) => staging(m, i));
   if (pi !== undefined) {
     const other = m.f[1 - pi];
-    noteSuper(other, ins[1 - pi] & ~other.prev);
+    noteSuper(other, ins[1 - pi] & ~other.prev, defs[1 - pi]);
     other.prev = ins[1 - pi];
     updateFighter(m, pi, ins[pi], defs);
     if (m.phase !== 'fight') return;
