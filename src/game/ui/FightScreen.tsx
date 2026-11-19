@@ -340,7 +340,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
                 {sp.subs[cine.sub].speaker && <span className="mono mr-2 text-xs tracking-widest text-white/60">{sp.subs[cine.sub].speaker}:</span>}
                 {sp.subs[cine.sub].text}
               </div>
-              <div className="mono text-[10px] tracking-[0.2em] text-[#e3b95a] sm:text-xs">REAL QUOTE · {sp.source}</div>
+              <div className="mono text-[10px] tracking-[0.2em] text-[#e3b95a] sm:text-xs">REAL QUOTE · {sp.subs[cine.sub].source ?? sp.source}</div>
             </div>
           )}
           {cine.stamp >= 0 && (

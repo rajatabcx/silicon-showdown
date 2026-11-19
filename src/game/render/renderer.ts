@@ -12,7 +12,7 @@ import type { Ev, Match, Projectile, SimDef } from '../sim/types';
 import type { Assets } from './assets';
 import { FighterView, hipsRest } from './character';
 import {
-  adCard, adPanel, announcementScreen, bill, chatPhone, crashArrow, crashScreen, drone, errorCard, exportStamp, gate, gpuCard, label,
+  adCard, adPanel, announcementScreen, bill, chatPhone, crashArrow, crashScreen, type MarketMode, petitionBoard, drone, errorCard, exportStamp, gate, gpuCard, label,
   legsSign, meteor, modelProp, moviePoster, octagonCage, page, parcel, postCard, reticle, rocket, sauceBottle, shortChart, sprayDrop,
   strikeMissile, talkShowSet, tickerScreen, typingDots, vrVoid, metaAvatar,
 } from './props';
@@ -832,7 +832,7 @@ class CineState {
       if (this.objs.ticker) this.objs.ticker.visible = false;
       st.setMood('red');
       const rk = rocket(); rk.scale.setScalar(0.55); this.add(r, 'rocket', rk);
-      const tag = label('TO THE MOON', '#ffd34d', 0.9).translateY(3.6); tag.name = 'tag'; rk.add(tag);
+      const tag = label('TO MARS', '#ff7a3a', 0.9).translateY(3.6); tag.name = 'tag'; rk.add(tag);
       this.bloom = 0.3;
     }
     const rk = this.objs.rocket;
@@ -1240,77 +1240,80 @@ class CineState {
   }
 
   /**
-   * TRILLION-DOLLAR AFFAIR. "This is like common sense": a market screen drops in behind them and climbs while GPUs
-   * rain on the opponent ("the more GPUs you buy, the more money you save"). Then the news breaks on the ticker, the
-   * chart turns and crashes, and its last leg, a giant red arrow, comes down on the opponent. "I wish upon you plenty of
-   * pain and suffering": tight on him, the jacket, the shrug.
+   * TRILLION-DOLLAR AFFAIR. The affair, then the market crash.
+   * PEAK: a keynote screen drops in at the record, $5.75T, confetti. BREAKING: the resignation headline, the room goes
+   * red (the senator: "make sure it's not with a Chinese spy"). FLASHES: press cameras pop around him, he shrugs.
+   * STATEMENT: his written statement on the screen, over the opponent's shoulder. CRASH: "30 days from going out of
+   * business... for 33 years": the line dives, −$490B, and the last leg, a giant red arrow, comes down on the opponent.
+   * PAYOFF: the petition to bring him back floats in. "I wouldn't do it."
    */
   private jensen(r: Renderer, ax: number, vx: number, dir: number, t: number, av: FighterView, vv: FighterView): Beat {
     const st = r.stageRef();
     const mid = (ax + vx) / 2;
     if (t < 0.6) return this.contact(ax, vx, dir, t, av, vv);
+    if (this.once('screen')) { const s = crashScreen(); s.position.set(mid, 9, -2.8); this.add(r, 'screen', s); }
     const scr = this.objs.screen;
-    if (scr) {
-      const k = t < 10.2 ? clamp01((t - 2.6) / 5.4) * 0.5 : 0.5 + clamp01((t - 10.2) / 1.6) * 0.5;
-      (scr.userData.tick as (k: number, t: number) => void)(k, Math.max(0, t - 8.2));
-    }
-    // The GPU rain, through the pitch.
-    if (t > 3.0 && t < 8.6) {
-      const gpus = this.rain(r, 'gpus', 34, () => gpuCard(0.9));
-      gpus.children.forEach((o, i) => {
-        const cyc = ((t - 3.0) * 0.5 + o.userData.d) % 1;
-        o.visible = t < 7.6 || cyc > 0.5;
-        o.position.set(vx + o.userData.rx * 1.5 + Math.sin(t * 2 + i) * 0.15, 6.5 * (1 - cyc), o.userData.rz * 0.8);
-        o.rotation.set(Math.sin(t * 3 + i) * 1.1, t * 1.4 + i, Math.cos(t * 2.2 + i) * 0.9);
-        (o.userData.tick as (t: number) => void)(r.now());
-      });
-    } else if (this.objs.gpus) this.objs.gpus.visible = false;
-    // The arrow: falls from 10.2 s and lands on the opponent at 11.8 s.
-    if (t > 10.2 && !this.objs.arrow) { const a = crashArrow(); this.add(r, 'arrow', a); }
+    scr.position.y = 3.5 + (9 - 3.5) * (1 - clamp01((t - 0.6) / 0.6)) ** 2;
+    const tick = scr.userData.tick as (mode: MarketMode, k: number, t: number) => void;
+    if (t < 2.5) tick('peak', clamp01((t - 0.9) / 1.3), 0);
+    else if (t < 8.4) tick('news', clamp01((t - 2.5) / 2.7), t - 2.5);
+    else if (t < 12.5) tick('statement', clamp01((t - 8.4) / 1.5), 0);
+    else tick('crash', clamp01((t - 12.5) / 3.0), t - 12.5);
+
+    // The arrow: falls from 15.8 s and lands on the opponent at 17.4 s, then sinks through the floor.
+    if (t > 15.8 && !this.objs.arrow) this.add(r, 'arrow', crashArrow('−$490B'));
     const arrow = this.objs.arrow;
     if (arrow) {
-      const k = clamp01((t - 10.2) / 1.6);
+      const k = clamp01((t - 15.8) / 1.6);
       arrow.position.set(vx, 9 * (1 - k) * (1 - k), 0.1);
-      if (t > 12.6) arrow.position.y = -((t - 12.6) ** 2) * 6;
+      if (t > 18.3) arrow.position.y = -((t - 18.3) ** 2) * 6;
     }
 
-    if (t < 2.6) {
-      av.role = 'talk'; vv.role = 'fight';
-      if (this.once('dark')) st.setMood('dark');
-      const k = (t - 0.6) / 2.0, head = av.bonePos('head');
-      return { name: 'title', shot: { pos: V(ax + dir * (2.1 - k * 0.5), 0.9 + k * 0.1, 2.8 - k * 0.2), look: V(ax, head.y - 0.1, 0), fov: 34 } };
-    }
-    if (t < 3.6) {
-      if (this.once('screen')) {
-        st.setMood('normal');
-        const s = crashScreen(); s.position.set(mid, 9, -2.8); this.add(r, 'screen', s);
+    if (t < 2.5) {
+      // PEAK. The record high, him pumped, confetti when it tops out.
+      av.role = 'pump'; vv.role = 'fight';
+      if (t > 2.2 && this.once('peak')) {
+        r.fxKick(0.25, 0.1, 0.5); st.cheer(1.5);
+        for (let i = 0; i < 3; i++) r.fxBurst(V(mid + (i - 1) * 1.8, 5.2, -1.6), 26, i === 1 ? '#ffd34d' : '#8be04a', 6);
       }
-      const k = Math.min(1, (t - 2.6) / 0.5);
-      this.objs.screen.position.y = 3.4 + (9 - 3.4) * (1 - k) * (1 - k);
-      if (k >= 1 && this.once('screenLand')) { r.fxKick(0.3, 0.05, 0.4); st.cheer(1); }
-      av.role = 'talk'; vv.role = 'fight';
-      return { name: 'prop', shot: { pos: V(mid, 2.4, 10), look: V(mid, 2.3, -1), fov: 32 } };
+      if (t < 1.6) {
+        const k = (t - 0.6) / 1.0, head = av.bonePos('head');
+        return { name: 'title', shot: { pos: V(ax + dir * (2.1 - k * 0.5), 0.9 + k * 0.1, 2.8 - k * 0.2), look: V(ax, head.y - 0.1, 0), fov: 34 } };
+      }
+      return { name: 'prop', shot: { pos: V(mid, 2.4, 10), look: V(mid, 2.5, -1), fov: 34 } };
     }
-    if (t < 8.2) {
-      // The pitch: over his shoulder at the climbing chart, then the opponent under the GPUs.
-      av.role = 'talk'; vv.role = 'reel'; vv.roleSpeed = 0.35;
-      const k = (t - 3.6) / 4.6;
-      if (t < 5.6) return { name: 'insert', shot: { pos: V(ax - dir * (1.2 - k * 0.3), 1.9, 3.2), look: V(mid + dir * 0.4, 2.7, -2.8), fov: 40 } };
-      return { name: 'buried', shot: { pos: V(vx + Math.sin(k * 2) * 1.2, 1.3, 4.4 - k * 0.6), look: V(vx, 1.4, 0), fov: 38 } };
+    if (t < 5.2) {
+      // BREAKING. The room goes red; tight on the headline, then the room.
+      if (this.once('news')) { st.setMood('red'); r.fxKick(0.3, 0.25, 0.5); }
+      av.role = 'frozen'; vv.role = 'fight';
+      return { name: 'news', shot: { pos: V(mid, 3.1, 4.9 + (t - 2.5) * 0.25), look: V(mid, 3.3, -2.8), fov: 40 } };
     }
-    if (t < 10.2) {
-      // The news breaks. Tight on the ticker, then the opponent looking up at it.
-      if (this.once('news')) { scr.userData.news = true; st.setMood('red'); r.fxKick(0.25, 0.2, 0.5); }
-      av.role = 'shrug'; vv.role = 'reel'; vv.roleSpeed = 0.3;
-      if (t < 9.3) return { name: 'news', shot: { pos: V(mid, 3.0, 4.6), look: V(mid, 3.1, -2.8), fov: 40 } };
-      return { name: 'lookup', shot: { pos: V(vx + dir * 1.3, 0.35, 3.3), look: V(vx - dir * 0.1, 2.4, 0), fov: 52 } };
+    if (t < 8.4) {
+      // FLASHES. Press cameras pop all around him; he shrugs into them.
+      av.role = 'shrug'; vv.role = 'fight';
+      const i = Math.floor((t - 5.2) / 0.17);
+      if (this.once(`flash${i}`)) {
+        const a = i * 2.39, head = av.bonePos('head');
+        r.fxSpark(V(head.x + Math.cos(a) * 1.2, head.y + Math.sin(a * 1.7) * 0.6, 1.0 + Math.sin(a) * 0.5), 2.6, '#ffffff', 0.22);
+        if (i % 2 === 0) r.fxKick(0.04, 0.3, 0.35);
+      }
+      const head = av.bonePos('head'), k = (t - 5.2) / 3.2;
+      return { name: 'flashes', shot: { pos: V(head.x + dir * (1.6 - k * 0.5), head.y - 0.05, 2.4 - k * 0.4), look: V(head.x, head.y - 0.1, 0), fov: 36 } };
     }
-    if (t < 12.0) {
-      // The crash: slow motion, the arrow coming down, the frame drained of colour.
-      av.role = 'shrug'; vv.role = 'reel'; vv.roleSpeed = 0.25;
-      this.sat = 0.45; this.blur = 0.4;
-      if (t > 11.8 && this.once('land')) { r.fxKick(0.5, 0.2, 0.6); r.fxRing(vx, '#ff4a3d'); }
-      if (t < 11.0) return { name: 'crash', shot: { pos: V(mid, 2.0, 7.8), look: V(mid, 2.4, -0.5), fov: 36 } };
+    if (t < 12.5) {
+      // STATEMENT. Over the opponent's shoulder: the screen and him under it.
+      if (this.once('statement')) st.setMood('dark');
+      av.role = 'shrug'; av.roleSpeed = 0.5; vv.role = 'fight';
+      const k = (t - 8.4) / 4.1;
+      return { name: 'statement', shot: { pos: V(vx + dir * (1.6 + k * 0.4), 1.5, 4.4 + k * 0.6), look: V(mid - dir * 0.6, 2.0, -2.0), fov: 48 } };
+    }
+    if (t < 17.4) {
+      // CRASH. Drained of colour, the line diving, the arrow coming down.
+      if (this.once('crash')) { st.setMood('red'); r.fxKick(0.35, 0.2, 0.5); }
+      av.role = 'shrug'; av.roleSpeed = 1; vv.role = 'reel'; vv.roleSpeed = 0.3;
+      this.sat = 0.45; this.blur = t > 15.6 ? 0.4 : 0;
+      if (t < 15.6) return { name: 'crash', shot: { pos: V(mid, 2.1, 8.4 - (t - 12.5) * 0.35), look: V(mid, 2.6, -1.5), fov: 36 } };
+      if (t < 16.6) return { name: 'victim', shot: { pos: V(vx + dir * 1.3, 1.4, 2.6), look: V(vx, 1.45, 0), fov: 40 } };
       return { name: 'under', shot: { pos: V(vx - dir * 2.0, 0.4, 3.6), look: V(vx, 2.0, 0), fov: 50 } };
     }
     this.sat = 1;
@@ -1320,14 +1323,19 @@ class CineState {
       r.fxSpark(p, 4, '#ffffff', 0.3); r.fxBurst(p, 28, '#ff4a3d', 12); r.fxRing(vx, '#ff4a3d'); r.fxKick(0.9, 0.5, 1.0, 0.02);
       vv.hitFlash(1); st.cheer(2);
     }
-    const fall = (t - 12.0) / 1.0;
-    if (t < 13.0) { av.role = 'pump'; return { name: 'impact', shot: this.blow(vx, dir, fall, vv, 0.9) }; }
+    const fall = (t - 17.4) / 1.0;
+    if (t < 18.4) { av.role = 'shrug'; return { name: 'impact', shot: this.blow(vx, dir, fall, vv, 0.9) }; }
     if (fall < 1) this.blow(vx, dir, fall, vv, 0.9); else vv.role = 'down';
     this.blur = 0;
-    // "I wish upon you plenty of pain and suffering." Tight on him, the ticker still running behind.
+    // PAYOFF. The petition floats in beside him. "I wouldn't do it."
+    if (this.once('petition')) { const b = petitionBoard(); this.add(r, 'petition', b); }
+    const b = this.objs.petition, bk = clamp01((t - 18.4) / 0.6);
+    b.scale.setScalar(0.62);
+    b.position.set(ax + dir * 0.95, 1.3 + (1 - bk) * 2.5 + Math.sin(t * 2) * 0.03, -0.25);
+    b.rotation.set(0, -dir * 0.3, Math.sin(t * 1.6) * 0.04);
     av.role = 'shrug';
-    const head = av.bonePos('head'), k = (t - 13.0) / 2.6;
-    return { name: 'payoff', shot: { pos: V(head.x + dir * (1.1 + k * 0.6), head.y + 0.1, 2.6 + k * 1.2), look: V(head.x - dir * 0.2, head.y + 0.1, 0), fov: 34 } };
+    const head = av.bonePos('head'), k = (t - 18.4) / 2.6;
+    return { name: 'payoff', shot: { pos: V(ax + dir * (0.9 + k * 0.3), head.y - 0.3, 3.6 + k * 0.5), look: V(ax + dir * 0.45, head.y - 0.4, 0), fov: 40 } };
   }
 
   /** Puts the victim's legs back, and the room (Metaverse Exile hides both). */

@@ -141,7 +141,7 @@ export function page() {
 }
 
 /** Super prop: a rocket. */
-export function rocket(text = 'TO THE MOON') {
+export function rocket(text = 'TO MARS') {
   const g = new THREE.Group();
   const white = new THREE.MeshToonMaterial({ color: '#eceff3' });
   const dark = new THREE.MeshToonMaterial({ color: '#202530' });
@@ -586,56 +586,100 @@ export function gpuCard(size = 1) {
 }
 
 /**
- * The Super's backdrop: a market screen. tick(k, t): the chart climbs on the GPU pitch (k 0..0.5), then crashes
- * (k 0.5..1) while the loss counts up; a BREAKING ticker scrolls along the bottom once `news` is set.
+ * Jensen's Super backdrop: one keynote screen with four modes.
+ * - peak: the stock at its record ($5.75T), a green line climbing, ALL-TIME HIGH.
+ * - news: BREAKING, the resignation headline (the spy part only as "alleged") and a scrolling ticker.
+ * - statement: his written statement, quoted and dated.
+ * - crash: the line dives and the loss since the reports counts up to $490B.
+ * tick(mode, k, t): k is progress through the mode (0..1), t the seconds since the screen came in.
  */
+export type MarketMode = 'peak' | 'news' | 'statement' | 'crash';
 export function crashScreen() {
   const g = new THREE.Group();
-  const frame = new THREE.Mesh(new THREE.BoxGeometry(5.2, 2.6, 0.14), new THREE.MeshStandardMaterial({ color: '#0b0d12', metalness: 0.5, roughness: 0.4 }));
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.9, 0.14), new THREE.MeshStandardMaterial({ color: '#0b0d12', metalness: 0.5, roughness: 0.4 }));
   g.add(frame);
-  const scr = canvasPlane(5.0, 2.4, 1024, () => {}, 1.35);
+  const scr = canvasPlane(5.4, 2.7, 1280, () => {}, 1.35);
   scr.position.z = 0.08; g.add(scr);
-  const news = 'BREAKING · JACKET JENSEN OUT AFTER AFFAIR REPORTS · ONE PARTNER A SUSPECTED SPY (ALLEGED) · SENATE WANTS ANSWERS · ';
+  const ticker = 'BREAKING · JACKET JENSEN RESIGNS AFTER AFFAIR REPORTS · ONE PARTNER A SUSPECTED SPY (ALLEGED) · BOARD INVESTIGATING · CONGRESS WANTS ANSWERS · ';
   const pts: number[] = []; for (let i = 0; i <= 60; i++) pts.push(Math.sin(i * 0.9) * 0.025 + Math.sin(i * 2.1) * 0.015);
-  g.userData.news = false;
-  g.userData.tick = (k: number, t = 0) => scr.userData.redraw((c: CanvasRenderingContext2D, W: number, H: number) => {
-    c.fillStyle = '#05080a'; c.fillRect(0, 0, W, H);
-    c.strokeStyle = 'rgba(160,255,120,0.1)'; c.lineWidth = 2;
+
+  const grid = (c: CanvasRenderingContext2D, W: number, H: number, col: string) => {
+    c.strokeStyle = col; c.lineWidth = 2;
     for (let x = 0; x < W; x += 64) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
     for (let y = 0; y < H; y += 64) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
-    const crash = Math.max(0, (k - 0.5) * 2), up = Math.min(1, k * 2);
+  };
+  const line = (c: CanvasRenderingContext2D, W: number, H: number, up: number, crash: number) => {
     const n = Math.round(20 + up * 30 + crash * 10);
-    c.lineWidth = 9; c.lineJoin = 'round'; c.strokeStyle = crash > 0.05 ? '#ff4a3d' : '#8be04a';
+    c.lineWidth = 10; c.lineJoin = 'round'; c.strokeStyle = crash > 0.02 ? '#ff4a3d' : '#8be04a';
     c.beginPath();
     for (let i = 0; i <= n; i++) {
-      const x = 40 + (i / 60) * (W - 300);
-      let y = 0.72 - pts[i] - Math.min(i, 50) / 50 * 0.42 * up;
-      if (i > 50) y += ((i - 50) / 10) * 0.6 * crash;
+      const x = 40 + (i / 60) * (W - 360);
+      let y = 0.78 - pts[i] - (Math.min(i, 50) / 50) * 0.32 * up;
+      if (i > 50) y += ((i - 50) / 10) * 0.5 * crash;
       if (i === 0) c.moveTo(x, H * y); else c.lineTo(x, H * y);
     }
     c.stroke();
-    c.textAlign = 'right'; c.textBaseline = 'middle';
-    c.fillStyle = crash > 0.05 ? '#ff4a3d' : '#8be04a'; c.font = `900 120px ${DISPLAY_F()}`;
-    const v = crash > 0.05 ? `−$${Math.round(crash * 1000)}B` : `+${Math.round(up * 240)}%`;
-    c.fillText(v, W - 40, H * 0.2);
-    c.fillStyle = '#d8ffd0'; c.font = `700 38px ${SANS_F()}`;
-    c.fillText(crash > 0.05 ? 'MARKET CAP' : 'THE MORE YOU BUY', W - 44, H * 0.34);
-    c.textAlign = 'left'; c.fillStyle = '#bfe8a8'; c.font = `800 34px ${SANS_F()}`; c.fillText('JKT · CHIPS', 40, H * 0.08);
-    if (g.userData.news) {
-      c.fillStyle = '#c8102e'; c.fillRect(0, H * 0.84, W, H * 0.16);
-      c.fillStyle = '#ffffff'; c.font = `900 56px ${DISPLAY_F()}`; c.textBaseline = 'middle';
-      const tw = c.measureText(news).width, off = (t * 420) % tw;
-      c.fillText(news + news, W * 0.2 - off, H * 0.92);
-      c.fillStyle = '#ffd34d'; c.fillRect(0, H * 0.84, W * 0.18, H * 0.16);
-      c.fillStyle = '#111'; c.textAlign = 'center'; c.font = `900 50px ${DISPLAY_F()}`; c.fillText('LIVE', W * 0.09, H * 0.92);
+  };
+  const tickerBar = (c: CanvasRenderingContext2D, W: number, H: number, t: number) => {
+    c.fillStyle = '#c8102e'; c.fillRect(0, H * 0.85, W, H * 0.15);
+    c.fillStyle = '#ffffff'; c.font = `900 58px ${DISPLAY_F()}`; c.textBaseline = 'middle'; c.textAlign = 'left';
+    const tw = c.measureText(ticker).width, off = (t * 380) % tw;
+    c.fillText(ticker + ticker, W * 0.17 - off, H * 0.925);
+    c.fillStyle = '#ffd34d'; c.fillRect(0, H * 0.85, W * 0.15, H * 0.15);
+    c.fillStyle = '#111'; c.textAlign = 'center'; c.font = `900 52px ${DISPLAY_F()}`; c.fillText('LIVE', W * 0.075, H * 0.925);
+  };
+
+  g.userData.tick = (mode: MarketMode, k: number, t = 0) => scr.userData.redraw((c: CanvasRenderingContext2D, W: number, H: number) => {
+    c.textBaseline = 'middle';
+    if (mode === 'peak' || mode === 'crash') {
+      c.fillStyle = '#05080a'; c.fillRect(0, 0, W, H);
+      grid(c, W, H, mode === 'crash' ? 'rgba(255,90,80,0.1)' : 'rgba(160,255,120,0.1)');
+      line(c, W, H, mode === 'peak' ? k : 1, mode === 'crash' ? k : 0);
+      c.textAlign = 'left'; c.fillStyle = mode === 'crash' ? '#ffb0a8' : '#bfe8a8'; c.font = `800 36px ${SANS_F()}`; c.fillText('JKT · CHIPS', 40, H * 0.08);
+      c.textAlign = 'right';
+      if (mode === 'peak') {
+        c.fillStyle = '#8be04a'; c.font = `900 150px ${DISPLAY_F()}`; c.fillText(`$${(4.2 + k * 1.55).toFixed(2)}T`, W - 40, H * 0.17);
+        c.fillStyle = '#d8ffd0'; c.font = `800 42px ${SANS_F()}`; c.fillText(k > 0.95 ? 'ALL-TIME HIGH' : 'MARKET CAP', W - 44, H * 0.31);
+      } else {
+        c.fillStyle = '#ff4a3d'; c.font = `900 150px ${DISPLAY_F()}`; c.fillText(`−$${Math.round(k * 490)}B`, W - 40, H * 0.17);
+        c.fillStyle = '#ffd6d0'; c.font = `800 38px ${SANS_F()}`; c.fillText('MARKET CAP, SINCE THE REPORTS', W - 44, H * 0.31);
+        tickerBar(c, W, H, t);
+      }
+      return;
     }
+    if (mode === 'news') {
+      c.fillStyle = '#0d0f16'; c.fillRect(0, 0, W, H);
+      const wipe = Math.min(1, k * 4);
+      c.fillStyle = '#c8102e'; c.fillRect(0, H * 0.08, W * wipe, H * 0.24);
+      c.fillStyle = '#ffffff'; c.textAlign = 'left'; c.font = `900 120px ${DISPLAY_F()}`; c.fillText('BREAKING', 50, H * 0.2);
+      if (k > 0.12) {
+        c.font = `900 96px ${DISPLAY_F()}`;
+        c.fillText('JACKET JENSEN RESIGNS', 50, H * 0.44, W - 100);
+        c.fillText('AFTER AFFAIR REPORTS', 50, H * 0.59, W - 100);
+        c.fillStyle = '#ffd34d'; c.font = `800 42px ${SANS_F()}`;
+        c.fillText('ONE PARTNER A SUSPECTED SPY (ALLEGED) · BOARD INVESTIGATING', 50, H * 0.73, W - 100);
+      }
+      tickerBar(c, W, H, t);
+      return;
+    }
+    // statement: a press-release card.
+    c.fillStyle = '#e9e6dc'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#1a1a1a'; c.textAlign = 'left'; c.font = `900 52px ${SANS_F()}`; c.fillText('STATEMENT', 70, H * 0.12);
+    c.fillStyle = '#6a6458'; c.font = `700 34px ${SANS_F()}`; c.fillText('WRITTEN STATEMENT · 17 NOV 2026', 70, H * 0.21);
+    c.fillStyle = '#1a1a1a'; c.fillRect(70, H * 0.28, W - 140, 4);
+    c.globalAlpha = Math.min(1, k * 3);
+    c.font = `italic 700 84px Georgia, serif`;
+    c.fillText('“I created problems for the Board', 70, H * 0.45, W - 140);
+    c.fillText('that I deeply regret.”', 70, H * 0.61, W - 140);
+    c.font = `700 42px ${SANS_F()}`; c.fillStyle = '#4a463e'; c.fillText('— Jacket Jensen', 70, H * 0.79);
+    c.globalAlpha = 1;
   });
-  g.userData.tick(0);
+  g.userData.tick('peak', 0);
   return g;
 }
 
 /** A giant red down arrow, the chart's last leg, that comes down on the opponent. Its tip sits at y = 0. */
-export function crashArrow() {
+export function crashArrow(text = '−$490B') {
   const g = new THREE.Group();
   const red = new THREE.MeshToonMaterial({ color: '#e0302a', emissive: new THREE.Color('#ff2a1a'), emissiveIntensity: 0.25 });
   // One extruded shape: a shaft and a wide head, the tip at the origin.
@@ -645,7 +689,7 @@ export function crashArrow() {
   geo.translate(0, 0, -0.2);
   g.add(new THREE.Mesh(geo, red));
   outlined(g, 0.03);
-  const l = label('−$1T', '#ffffff', 0.6); l.position.set(0, 2.4, 0.35); g.add(l);
+  const l = label(text, '#ffffff', 0.5); l.position.set(0, 2.4, 0.35); g.add(l);
   return g;
 }
 
@@ -894,4 +938,33 @@ export function metaAvatar(id: string, name: string) {
     }
   };
   return g;
+}
+
+/**
+ * The petition to bring Jensen back (190,000+ signatures, Musk's among them): a clipboard that floats in for the last
+ * shot of his Super. The signatures are scribbles; the only legible one is the game's own M. Tusk.
+ */
+export function petitionBoard() {
+  const m = canvasPlane(1.7, 2.1, 640, (c, W, H) => {
+    c.fillStyle = '#5b3a1e'; roundRect(c, 0, 0, W, H, 26); c.fill();
+    c.fillStyle = '#f5f1e6'; c.fillRect(W * 0.06, H * 0.08, W * 0.88, H * 0.88);
+    c.fillStyle = '#9a9a9a'; roundRect(c, W * 0.32, H * 0.015, W * 0.36, H * 0.07, 10); c.fill();
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillStyle = '#c8102e'; c.font = `900 ${Math.round(W * 0.07)}px ${SANS_F()}`; c.fillText('PETITION', W / 2, H * 0.15);
+    c.fillStyle = '#111'; c.font = `900 ${Math.round(W * 0.13)}px ${DISPLAY_F()}`; c.fillText('BRING HIM BACK', W / 2, H * 0.26, W * 0.82);
+    c.fillStyle = '#1d6a2e'; c.font = `900 ${Math.round(W * 0.085)}px ${DISPLAY_F()}`; c.fillText('190,000+ SIGNED', W / 2, H * 0.36);
+    c.strokeStyle = '#2a3a8a'; c.lineWidth = 3; c.lineCap = 'round';
+    for (let i = 0; i < 6; i++) {
+      const y = H * (0.47 + i * 0.075);
+      c.fillStyle = '#c9c3b4'; c.fillRect(W * 0.12, y + 14, W * 0.76, 2);
+      if (i === 3) continue;
+      c.beginPath();
+      for (let x = 0; x < W * 0.5; x += 6) c.lineTo(W * 0.16 + x, y + Math.sin(x * 0.11 + i * 2) * 9 + Math.sin(x * 0.037 + i) * 6);
+      c.stroke();
+    }
+    c.fillStyle = '#2a3a8a'; c.textAlign = 'left'; c.font = `italic 700 ${Math.round(W * 0.075)}px "Snell Roundhand", "Brush Script MT", cursive`;
+    c.fillText('M. Tusk', W * 0.18, H * (0.47 + 3 * 0.075) + 2);
+  });
+  (m.material as THREE.Material).side = THREE.DoubleSide;
+  return m;
 }

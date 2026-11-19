@@ -15,12 +15,14 @@ export type VoiceId =
   | 'carp_lower_purpose' | 'carp_urine' | 'carp_urine_tag' | 'carp_kill_short' | 'carp_poorer' | 'carp_doing_it' | 'carp_crushing'
   | 'carp_batshit' | 'carp_misunderstand' | 'hexseth_texting' | 'hexseth_were_back'
   | 'jensen_more_buy' | 'jensen_common_sense' | 'jensen_ceo_math' | 'jensen_pain' | 'jensen_pain_short' | 'jensen_howard'
+  | 'kennedy_short' | 'jensen_30_days' | 'jensen_wouldnt'
   | 'lootnick_say_no' | 'lootnick_fourth_best' | 'lootnick_addicted'
   | 'mork_run_ads' | 'mork_masculine' | 'mork_beat' | 'mork_ribs' | 'mork_ribs_short' | 'mork_neutered'
   | 'mork_roadmap' | 'mork_legs_full' | 'mork_legs_hard' | 'wite_animal' | 'wite_nine_to_six' | 'wite_why_here';
 
 /** Seconds of each clip, from public/audio/voice/manifest.json. */
 export const VOICE_SECONDS: Record<VoiceId, number> = {
+  kennedy_short: 9.88, jensen_30_days: 5.5, jensen_wouldnt: 0.9,
   tusk_heart: 1.66, tusk_chainsaw: 3.82, tusk_chainsaw_yell: 1.3, tusk_blackmail: 5.46, tusk_gfy: 4.16, tusk_omg: 2.14,
   tusk_too_hard: 3.36, tusk_plus_side: 2.5, tusk_empathy: 5.28, tusk_next_year: 3.28,
   teal_hesitation: 11.4, teal_long_hes: 1.64, teal_losers: 1.48, teal_how_much_time: 1.08, teal_long_time: 2.14,
@@ -58,6 +60,9 @@ export const SOURCES = {
   trailer: 'DOCUMENTARY TRAILER · 2025',
   interview: 'TV INTERVIEW',
   earnings: 'EARNINGS CALL · FEB 2025',
+  affairSenator: 'SENATOR ON THE AFFAIR REPORTS · NOV 2026',
+  rogan: 'PODCAST INTERVIEW · DEC 2025',
+  acquired: 'PODCAST INTERVIEW · OCT 2023',
   cnbc: 'CABLE BUSINESS NEWS · NOV 2025',
   hawaii: 'PRESS GAGGLE · MAR 2025',
   oval: 'OVAL OFFICE · SEP 2025',
@@ -97,7 +102,7 @@ export type SuperInfo = {
   /** Clips that run under the whole Super, with the second each starts. */
   audio: { clip: VoiceId; at: number }[];
   /** Subtitles of the real clip. */
-  subs: { at: number; to: number; text: string; speaker?: string }[];
+  subs: { at: number; to: number; text: string; speaker?: string; /** Overrides `source` for this line. */ source?: string }[];
   source: string;
   seconds: number; hitAt?: number; drain?: [number, number];
   beats: Beat[];
@@ -188,7 +193,7 @@ export const TUSK: FighterInfo = {
       { at: 2.4, kind: 'prop', sub: 'POST ON X · AUG 2018', text: 'Am considering taking Tesla private at $420. Funding secured.' },
       { at: 2.9, kind: 'bubble', side: 'atk', text: 'Considering taking this fight private.' },
       { at: 4.4, kind: 'insert', text: '$420' },
-      { at: 5.4, kind: 'payoff', text: 'TO THE MOON' },
+      { at: 5.4, kind: 'payoff', text: 'TO MARS' },
       { at: 7.5, kind: 'impact' },
       { at: 8.0, kind: 'bubble', side: 'vic', text: 'Wait, is the funding actually secured?!' },
       { at: 9.3, kind: 'stamp', text: 'SEC SETTLEMENT!' },
@@ -568,29 +573,35 @@ export const JENSEN: FighterInfo = {
     },
   ],
   super: {
-    // The owner's market-crash idea, on the record since Nov 2026: he left the company after reports of affairs, one of
-    // them with a woman suspected (alleged, not proven) of spying, and the stock lost close to a trillion dollars. The
-    // allegation is only ever a news ticker; the women are never named or shown.
+    // The affair, then the crash (rebuilt 19 Nov 2026 with the owner). On the record: he resigned on 12 Nov 2026 after
+    // reports of affairs, one with a woman suspected (alleged, not proven) of spying; his written statement said "I created
+    // problems for the Board that I deeply regret"; Nvidia lost about $490B after the reports; a petition to bring him back
+    // passed 190,000 signatures, Musk's among them. Huang has said nothing about it on camera, so his two lines are older
+    // ones that land as irony. The allegation is only a ticker or a senator's quote; the women are never named or shown.
+    // Nothing here repeats his signatures (no GPUs, no "the more you buy", no "pain and suffering").
     name: 'TRILLION-DOLLAR AFFAIR', tag: 'SUPER',
-    audio: [{ clip: 'jensen_common_sense', at: 0.6 }, { clip: 'jensen_pain_short', at: 13.0 }],
+    audio: [{ clip: 'kennedy_short', at: 2.5 }, { clip: 'jensen_30_days', at: 12.6 }, { clip: 'jensen_wouldnt', at: 18.9 }],
     subs: [
-      { at: 0.6, to: 2.4, text: 'This is like common sense.' },
-      { at: 2.4, to: 5.0, text: 'The more GPUs you buy,' },
-      { at: 5.0, to: 8.0, text: 'the more money you save.' },
-      { at: 13.0, to: 14.9, text: 'I wish upon you plenty of pain and suffering.' },
+      { at: 2.5, to: 4.6, speaker: 'SENATOR', source: SOURCES.affairSenator, text: 'I know people have affairs.' },
+      { at: 4.6, to: 6.3, speaker: 'SENATOR', source: SOURCES.affairSenator, text: "I don't recommend it," },
+      { at: 6.3, to: 9.0, speaker: 'SENATOR', source: SOURCES.affairSenator, text: 'but if you do, if you do,' },
+      { at: 9.0, to: 12.4, speaker: 'SENATOR', source: SOURCES.affairSenator, text: "you ought to make sure it's not with a Chinese spy." },
+      { at: 12.6, to: 15.4, source: SOURCES.rogan, text: 'The phrase, "30 days from going out of business,"' },
+      { at: 15.4, to: 18.1, source: SOURCES.rogan, text: "I've used for 33 years." },
+      { at: 18.9, to: 20.4, source: SOURCES.acquired, text: "I wouldn't do it." },
     ],
-    source: SOURCES.gtc,
-    seconds: 15.6, drain: [10.2, 12.0],
+    source: SOURCES.rogan,
+    seconds: 21.0, drain: [13.6, 17.4],
     beats: [
       { at: 0, kind: 'contact' },
       { at: 0.6, kind: 'title' },
-      { at: 2.6, kind: 'prop' },
-      { at: 8.2, kind: 'news' },
-      { at: 8.9, kind: 'bubble', side: 'vic', text: 'I only bought one!' },
-      { at: 10.2, kind: 'crash' },
-      { at: 12.0, kind: 'impact' },
-      { at: 13.0, kind: 'payoff' },
-      { at: 13.4, kind: 'stamp', text: 'MARKET CAP: −$1 TRILLION.' },
+      { at: 2.5, kind: 'news' },
+      { at: 8.4, kind: 'prop' },
+      { at: 12.6, kind: 'crash' },
+      { at: 15.6, kind: 'bubble', side: 'vic', text: 'My index fund!' },
+      { at: 17.4, kind: 'impact' },
+      { at: 18.4, kind: 'payoff' },
+      { at: 19.9, kind: 'stamp', text: 'MARKET CAP: −$490 BILLION.' },
     ],
   },
   barks: { taunt: 'jensen_more_buy' },

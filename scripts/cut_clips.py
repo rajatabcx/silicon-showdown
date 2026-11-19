@@ -94,6 +94,10 @@ CLIPS = [
     ("lootnick_whack_a_mole","lutnick_testify",1404, 1419, "what this showed", "over there"),
     ("covfefe_spy",       "lutnick_testify",  160, 174.6, "the big thing",    "be different"),
     ("kennedy_spy",       "lutnick_testify",  214.5, 231.5, "i mean i'm not",  "chinese spy"),
+    # Jensen's Super, rebuilt 19 Nov 2026: the affair, then the crash.
+    ("kennedy_short",     "lutnick_testify",  219.5, 231.5, "i know people",  "chinese spy"),
+    ("jensen_30_days",    "huang_rogan_30",    42, 58,   "the phrase",        "33 years"),
+    ("jensen_wouldnt",    "huang_wouldnt",     8.5, 13,  "i wouldn't",        "do it"),
     # Mork Zuckerbot (Mark Zuckerberg) and his sidekick Dana Wite (Dana White).
     ("mork_roadmap",      "zuck_legs",        290.3, 297.6, "there's one more", "legs"),
     ("mork_legs",         "zuck_legs",        300.8, 304,  "legs",              "waiting for this"),

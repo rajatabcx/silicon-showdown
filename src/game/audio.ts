@@ -25,7 +25,7 @@ const VOICE_FILES: VoiceId[] = [
   'melania_here_we_go', 'melania_here_it_is',
   'carp_lower_purpose', 'carp_urine', 'carp_urine_tag', 'carp_kill_short', 'carp_poorer', 'carp_doing_it', 'carp_crushing',
   'carp_batshit', 'carp_misunderstand', 'hexseth_texting', 'hexseth_were_back',
-  'jensen_more_buy', 'jensen_common_sense', 'jensen_ceo_math', 'jensen_pain', 'jensen_pain_short', 'jensen_howard',
+  'jensen_more_buy', 'jensen_ceo_math', 'jensen_pain', 'jensen_howard', 'kennedy_short', 'jensen_30_days', 'jensen_wouldnt',
   'lootnick_say_no', 'lootnick_fourth_best', 'lootnick_addicted',
   'mork_run_ads', 'mork_masculine', 'mork_beat', 'mork_ribs', 'mork_ribs_short', 'mork_neutered',
   'mork_roadmap', 'mork_legs_full', 'mork_legs_hard', 'wite_animal', 'wite_nine_to_six', 'wite_why_here',

@@ -552,5 +552,23 @@
     "seconds": 3.5,
     "heard": "and it's just like we're just like beat each other a bit i don't know it's good",
     "source": "zuck_masculine"
+  },
+  "kennedy_short": {
+    "file": "/audio/voice/kennedy_short.mp3",
+    "seconds": 9.88,
+    "heard": "i know people have affairs i don't recommend it but if you do if you do you ought to make sure it's not with a chinese spy",
+    "source": "lutnick_testify"
+  },
+  "jensen_wouldnt": {
+    "file": "/audio/voice/jensen_wouldnt.mp3",
+    "seconds": 0.9,
+    "heard": "i wouldn't do it",
+    "source": "huang_wouldnt"
+  },
+  "jensen_30_days": {
+    "file": "/audio/voice/jensen_30_days.mp3",
+    "seconds": 5.5,
+    "heard": "the phrase days from going out of business i've used for years",
+    "source": "huang_rogan_30"
   }
 }
