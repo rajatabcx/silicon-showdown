@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { isMuted, roundSayAt, setMuted, sfx } from '../audio';
-import { lineSeconds, sigInfo, type FighterInfo, type SigInfo } from '../data/roster';
+import { lineSeconds, ROSTER, sigInfo, type FighterInfo, type SigInfo } from '../data/roster';
 import { fill, pick, TICKER } from '../data/satire';
 import type { Game } from '../Game';
 import { FPS, INTRO_FRAMES, SIDEKICK_HITS, SIG_COOLDOWN, SUPER_COST, TAG_FRAMES, TAG_MANUAL_CARDIO, tierOf } from '../sim/constants';
@@ -249,7 +249,7 @@ export function FightScreen({ game, onDone, onQuit }: Props) {
         <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto_1fr] items-start gap-3 sm:gap-5">
           {([0, 1] as const).map((i) => (
             <div key={i} className={i === 1 ? 'order-3 min-w-0' : 'min-w-0'}>
-              <Side i={i} info={infos[i]} tag={tags[i]} />
+              <Side i={i} info={infos[i]} tag={tags[i]} health={game.defs[i].health} />
               <div className={`mt-1 flex flex-col gap-0.5 ${i === 1 ? 'items-end text-right' : 'items-start'}`}>
                 {combos[i] && (
                   <div key={combos[i]!.k} className="display anim-pop whitespace-nowrap text-2xl leading-none text-[#ffe6a3] drop-shadow-[0_3px_0_#000] sm:text-4xl">
@@ -403,7 +403,9 @@ function Timer() {
   );
 }
 
-function Side({ i, info, tag }: { i: 0 | 1; info: FighterInfo; tag: Tag }) {
+const MAX_HEALTH = Math.max(...ROSTER.map((f) => f.stats.health));
+
+function Side({ i, info, tag, health }: { i: 0 | 1; info: FighterInfo; tag: Tag; health: number }) {
   const right = i === 1;
   return (
     <div className={`flex min-w-0 flex-col gap-1.5 ${right ? 'items-end' : 'items-start'}`}>
@@ -417,7 +419,9 @@ function Side({ i, info, tag }: { i: 0 | 1; info: FighterInfo; tag: Tag }) {
         </span>
       </div>
       {/* Health */}
-      <div className="h-5 w-full skew-x-[-14deg] border-2 border-black bg-[#2a0e10] shadow-[0_0_0_1px_#e3b95a] sm:h-7" style={{ transform: `skewX(${right ? 14 : -14}deg)` }}>
+      {/* Longer bar = more health: the toughest fighter's fills the side, the rest are shorter, anchored at the timer. */}
+      <div className="h-5 w-full skew-x-[-14deg] border-2 border-black bg-[#2a0e10] shadow-[0_0_0_1px_#e3b95a] sm:h-7"
+        style={{ transform: `skewX(${right ? 14 : -14}deg)`, width: `${Math.min(100, (health / MAX_HEALTH) * 100).toFixed(1)}%`, alignSelf: right ? 'flex-start' : 'flex-end' }}>
         <div className={`bar ${right ? 'flip' : ''}`}>
           <div data-hud={`lag${i}`} className="lag bg-[#fff1c9]" />
           <div data-hud={`hp${i}`} className="fill" style={{ background: `linear-gradient(180deg, ${info.accent}, ${info.color} 60%, #5a1414)` }} />

@@ -132,7 +132,10 @@ export type FighterInfo = {
   ego: SimDef['ego'];
   egoNote: string;
   sidekick: SidekickInfo;
-  stats: { walk: number; jump: number; fitness: number };
+  /** health: toughness, 100 = baseline (see SimDef). fitness: cardio. Both from age and public sporting habits. */
+  stats: { walk: number; jump: number; fitness: number; health: number };
+  /** Why their health is what it is, shown on the select screen. Public record only. */
+  healthNote: string;
   win: string;
 };
 
@@ -144,7 +147,8 @@ export const TUSK: FighterInfo = {
   id: 'tusk', name: 'Melon Tusk', title: 'Chief Posting Officer', color: '#e5484d', accent: '#ff9b6a',
   model: '/models/characters/tusk.glb', height: 1.0,
   ego: 'needy', egoNote: 'Needy: Engagement drains twice as fast when he goes quiet.',
-  stats: { walk: 2.2, jump: 7.4, fitness: 0.75 },
+  stats: { walk: 2.2, jump: 7.4, fitness: 0.75, health: 94 },
+  healthNote: 'Age 55. Not known for cardio.',
   win: 'Considering taking this fight private.',
   sigs: [
     {
@@ -224,7 +228,8 @@ export const TEAL: FighterInfo = {
   id: 'teal', name: 'Peter Teal', title: 'Contrarian-in-Chief', color: '#3e8ed0', accent: '#8fd3ff',
   model: '/models/characters/teal.glb', height: 1.04,
   ego: 'contrarian', egoNote: 'Contrarian: Engagement fills while he is losing and drains while he is ahead.',
-  stats: { walk: 2.0, jump: 7.0, fitness: 0.85 },
+  stats: { walk: 2.0, jump: 7.0, fitness: 0.8, health: 90 },
+  healthNote: 'Age 59. Funds research into not dying.',
   win: 'Competition is for losers.',
   sigs: [
     {
@@ -303,7 +308,8 @@ export const BOZO: FighterInfo = {
   id: 'bozo', name: 'Jeff Bozo', title: 'Chief Customer Officer', color: '#f29a1d', accent: '#ffd27a',
   model: '/models/characters/jeffbozo.glb', height: 1.0,
   ego: 'customer', egoNote: 'Customer-obsessed: every hit he takes is feedback. Engagement rises a little when he gets hit.',
-  stats: { walk: 2.1, jump: 7.2, fitness: 1.0 },
+  stats: { walk: 2.1, jump: 7.2, fitness: 1.15, health: 106 },
+  healthNote: 'Age 62. Got very into lifting.',
   win: 'You paid for this.',
   sigs: [
     {
@@ -380,7 +386,8 @@ export const ULTMAN: FighterInfo = {
   id: 'ultman', name: 'Sam Ultman', title: 'Chief Hype Officer', color: '#2fb58a', accent: '#9ff0cf',
   model: '/models/characters/sam.glb', height: 0.96,
   ego: 'hype', egoNote: 'Hype: his Engagement never drains. There is always another announcement.',
-  stats: { walk: 2.2, jump: 7.3, fitness: 0.9 },
+  stats: { walk: 2.2, jump: 7.3, fitness: 1.0, health: 100 },
+  healthNote: 'Age 41. Youngest on the panel.',
   win: 'The most important fight of this era.',
   sigs: [
     {
@@ -451,7 +458,8 @@ export const CARP: FighterInfo = {
   id: 'carp', name: 'Alex Carp', title: 'Chief Targeting Officer', color: '#2f6fe0', accent: '#9fc0ff',
   model: '/models/characters/alex.glb', height: 1.0,
   ego: 'triggered', egoNote: 'Triggered: every hit he takes is someone shorting him, and that is "crazy motivating". Engagement jumps when he gets hit.',
-  stats: { walk: 2.3, jump: 7.6, fitness: 1.05 },
+  stats: { walk: 2.3, jump: 7.6, fitness: 1.25, health: 110 },
+  healthNote: 'Age 59. Cross-country skis.',
   win: "I'm going to be dancing around when it's proven wrong.",
   sigs: [
     {
@@ -536,7 +544,8 @@ export const JENSEN: FighterInfo = {
   id: 'jensen', name: 'Jacket Jensen', title: 'Chief Jacket Officer', color: '#76b900', accent: '#c8f56a',
   model: '/models/characters/jensen.glb', height: 0.97,
   ego: 'marketcap', egoNote: 'Market Cap: every hit he lands pumps the stock, and every heavy hit he takes tanks it. The more you buy, the more you save.',
-  stats: { walk: 2.2, jump: 7.4, fitness: 1.0 },
+  stats: { walk: 2.2, jump: 7.4, fitness: 0.85, health: 88 },
+  healthNote: 'Age 63. Oldest on the panel.',
   win: 'It is not accurate, but it is correct.',
   sigs: [
     {
@@ -619,7 +628,8 @@ export const MORK: FighterInfo = {
   id: 'mork', name: 'Mork Zuckerbot', title: 'Chief Metaverse Officer', color: '#2d7ff9', accent: '#9cc6ff',
   model: '/models/characters/mark.glb', height: 0.98,
   ego: 'harvest', egoNote: 'Harvest: every hit he lands takes Engagement off the opponent and keeps a little. Users don\'t pay for this.',
-  stats: { walk: 2.4, jump: 7.8, fitness: 1.4 },
+  stats: { walk: 2.4, jump: 7.8, fitness: 1.4, health: 120 },
+  healthNote: 'Age 42. Trains MMA and jiu-jitsu.',
   win: 'Senator, we run ads.',
   sigs: [
     {
@@ -707,7 +717,7 @@ export function simDef(f: FighterInfo): SimDef {
   const sigs = f.sigs.map((s) => ({ ...s.sim, quote: s.sim.quote ?? Math.min(SIG_WINDUP, lineFrames(s.line, s.post)) })) as SimDef['sigs'];
   const sp = f.super;
   return {
-    ...f.stats, ego: f.ego, sigs,
+    ...f.stats, power: 1, ego: f.ego, sigs,
     sidekick: { walk: f.sidekick.walk, policy: { ...f.sidekick.policy.sim, quote: lineFrames({ clips: f.sidekick.policy.clips, text: '', source: '' }) } },
     super: {
       frames: Math.round(sp.seconds * FPS), hitAt: Math.round((sp.hitAt ?? 0) * FPS),

@@ -9,7 +9,9 @@ import { hashMatch, newMatch, staging, step } from './match';
 import { makeRng } from './rng';
 import { BTN, type Ev, type Match, type SimDef } from './types';
 
-const DEFS: [SimDef, SimDef] = [simDef(TUSK), simDef(TEAL)];
+/** The exact-damage tests use baseline toughness; per-fighter health has its own tests below. */
+const base = (d: SimDef): SimDef => ({ ...d, health: 100, power: 1 });
+const DEFS: [SimDef, SimDef] = [base(simDef(TUSK)), base(simDef(TEAL))];
 
 function started(): Match {
   const m = newMatch();
@@ -111,6 +113,24 @@ describe('fight simulation', () => {
         }
       }
     }
+  });
+
+  it('a tougher fighter loses less health to the same hit, and power scales what lands', () => {
+    const jab = (defs: [SimDef, SimDef]) => {
+      const m = newMatch();
+      for (let i = 0; i < INTRO_FRAMES; i++) step(m, 0, 0, defs);
+      close(m);
+      for (let i = 0; i < 10; i++) step(m, 0, 0, defs);
+      const hp = m.f[1].hp;
+      step(m, BTN.P, 0, defs);
+      for (let i = 0; i < MOVES.jab.startup + MOVES.jab.active + 2; i++) step(m, 0, 0, defs);
+      return hp - m.f[1].hp;
+    };
+    const plain = jab(DEFS);
+    expect(plain).toBeCloseTo(MOVES.jab.damage);
+    expect(jab([DEFS[0], { ...DEFS[1], health: 120 }])).toBeCloseTo(plain * 100 / 120);
+    expect(jab([DEFS[0], { ...DEFS[1], health: 80 }])).toBeCloseTo(plain * 100 / 80);
+    expect(jab([{ ...DEFS[0], power: 1.3 }, DEFS[1]])).toBeCloseTo(plain * 1.3);
   });
 
   it('walking into a fighter on the floor passes them instead of dragging them', () => {

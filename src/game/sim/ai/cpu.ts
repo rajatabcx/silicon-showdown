@@ -10,18 +10,29 @@ type Profile = {
   block: number; aggro: number; chain: number; superUse: number; antiAir: number;
   /** Chance per decision to go for a signature. */
   sig: number;
+  /** Chance to punish a whiffed attack, and to hit back the moment a block ends. */
+  punish: number;
+  /** Damage dealt and toughness, applied to the CPU's fighter. Hostile Takeover is a boss fight. */
+  power: number; health: number;
 };
 
 export const PROFILES: Record<Difficulty, Profile> = {
-  easy:   { think: 34, block: 0.18, aggro: 0.45, chain: 0.25, superUse: 0.25, antiAir: 0.05, sig: 0.05 },
-  normal: { think: 18, block: 0.42, aggro: 0.7,  chain: 0.6,  superUse: 0.5,  antiAir: 0.3,  sig: 0.09 },
-  hard:   { think: 9,  block: 0.7,  aggro: 0.88, chain: 0.85, superUse: 0.85, antiAir: 0.65, sig: 0.13 },
+  easy:   { think: 34, block: 0.18, aggro: 0.45, chain: 0.25, superUse: 0.25, antiAir: 0.05, sig: 0.05, punish: 0,    power: 0.85, health: 1 },
+  normal: { think: 18, block: 0.42, aggro: 0.7,  chain: 0.6,  superUse: 0.5,  antiAir: 0.3,  sig: 0.09, punish: 0.2,  power: 1,    health: 1 },
+  // Hostile Takeover: reads almost everything, punishes every mistake, and hits like a boss. Beatable, barely.
+  hard:   { think: 4,  block: 0.93, aggro: 0.94, chain: 0.95, superUse: 1,    antiAir: 0.92, sig: 0.18, punish: 0.9,  power: 1.35, health: 1.35 },
 };
 
-export type Cpu = { rng: Rng; p: Profile; queue: [mask: number, frames: number][] };
+/** The CPU's fighter for a difficulty: the same moves, with that level's damage and toughness. */
+export function cpuDef(def: SimDef, difficulty: Difficulty): SimDef {
+  const p = PROFILES[difficulty];
+  return { ...def, power: def.power * p.power, health: def.health * p.health };
+}
+
+export type Cpu = { rng: Rng; p: Profile; queue: [mask: number, frames: number][]; lastBlock: number };
 
 export function makeCpu(difficulty: Difficulty, seed: number): Cpu {
-  return { rng: makeRng(seed), p: PROFILES[difficulty], queue: [] };
+  return { rng: makeRng(seed), p: PROFILES[difficulty], queue: [], lastBlock: -99 };
 }
 
 /** Returns the input bitmask the CPU presses this tick for fighter `me`. */
@@ -48,6 +59,17 @@ export function cpuInput(cpu: Cpu, m: Match, me: 0 | 1, def: SimDef): number {
       cpu.queue = [[back | (mv?.low ? BTN.D : 0), frames]];
     }
   }
+
+  // Punish: an attack that missed is wide open while it recovers; so is the attacker the moment our block ends.
+  if (p.punish > 0 && neutral && !cpu.queue.length && dist < 1.05) {
+    const mv = o.state === 'attack' && o.move ? MOVES[o.move] : null;
+    const whiffed = mv && !o.hit && o.af > mv.startup + mv.active;
+    const blocked = cpu.lastBlock > 0 && m.frame - cpu.lastBlock < 4;
+    if ((whiffed || blocked) && rng() < p.punish) {
+      cpu.queue = [[BTN.P, 2], [0, 5], [BTN.P, 2], [0, 7], [BTN.K, 2]];
+    }
+  }
+  if (f.state === 'blockstun') cpu.lastBlock = m.frame;
 
   if (cpu.queue.length) {
     const head = cpu.queue[0];

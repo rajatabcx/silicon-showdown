@@ -304,13 +304,16 @@ function updateFighter(m: Match, i: 0 | 1, inp: number, defs: Defs) {
 
 const clampX = (x: number) => Math.max(-STAGE_HALF, Math.min(STAGE_HALF, x));
 
+/** How much of a hit lands on fighter `di`'s health, from the attacker's power and the defender's toughness. */
+const scale = (defs: Defs, ai: number, di: number) => defs[ai].power * (100 / defs[di].health);
+
 function dealHit(
-  m: Match, ai: 0 | 1, dir: number, base: number, key: MoveKey | 'sig',
+  m: Match, defs: Defs, ai: 0 | 1, dir: number, base: number, key: MoveKey | 'sig',
   o: { hitstun: number; knockdown?: boolean; launch?: boolean; heavy?: boolean },
 ) {
   const a = m.f[ai], d = m.f[1 - ai];
   const dmg = base * Math.max(0.5, 1 - 0.1 * d.combo) * TIER_DEALT[tierOf(a.eng)] * TIER_TAKEN[tierOf(d.eng)] *
-    (a.tag > 0 ? SIDEKICK_DAMAGE : 1);
+    (a.tag > 0 ? SIDEKICK_DAMAGE : 1) * scale(defs, ai, 1 - ai);
   d.combo++;
   const knock = !!o.knockdown || d.y > 0;
   // A sidekick soaks hits instead of the billionaire's health; three and it's a scandal.
@@ -328,10 +331,10 @@ function dealHit(
   m.events.push({ t: 'hit', by: ai, move: key, heavy: !!o.heavy || key === 'sig', x: d.x, y: d.y + 1.3, dmg, combo: d.combo });
 }
 
-function dealBlock(m: Match, ai: 0 | 1, dir: number, blockstun: number, chip: number, heavy = false) {
+function dealBlock(m: Match, defs: Defs, ai: 0 | 1, dir: number, blockstun: number, chip: number, heavy = false) {
   const d = m.f[1 - ai];
   d.state = 'blockstun'; d.stun = blockstun; d.vx = dir * 0.07; d.frame = 0;
-  if (d.tag <= 0) { d.cardio -= heavy ? 9 : 4; d.hp = Math.max(1, d.hp - chip); }
+  if (d.tag <= 0) { d.cardio -= heavy ? 9 : 4; d.hp = Math.max(1, d.hp - chip * scale(defs, ai, 1 - ai)); }
   m.hitstop = heavy ? 6 : 4;
   m.events.push({ t: 'block', by: ai, x: d.x, y: d.y + 1.3, heavy });
 }
@@ -340,7 +343,7 @@ function inFront(a: Fighter, d: Fighter, range: number) {
   return (d.x - a.x) * a.facing >= -0.3 && Math.abs(d.x - a.x) <= range + REACH_PAD;
 }
 
-function resolveMelee(m: Match, ai: 0 | 1) {
+function resolveMelee(m: Match, ai: 0 | 1, defs: Defs) {
   const a = m.f[ai], d = m.f[1 - ai];
   if (!a.move || a.hit || (a.state !== 'attack' && a.state !== 'jump')) return;
   const mv = MOVES[a.move];
@@ -351,8 +354,8 @@ function resolveMelee(m: Match, ai: 0 | 1) {
   if (air ? a.y - d.y > 1.7 : d.y > (mv.launch ? 2.4 : 1.3)) return;
   a.hit = true;
   const guarded = canGuard(d) && (mv.low ? (d.cur & BTN.D) !== 0 : mv.overhead ? (d.cur & BTN.D) === 0 : true);
-  if (guarded) dealBlock(m, ai, a.facing, mv.blockstun, mv.heavy ? 1 : 0, mv.heavy);
-  else dealHit(m, ai, a.facing, mv.damage, a.move, mv);
+  if (guarded) dealBlock(m, defs, ai, a.facing, mv.blockstun, mv.heavy ? 1 : 0, mv.heavy);
+  else dealHit(m, defs, ai, a.facing, mv.damage, a.move, mv);
 }
 
 function resolveSig(m: Match, ai: 0 | 1, defs: Defs) {
@@ -368,16 +371,16 @@ function resolveSig(m: Match, ai: 0 | 1, defs: Defs) {
     a.sigHits++;
     const last = a.sigHits >= n;
     if (last) a.hit = true;
-    dealHit(m, ai, a.facing, sg.damage, 'sig', { hitstun: 30, knockdown: last && sg.knockdown, heavy: true });
+    dealHit(m, defs, ai, a.facing, sg.damage, 'sig', { hitstun: 30, knockdown: last && sg.knockdown, heavy: true });
   } else if (sg.kind === 'drop') {
     if (a.af !== sg.startup) return;
     a.hit = true;
-    dealHit(m, ai, a.facing, sg.damage, 'sig', { hitstun: 30, knockdown: sg.knockdown, heavy: true });
+    dealHit(m, defs, ai, a.facing, sg.damage, 'sig', { hitstun: 30, knockdown: sg.knockdown, heavy: true });
   }
 }
 
 /** Thrown signatures, all lobbed at a frozen opponent: each one lands (or, if it somehow can't, is removed). */
-function resolveProjectiles(m: Match, owner: 0 | 1) {
+function resolveProjectiles(m: Match, owner: 0 | 1, defs: Defs) {
   for (let k = m.proj.length - 1; k >= 0; k--) {
     const p = m.proj[k];
     if (p.owner !== owner) continue;
@@ -386,7 +389,7 @@ function resolveProjectiles(m: Match, owner: 0 | 1) {
     if (Math.abs(p.x) > STAGE_HALF + 1.5 || p.y < 0) { m.proj.splice(k, 1); continue; }
     const reached = (p.x - d.x) * Math.sign(p.vx) > -0.55;
     if (reached && d.state !== 'superStart') {
-      dealHit(m, p.owner, Math.sign(p.vx), p.dmg, 'sig', { hitstun: 22, knockdown: p.knockdown, heavy: true });
+      dealHit(m, defs, p.owner, Math.sign(p.vx), p.dmg, 'sig', { hitstun: 22, knockdown: p.knockdown, heavy: true });
       m.proj.splice(k, 1);
     }
   }
@@ -473,14 +476,14 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
 
   if (m.phase === 'cine') {
     for (const i of [0, 1] as const) { noteSuper(m.f[i], ins[i] & ~m.f[i].prev); m.f[i].prev = ins[i]; }
-    const ai = m.cineBy, a = m.f[ai], d = m.f[1 - ai], sp = defs[ai].super;
+    const ai = m.cineBy, a = m.f[ai], d = m.f[1 - ai], sp = defs[ai].super, sd = SUPER_DAMAGE * scale(defs, ai, 1 - ai);
     const fr = ++m.phaseFrame;
     if (sp.drain) {
       const [from, to] = sp.drain;
-      if (fr > from && fr <= to) d.hp = Math.max(0.0001, d.hp - SUPER_DAMAGE / (to - from));
+      if (fr > from && fr <= to) d.hp = Math.max(0.0001, d.hp - sd / (to - from));
       if (fr === from + 1) m.events.push({ t: 'superDamage', by: ai });
     } else if (fr === sp.hitAt) {
-      d.hp = Math.max(0.0001, d.hp - SUPER_DAMAGE);
+      d.hp = Math.max(0.0001, d.hp - sd);
       m.events.push({ t: 'superDamage', by: ai });
     }
     if (fr < sp.frames) return;
@@ -543,7 +546,7 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
     other.prev = ins[1 - pi];
     updateFighter(m, pi, ins[pi], defs);
     if (m.phase !== 'fight') return;
-    resolveProjectiles(m, pi);
+    resolveProjectiles(m, pi, defs);
     resolveSig(m, pi, defs);
     feedback(m, defs);
     separate(m);
@@ -559,10 +562,10 @@ export function step(m: Match, in0: number, in1: number, defs: Defs) {
   if (m.phase !== 'fight') return;
   egoTick(m, defs);
 
-  resolveProjectiles(m, 0);
-  resolveProjectiles(m, 1);
-  resolveMelee(m, 0);
-  resolveMelee(m, 1);
+  resolveProjectiles(m, 0, defs);
+  resolveProjectiles(m, 1, defs);
+  resolveMelee(m, 0, defs);
+  resolveMelee(m, 1, defs);
   resolveSig(m, 0, defs);
   resolveSig(m, 1, defs);
   feedback(m, defs);

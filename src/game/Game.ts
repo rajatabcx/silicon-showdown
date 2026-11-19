@@ -3,7 +3,7 @@ import { InputLatch } from './input';
 import { sigInfo, simDef, VOICE_SECONDS, type FighterInfo, type VoiceId } from './data/roster';
 import type { Assets } from './render/assets';
 import { Renderer } from './render/renderer';
-import { cpuInput, makeCpu, type Cpu, type Difficulty } from './sim/ai/cpu';
+import { cpuDef, cpuInput, makeCpu, type Cpu, type Difficulty } from './sim/ai/cpu';
 import { FPS, INTRO_FRAMES, ROUND_END_FRAMES } from './sim/constants';
 import { newMatch, sigOf, step } from './sim/match';
 import { BTN, type Ev, type Match, type SimDef } from './sim/types';
@@ -67,6 +67,8 @@ export class Game {
   start(difficulty: Difficulty) {
     this.match = newMatch();
     this.cpu = makeCpu(difficulty, (Math.random() * 2 ** 31) | 0);
+    // The CPU's fighter carries its level's damage and toughness (Hostile Takeover is a boss fight).
+    this.defs[1] = cpuDef(simDef(this.infos[1]), difficulty);
     this.renderer.attract = false;
     this.running = true;
     this.paused = false;

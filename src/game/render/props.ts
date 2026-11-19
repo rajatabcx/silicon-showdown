@@ -783,3 +783,115 @@ export function legsSign() {
   (m.material as THREE.Material).side = THREE.DoubleSide;
   return m;
 }
+
+/** Who looks like what as a cheap metaverse avatar: hair colour and shape, and the top they wear. */
+const AVATAR_LOOK: Record<string, { hair: string | null; style: 'flat' | 'puff' | 'swept' | 'curly'; top: string; trim: string }> = {
+  tusk:   { hair: '#3b2a20', style: 'flat',  top: '#1b1b1f', trim: '#e5484d' },
+  teal:   { hair: '#c9b48a', style: 'flat',  top: '#2b3e66', trim: '#8fd3ff' },
+  bozo:   { hair: null,      style: 'flat',  top: '#24262c', trim: '#f29a1d' },
+  ultman: { hair: '#5a3b26', style: 'curly', top: '#3a7d5f', trim: '#9ff0cf' },
+  carp:   { hair: '#d9d6cf', style: 'puff',  top: '#1d2f5c', trim: '#9fc0ff' },
+  jensen: { hair: '#b9b9b4', style: 'swept', top: '#111114', trim: '#76b900' },
+  mork:   { hair: '#6b4a2e', style: 'flat',  top: '#3d3f45', trim: '#2d7ff9' },
+};
+
+/**
+ * A deliberately bad metaverse avatar, for Mork's Super: no legs, a torso that just stops, stubby tube arms with
+ * mitten hands, a huge round head with wide, dead eyes and a fixed smile, and a pixelated name tag. Very few
+ * polygons, flat shading, and it animates at about 8 frames a second, like a demo running on a headset.
+ * Faces +Z (like the fighter models); add it to a fighter's root and hide the real model.
+ */
+export function metaAvatar(id: string, name: string) {
+  const look = AVATAR_LOOK[id] ?? { hair: '#4a3626', style: 'flat' as const, top: '#3d3f45', trim: '#9cc6ff' };
+  const g = new THREE.Group();
+  const mat = (color: string, emissive = 0.18) => new THREE.MeshStandardMaterial({
+    color, flatShading: true, roughness: 0.9, metalness: 0, emissive: new THREE.Color(color).multiplyScalar(emissive),
+  });
+  const skin = mat('#f2c9a5', 0.22);
+
+  // Torso: a tapered six-sided tube that ends in mid-air at the waist.
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.21, 0.62, 6, 1), mat(look.top));
+  torso.position.y = 1.08; g.add(torso);
+  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.25, 0.06, 6), mat(look.trim, 0.4));
+  collar.position.y = 1.4; g.add(collar);
+  // One plain stripe across the chest: the only detail it got (nothing that reads as a letter or a logo).
+  const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.262, 0.252, 0.07, 6, 1, true), mat(look.trim, 0.4));
+  stripe.position.y = 1.16; g.add(stripe);
+  // The bottom edge: a flat cap, so you can see there is nothing below.
+  const cut = new THREE.Mesh(new THREE.CircleGeometry(0.21, 6), mat('#6f7380', 0.1));
+  cut.rotation.x = Math.PI / 2; cut.position.y = 0.77; g.add(cut);
+
+  // Arms: stubby tubes from the shoulders, mitten hands, no elbows.
+  const arms: THREE.Group[] = [];
+  for (const s of [-1, 1]) {
+    const arm = new THREE.Group(); arm.position.set(s * 0.31, 1.33, 0);
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.065, 0.46, 5), mat(look.top));
+    tube.position.y = -0.23; arm.add(tube);
+    const mitt = new THREE.Mesh(new THREE.SphereGeometry(0.09, 5, 4), skin);
+    mitt.position.y = -0.5; mitt.scale.set(1, 1.15, 0.8); arm.add(mitt);
+    arm.rotation.z = s * 0.35;
+    g.add(arm); arms.push(arm);
+  }
+
+  // Head: too big, no neck, floating a little above the collar.
+  const head = new THREE.Group(); head.position.y = 1.78; g.add(head);
+  head.add(new THREE.Mesh(new THREE.SphereGeometry(0.32, 7, 5), skin));
+  const eyeW = new THREE.MeshBasicMaterial({ color: '#ffffff' }), eyeB = new THREE.MeshBasicMaterial({ color: '#15151a' });
+  for (const s of [-1, 1]) {
+    const white = new THREE.Mesh(new THREE.CircleGeometry(0.075, 8), eyeW);
+    white.position.set(s * 0.12, 0.05, 0.305); head.add(white);
+    const pupil = new THREE.Mesh(new THREE.CircleGeometry(0.03, 6), eyeB);
+    pupil.position.set(s * 0.12, 0.05, 0.31); head.add(pupil);
+    const brow = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.018, 0.01), eyeB);
+    brow.position.set(s * 0.12, 0.15, 0.3); head.add(brow);
+  }
+  // The smile: a fixed arc that never moves.
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.014, 3, 8, Math.PI), eyeB);
+  smile.position.set(0, -0.1, 0.29); smile.rotation.z = Math.PI; head.add(smile);
+  // Hair, from a very small menu.
+  if (look.hair) {
+    const h = mat(look.hair, 0.15);
+    if (look.style === 'puff') {
+      // A big cloud of hair sitting up and back, so the face still shows.
+      const puff = new THREE.Mesh(new THREE.IcosahedronGeometry(0.4, 0), h); puff.position.set(0, 0.24, -0.12); puff.scale.set(1.2, 0.8, 0.95); head.add(puff);
+    } else if (look.style === 'curly') {
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2, c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 0), h);
+        c.position.set(Math.cos(a) * 0.2, 0.25, Math.sin(a) * 0.18 - 0.04); head.add(c);
+      }
+    } else {
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.335, 7, 4, 0, Math.PI * 2, 0, Math.PI * (look.style === 'swept' ? 0.42 : 0.36)), h);
+      cap.position.set(0, 0.01, -0.02); if (look.style === 'swept') cap.rotation.x = -0.25; head.add(cap);
+    }
+  }
+
+  // Name tag: drawn tiny and stretched, so it comes out pixelated.
+  const tagCv = document.createElement('canvas'); tagCv.width = 64; tagCv.height = 12;
+  const tc = tagCv.getContext('2d')!;
+  tc.fillStyle = 'rgba(10,18,40,0.85)'; tc.fillRect(0, 0, 64, 12);
+  tc.fillStyle = '#ffffff'; tc.font = '9px monospace'; tc.textAlign = 'center'; tc.textBaseline = 'middle';
+  tc.fillText(name.toUpperCase(), 32, 6.5, 62);
+  const tagTex = new THREE.CanvasTexture(tagCv); tagTex.magFilter = THREE.NearestFilter; tagTex.minFilter = THREE.NearestFilter; tagTex.colorSpace = THREE.SRGBColorSpace;
+  const tag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.17), new THREE.MeshBasicMaterial({ map: tagTex, transparent: true, side: THREE.DoubleSide }));
+  tag.position.y = 2.3; g.add(tag);
+
+  // Stepped motion at ~8 fps: a stiff wave, a bob, a head that turns in jumps. `panic` flails the arms instead.
+  let last = -1;
+  g.userData.tick = (t: number, panic = false) => {
+    const step = Math.floor(t * 8);
+    if (step === last) return;
+    last = step;
+    const s = step / 8;
+    g.position.y = Math.round(Math.sin(s * 2.4) * 3) * 0.02;
+    head.rotation.y = Math.round(Math.sin(s * 0.9) * 2) * 0.12;
+    head.rotation.z = Math.round(Math.sin(s * 1.3)) * 0.05;
+    if (panic) {
+      arms.forEach((a, i) => { a.rotation.z = (i ? 1 : -1) * (1.9 + Math.round(Math.sin(s * 9 + i * 2)) * 0.5); a.rotation.x = Math.round(Math.cos(s * 7 + i)) * 0.4; });
+    } else {
+      // Right arm waves, left one hangs.
+      arms[0].rotation.set(0, 0, -0.35);
+      arms[1].rotation.set(0, 0, 2.5 + Math.round(Math.sin(s * 6)) * 0.35);
+    }
+  };
+  return g;
+}

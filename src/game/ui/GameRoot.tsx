@@ -18,7 +18,7 @@ type Paper = { name: string; headline: string; sub: string; won: boolean };
 const LEVELS: { id: Difficulty; name: string; note: string }[] = [
   { id: 'easy', name: 'Intern', note: 'Slow to react, rarely blocks.' },
   { id: 'normal', name: 'Founder', note: 'Fights back and blocks some.' },
-  { id: 'hard', name: 'Hostile Takeover', note: 'Blocks a lot, never lets up.' },
+  { id: 'hard', name: 'Hostile Takeover', note: 'Boss fight. Blocks almost everything, punishes every miss, hits 35% harder.' },
 ];
 
 export function GameRoot() {
@@ -144,20 +144,21 @@ export function GameRoot() {
             <h1 className="display mt-1 text-4xl leading-none text-[#f3ecdc] drop-shadow-[0_5px_0_#000] sm:text-7xl">Select your billionaire</h1>
           </div>
           {/* VS, between the two fighters standing in the room */}
-          <div className="pointer-events-none flex flex-1 items-center justify-center">
+          <div className="pointer-events-none flex min-h-0 flex-1 items-center justify-center overflow-hidden">
             <span className="display text-6xl italic text-[#ffe6a3] sm:text-8xl" style={{ textShadow: '0 6px 0 #000, 0 0 40px rgb(227 185 90 / .5)' }}>VS</span>
           </div>
-          <div className="anim-rise mx-auto grid w-full max-w-6xl grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-end gap-3 px-4 pb-2 sm:gap-5">
+          {/* The two plates keep a fixed width so the satire on them is never cut; the roster scrolls in the space between. */}
+          <div className="anim-rise mx-auto grid w-full max-w-[90rem] shrink-0 grid-cols-2 items-end gap-3 px-4 pb-2 md:grid-cols-[16rem_minmax(0,1fr)_16rem] md:gap-4 xl:grid-cols-[19rem_minmax(0,1fr)_19rem]">
             <Plate f={player} tag="1P · YOU" portraits={portraits} />
-            <div className="flex flex-col items-center gap-2.5">
+            <div className="order-last col-span-2 flex min-w-0 flex-col items-center gap-2.5 md:order-none md:col-span-1">
               <div className="display text-lg tracking-[0.14em] text-[#ffe6a3] drop-shadow-[0_2px_0_#000] sm:text-2xl">Pick your billionaire</div>
-              <div className="flex gap-2" role="radiogroup" aria-label="Play as">
+              <RosterRow pickId={pickId}>
                 {ROSTER.map((f) => (
                   <Tile key={f.id} name={f.name} src={portraits[f.id]} color={f.color} on={pickId === f.id}
                     badges={[pickId === f.id ? '1P' : '', cpu.id === f.id ? 'CPU' : '']} onClick={() => choose(f.id)} />
                 ))}
                 <Tile name="???" locked boss />
-              </div>
+              </RosterRow>
               <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5">
                 <div className="flex items-center gap-1.5" role="radiogroup" aria-label="CPU level">
                   <span className="mono text-[10px] tracking-[0.25em] text-white/50">CPU</span>
@@ -214,20 +215,86 @@ function Plate({ f, tag, right, portraits }: { f: FighterInfo; tag: string; righ
     <div key={f.id} className={`panel anim-rise flex min-w-0 flex-col gap-1 border-2 p-3 sm:p-4 ${right ? 'items-end text-right' : 'items-start text-left'}`}
       style={{ borderColor: f.color, clipPath: right ? 'polygon(18px 0, 100% 0, 100% 100%, 0 100%)' : 'polygon(0 0, calc(100% - 18px) 0, 100% 100%, 0 100%)' }}>
       <span className="display px-2 py-0.5 text-sm tracking-wider text-black" style={{ background: f.accent }}>{tag}</span>
-      <span className="display text-3xl leading-none text-white drop-shadow-[0_3px_0_#000] sm:text-5xl">{f.name}</span>
+      <span className={`display break-words leading-none text-white drop-shadow-[0_3px_0_#000] ${f.name.length > 12 ? 'text-2xl sm:text-[2.1rem] xl:text-[2.6rem]' : 'text-3xl sm:text-4xl xl:text-5xl'}`}>{f.name}</span>
       <span className="mono text-[10px] tracking-[0.25em]" style={{ color: f.accent }}>{f.title.toUpperCase()}</span>
       <span className="mt-1 text-sm text-white/80"><span className="mono mr-1.5 text-[10px] tracking-widest text-white/45">SUPER</span><span className="display tracking-wide text-[#ffe6a3]">{f.super.name}</span></span>
       <div className={`flex items-center gap-2 ${right ? 'flex-row-reverse' : ''}`}>
         {/* eslint-disable-next-line @next/next/no-img-element -- a data URL photographed from the 3D model */}
         {sk && <img src={sk} alt="" className="h-9 w-9 rounded-full border border-[#e3b95a]/60 bg-black/50 object-cover" />}
-        <span className="text-sm text-white/80"><span className="mono mr-1.5 text-[10px] tracking-widest text-white/45">SIDEKICK</span>{f.sidekick.name}</span>
+        <span className="text-sm text-white/80"><span className="mono mr-1.5 hidden text-[10px] tracking-widest text-white/45 sm:inline">SIDEKICK</span>{f.sidekick.name}</span>
       </div>
+      <Vitals f={f} right={right} />
       <ul className="mt-1 hidden flex-col gap-0.5 text-xs text-white/70 lg:flex">
         {f.sigs.map((s, i) => (
           <li key={s.name}><span className="mono text-[10px] text-white/40">{['L', 'L+FWD', 'L+DOWN'][i]}</span> {s.name}</li>
         ))}
       </ul>
       <p className="mt-1 hidden max-w-[18rem] text-[11px] leading-snug text-white/50 md:block">{f.egoNote}</p>
+    </div>
+  );
+}
+
+const MAX_HEALTH = Math.max(...ROSTER.map((f) => f.stats.health));
+const MAX_FITNESS = Math.max(...ROSTER.map((f) => f.stats.fitness));
+
+/** Health and cardio as two short meters, with the public-record reason for them. */
+function Vitals({ f, right }: { f: FighterInfo; right?: boolean }) {
+  const meter = (label: string, k: number, value: string, color: string) => (
+    <div className={`flex w-full items-center gap-1.5 ${right ? 'flex-row-reverse' : ''}`}>
+      <span className="mono w-12 shrink-0 text-[9px] tracking-widest text-white/45">{label}</span>
+      <span className="relative h-1.5 w-24 shrink-0 bg-white/10 sm:w-28">
+        <span className={`absolute inset-y-0 ${right ? 'right-0' : 'left-0'}`} style={{ width: `${Math.round(k * 100)}%`, background: color }} />
+      </span>
+      <span className="mono text-[10px] text-white/70">{value}</span>
+    </div>
+  );
+  return (
+    <div className={`mt-1 flex w-full flex-col gap-0.5 ${right ? 'items-end' : 'items-start'}`}>
+      {meter('HEALTH', f.stats.health / MAX_HEALTH, String(f.stats.health), '#ff6b6b')}
+      {meter('CARDIO', f.stats.fitness / MAX_FITNESS, `${f.stats.fitness.toFixed(2).replace(/0$/, '')}×`, '#7fd3ff')}
+      <span className="text-[11px] italic text-white/55">{f.healthNote}</span>
+    </div>
+  );
+}
+
+/** The roster: one row that scrolls sideways (wheel, drag, swipe or the arrows) and keeps the pick in view. */
+function RosterRow({ pickId, children }: { pickId: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState({ l: false, r: false });
+  const measure = useCallback(() => {
+    const el = ref.current;
+    if (el) setEdge({ l: el.scrollLeft > 2, r: el.scrollLeft + el.clientWidth < el.scrollWidth - 2 });
+  }, []);
+  useEffect(() => {
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [measure]);
+  // Keep the picked fighter on screen when A/D moves past the edge.
+  useEffect(() => {
+    const el = ref.current?.querySelector<HTMLElement>('[aria-checked="true"]');
+    el?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  }, [pickId]);
+  const by = (d: number) => { sfx('ui'); ref.current?.scrollBy({ left: d * (ref.current.clientWidth * 0.8), behavior: 'smooth' }); };
+  const arrow = (d: -1 | 1, show: boolean) => (
+    <button type="button" aria-label={d < 0 ? 'Scroll roster left' : 'Scroll roster right'} onClick={() => by(d)} tabIndex={-1}
+      className={`display absolute top-1/2 z-10 flex h-10 w-8 -translate-y-1/2 items-center justify-center border border-[#e3b95a]/60 bg-black/85 text-xl text-[#ffe6a3] shadow-[0_0_0_2px_#000] transition-opacity hover:bg-[#1d2a52] ${d < 0 ? 'left-0' : 'right-0'} ${show ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+      {d < 0 ? '‹' : '›'}
+    </button>
+  );
+  const fade = `linear-gradient(90deg, ${edge.l ? 'transparent' : '#000'}, #000 2.5rem, #000 calc(100% - 2.5rem), ${edge.r ? 'transparent' : '#000'})`;
+  return (
+    <div className="relative w-full max-w-full">
+      {arrow(-1, edge.l)}
+      <div ref={ref} onScroll={measure} onWheel={(e) => { const el = ref.current; if (el && Math.abs(e.deltaY) > Math.abs(e.deltaX)) el.scrollLeft += e.deltaY; }} role="radiogroup" aria-label="Play as"
+        className="flex snap-x snap-proximity gap-2 overflow-x-auto px-1 pb-2 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0 [&>*]:snap-center"
+        style={{ maskImage: fade, WebkitMaskImage: fade }}>
+        {/* Centre the row when everyone fits; scroll when they don't. */}
+        <span aria-hidden className="ml-auto !shrink" />
+        {children}
+        <span aria-hidden className="mr-auto !shrink" />
+      </div>
+      {arrow(1, edge.r)}
     </div>
   );
 }

@@ -49,6 +49,10 @@ export type Ego = 'needy' | 'contrarian' | 'customer' | 'hype' | 'triggered' | '
 /** The stats the simulation needs about a fighter. Looks and lines live in data/. */
 export type SimDef = {
   walk: number; jump: number; fitness: number;
+  /** Toughness: 100 is the baseline. Every hit taken is scaled by 100 / health, so 120 lasts a fifth longer. */
+  health: number;
+  /** Damage dealt multiplier: 1 for everyone, above 1 only for the Hostile Takeover CPU. */
+  power: number;
   sigs: [SigDef, SigDef, SigDef];
   super: SuperDef;
   ego: Ego;

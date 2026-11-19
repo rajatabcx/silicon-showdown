@@ -14,7 +14,7 @@ import { FighterView, hipsRest } from './character';
 import {
   adCard, adPanel, announcementScreen, bill, chatPhone, crashArrow, crashScreen, drone, errorCard, exportStamp, gate, gpuCard, label,
   legsSign, meteor, modelProp, moviePoster, octagonCage, page, parcel, postCard, reticle, rocket, sauceBottle, shortChart, sprayDrop,
-  strikeMissile, talkShowSet, tickerScreen, typingDots, vrVoid,
+  strikeMissile, talkShowSet, tickerScreen, typingDots, vrVoid, metaAvatar,
 } from './props';
 import { catSprite, tariffStamp } from './sidekick';
 import { Stage, type Mood } from './stage';
@@ -1333,10 +1333,11 @@ class CineState {
   /** Puts the victim's legs back, and the room (Metaverse Exile hides both). */
   private restore: (() => void) | null = null;
   private unroom: (() => void) | null = null;
+  private avatar: THREE.Object3D | null = null;
 
   /**
    * METAVERSE EXILE. "One more feature coming soon…": the room drops away into a low-poly VR void, a neon grid and a
-   * wire dome. The opponent is an avatar now, floating with no legs. "…the most requested feature on our roadmap. Legs."
+   * wire dome. The opponent is a cheap metaverse avatar now (props.metaAvatar), floating with no legs. "…the most requested feature on our roadmap. Legs."
    * A sign floats in: LEGS · COMING SOON. "Legs! I know you've been waiting for this.": he throws them out of the void,
    * spinning, and they land back in the hearing room. "But seriously, legs are hard": tight on him, deadpan.
    */
@@ -1353,17 +1354,22 @@ class CineState {
       (this.objs.void.userData.tick as (t: number) => void)(r.now());
     }
     this.tint = inVoid ? CYAN : null;
-    // No legs in the metaverse: the leg bones are folded away to nothing while they're in it.
-    const legless = t > 4.4 && t < 11.6;
-    if (legless) {
-      if (!this.restore) {
-        const bones = ['mixamorigLeftUpLeg', 'mixamorigRightUpLeg'].map((n) => vv.root.getObjectByName(n)).filter((b): b is THREE.Object3D => !!b);
-        const was = bones.map((b) => b.scale.clone());
-        this.restore = () => bones.forEach((b, i) => b.scale.copy(was[i]));
-      }
-      ['mixamorigLeftUpLeg', 'mixamorigRightUpLeg'].forEach((n) => vv.root.getObjectByName(n)?.scale.setScalar(0.001));
-      if (t < 9.4) vv.root.position.y += 0.35 + Math.sin(r.now() * 2.2) * 0.08;
-    } else if (this.restore) { this.restore(); this.restore = null; }
+    // In the metaverse the opponent is a cheap avatar: no legs, dead eyes, a pixelated name tag, 8 fps. The real
+    // model is hidden and comes back when they're thrown out of the void.
+    if (inVoid && this.once('avatar')) {
+      const a = metaAvatar(vv.info.id, vv.info.name);
+      vv.root.add(a); vv.model.visible = false; this.avatar = a;
+      this.restore = () => { vv.model.visible = true; vv.root.remove(a); this.avatar = null; };
+      r.fxBurst(V(vx, 1.3, 0.3), 24, '#9cc6ff', 8);
+    }
+    if (this.avatar) {
+      if (inVoid) {
+        // Always square on to the camera, the way demo avatars stand.
+        this.avatar.rotation.y = -vv.root.rotation.y;
+        (this.avatar.userData.tick as (t: number, panic: boolean) => void)(r.now(), t > 9.4);
+        if (t < 9.4) vv.root.position.y += 0.12 + Math.round(Math.sin(r.now() * 2.2) * 2) * 0.04;
+      } else if (this.restore) { this.restore(); this.restore = null; }
+    }
     // The sign drifts in beside the opponent.
     if (t > 6.6 && t < 9.4) {
       if (!this.objs.sign) { const s = legsSign(); this.add(r, 'sign', s); r.fxKick(0.15, 0.1, 0.4); }
@@ -1409,7 +1415,10 @@ class CineState {
       if (this.once('eject')) { r.fxKick(0.4, 0.2, 0.7); st.cheer(1.2); }
       const k = clamp01((t - 9.4) / 2.2);
       vv.root.position.y += 0.35 + Math.sin(Math.PI * k) * 2.2;
-      vv.root.rotation.z = dir * k * Math.PI * 2;
+      // Spin about the middle of the body, not the feet, so they tumble in place instead of swinging out of frame.
+      const th = dir * k * Math.PI * 2, c = 1.3;
+      vv.root.rotation.z = th;
+      vv.root.position.x += c * Math.sin(th); vv.root.position.y += c * (1 - Math.cos(th));
       return { name: 'eject', shot: { pos: V(vx - dir * 2.6, 2.0, 7.6), look: V(vx, 1.3 + Math.sin(Math.PI * k) * 2.0, 0), fov: 46 } };
     }
     vv.root.rotation.z = 0;
